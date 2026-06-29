@@ -551,8 +551,13 @@ export default function App() {
     // 1. Synchronize Pest Reports via Firestore in real-time
     const unsubscribeReports = subscribeCollection<ReportItem>("serviceReports", (list) => {
       if (list && list.length > 0) {
-        setReports(list);
-        localStorage.setItem("ALW_STARE_ERP_REPORTS", JSON.stringify(list));
+        setReports((curr) => {
+          if (JSON.stringify(curr) !== JSON.stringify(list)) {
+            localStorage.setItem("ALW_STARE_ERP_REPORTS", JSON.stringify(list));
+            return list;
+          }
+          return curr;
+        });
       } else {
         // Fallback: seed from local storage if standard list is empty
         const saved = localStorage.getItem("ALW_STARE_ERP_REPORTS");
@@ -560,8 +565,13 @@ export default function App() {
           try {
             const parsed = JSON.parse(saved);
             if (Array.isArray(parsed) && parsed.length > 0) {
-              setReports(parsed);
-              saveDocumentsBulk("serviceReports", parsed);
+              setReports((curr) => {
+                if (JSON.stringify(curr) !== JSON.stringify(parsed)) {
+                  saveDocumentsBulk("serviceReports", parsed);
+                  return parsed;
+                }
+                return curr;
+              });
             }
           } catch (e) {}
         }
@@ -571,52 +581,102 @@ export default function App() {
     // 2. Synchronize Locations Registry in real-time
     const unsubscribeLocations = subscribeCollection<LocationRegistryItem>("locations", (list) => {
       if (list && list.length > 0) {
-        setLocations(list);
-        localStorage.setItem("ALW_LOCATIONS_REGISTRY", JSON.stringify(list));
+        setLocations((curr) => {
+          if (JSON.stringify(curr) !== JSON.stringify(list)) {
+            localStorage.setItem("ALW_LOCATIONS_REGISTRY", JSON.stringify(list));
+            return list;
+          }
+          return curr;
+        });
       } else {
-        setLocations(INITIAL_LOCATIONS_REGISTRY);
-        localStorage.setItem("ALW_LOCATIONS_REGISTRY", JSON.stringify(INITIAL_LOCATIONS_REGISTRY));
-        saveDocumentsBulk("locations", INITIAL_LOCATIONS_REGISTRY);
+        setLocations((curr) => {
+          if (JSON.stringify(curr) !== JSON.stringify(INITIAL_LOCATIONS_REGISTRY)) {
+            localStorage.setItem("ALW_LOCATIONS_REGISTRY", JSON.stringify(INITIAL_LOCATIONS_REGISTRY));
+            saveDocumentsBulk("locations", INITIAL_LOCATIONS_REGISTRY);
+            return INITIAL_LOCATIONS_REGISTRY;
+          }
+          return curr;
+        });
       }
     });
 
     // 3. Synchronize Supervisors Registry in real-time
     const unsubscribeSupervisors = subscribeCollection<SupervisorRegistryItem>("supervisors", (list) => {
       if (list && list.length > 0) {
-        setSupervisors(list);
-        localStorage.setItem("ALW_SUPERVISORS_REGISTRY", JSON.stringify(list));
+        setSupervisors((curr) => {
+          if (JSON.stringify(curr) !== JSON.stringify(list)) {
+            localStorage.setItem("ALW_SUPERVISORS_REGISTRY", JSON.stringify(list));
+            return list;
+          }
+          return curr;
+        });
       } else {
-        setSupervisors(INITIAL_SUPERVISORS_REGISTRY);
-        localStorage.setItem("ALW_SUPERVISORS_REGISTRY", JSON.stringify(INITIAL_SUPERVISORS_REGISTRY));
-        saveDocumentsBulk("supervisors", INITIAL_SUPERVISORS_REGISTRY);
+        setSupervisors((curr) => {
+          if (JSON.stringify(curr) !== JSON.stringify(INITIAL_SUPERVISORS_REGISTRY)) {
+            localStorage.setItem("ALW_SUPERVISORS_REGISTRY", JSON.stringify(INITIAL_SUPERVISORS_REGISTRY));
+            saveDocumentsBulk("supervisors", INITIAL_SUPERVISORS_REGISTRY);
+            return INITIAL_SUPERVISORS_REGISTRY;
+          }
+          return curr;
+        });
       }
     });
 
     // 4. Synchronize Branding & Security Passwords in real-time
     const unsubscribeBranding = subscribeBrandingData((b) => {
       if (b.companyBrand) {
-        setCompanyBrand(b.companyBrand);
-        localStorage.setItem("ALW_STAR_COMPANY_BRAND", b.companyBrand);
+        setCompanyBrand((curr) => {
+          if (curr !== b.companyBrand) {
+            localStorage.setItem("ALW_STAR_COMPANY_BRAND", b.companyBrand);
+            return b.companyBrand;
+          }
+          return curr;
+        });
       }
       if (b.companySubtitle) {
-        setCompanySubtitle(b.companySubtitle);
-        localStorage.setItem("ALW_STAR_COMPANY_SUBTITLE", b.companySubtitle);
+        setCompanySubtitle((curr) => {
+          if (curr !== b.companySubtitle) {
+            localStorage.setItem("ALW_STAR_COMPANY_SUBTITLE", b.companySubtitle);
+            return b.companySubtitle;
+          }
+          return curr;
+        });
       }
       if (b.profileUser) {
-        setProfileUser(b.profileUser);
-        localStorage.setItem("ALW_STAR_PROFILE_USER", b.profileUser);
+        setProfileUser((curr) => {
+          if (curr !== b.profileUser) {
+            localStorage.setItem("ALW_STAR_PROFILE_USER", b.profileUser);
+            return b.profileUser;
+          }
+          return curr;
+        });
       }
       if (b.profileEmail) {
-        setProfileEmail(b.profileEmail);
-        localStorage.setItem("ALW_STAR_PROFILE_EMAIL", b.profileEmail);
+        setProfileEmail((curr) => {
+          if (curr !== b.profileEmail) {
+            localStorage.setItem("ALW_STAR_PROFILE_EMAIL", b.profileEmail);
+            return b.profileEmail;
+          }
+          return curr;
+        });
       }
-      if (b.profileAvatarUrl) {
-        setProfileAvatarUrl(b.profileAvatarUrl);
-        localStorage.setItem("ALW_STAR_PROFILE_AVATAR", b.profileAvatarUrl);
+      if (b.profileAvatarUrl !== undefined) {
+        setProfileAvatarUrl((curr) => {
+          if (curr !== b.profileAvatarUrl) {
+            localStorage.setItem("ALW_STAR_PROFILE_AVATAR", b.profileAvatarUrl || "");
+            return b.profileAvatarUrl || "";
+          }
+          return curr;
+        });
       }
       if (b.appPassword) {
-        setAppPassword(b.appPassword);
-        localStorage.setItem("ALW_STAR_APP_PASSWORD", b.appPassword);
+        setAppPassword((curr) => {
+          if (curr !== b.appPassword) {
+            localStorage.setItem("ALW_STAR_APP_PASSWORD", b.appPassword);
+            return b.appPassword;
+          }
+          return curr;
+        });
       }
     });
 
@@ -649,10 +709,18 @@ export default function App() {
   };
 
   const handleAddReport = async (newReport: ReportItem) => {
-    // Offline-First: update local state instantly so user never loses entry
-    const updated = [newReport, ...reports];
-    setReports(updated);
-    localStorage.setItem("ALW_STARE_ERP_REPORTS", JSON.stringify(updated));
+    // Offline-First: update local state instantly so user never loses entry using functional updates to prevent loss of past records
+    setReports((prev) => {
+      const exists = prev.some(r => r.id === newReport.id);
+      let updated;
+      if (exists) {
+        updated = prev.map(r => r.id === newReport.id ? newReport : r);
+      } else {
+        updated = [newReport, ...prev];
+      }
+      localStorage.setItem("ALW_STARE_ERP_REPORTS", JSON.stringify(updated));
+      return updated;
+    });
 
     try {
       if (newReport.id) {
@@ -664,10 +732,12 @@ export default function App() {
   };
 
   const handleUpdateReport = async (updatedReport: ReportItem) => {
-    // Offline-First: update local state instantly
-    const updated = reports.map(r => r.id === updatedReport.id ? updatedReport : r);
-    setReports(updated);
-    localStorage.setItem("ALW_STARE_ERP_REPORTS", JSON.stringify(updated));
+    // Offline-First: update local state instantly using functional updates
+    setReports((prev) => {
+      const updated = prev.map(r => r.id === updatedReport.id ? updatedReport : r);
+      localStorage.setItem("ALW_STARE_ERP_REPORTS", JSON.stringify(updated));
+      return updated;
+    });
     setEditingReport(null);
 
     try {
@@ -680,10 +750,12 @@ export default function App() {
   };
 
   const handleDeleteReport = async (id: string) => {
-    // Offline-First: update local state instantly
-    const updated = reports.filter(r => r.id !== id);
-    setReports(updated);
-    localStorage.setItem("ALW_STARE_ERP_REPORTS", JSON.stringify(updated));
+    // Offline-First: update local state instantly using functional updates
+    setReports((prev) => {
+      const updated = prev.filter(r => r.id !== id);
+      localStorage.setItem("ALW_STARE_ERP_REPORTS", JSON.stringify(updated));
+      return updated;
+    });
 
     try {
       await deleteDocument("serviceReports", id);

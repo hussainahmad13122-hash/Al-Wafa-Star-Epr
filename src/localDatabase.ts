@@ -94,6 +94,11 @@ export async function saveDocument(collName: string, docId: string, data: any): 
     const existingIndex = list.findIndex(r => r.id === docId);
     const recordPayload = { ...cleanData, id: docId };
     if (existingIndex >= 0) {
+      const currentRecordStr = JSON.stringify(list[existingIndex]);
+      const newRecordStr = JSON.stringify(recordPayload);
+      if (currentRecordStr === newRecordStr) {
+        return recordPayload; // No changes, return early
+      }
       list[existingIndex] = recordPayload;
     } else {
       list.push(recordPayload);
@@ -109,19 +114,28 @@ export async function saveDocument(collName: string, docId: string, data: any): 
 export async function saveDocumentsBulk(collName: string, items: any[]): Promise<void> {
   try {
     const list = await getLocalDocuments<any>(collName);
+    let changed = false;
     for (const item of items) {
       const cleanData = sanitizeFirestoreData(item);
       if (!cleanData.id) continue;
       const existingIndex = list.findIndex(r => r.id === cleanData.id);
       const recordPayload = { ...cleanData };
       if (existingIndex >= 0) {
-        list[existingIndex] = recordPayload;
+        const currentRecordStr = JSON.stringify(list[existingIndex]);
+        const newRecordStr = JSON.stringify(recordPayload);
+        if (currentRecordStr !== newRecordStr) {
+          list[existingIndex] = recordPayload;
+          changed = true;
+        }
       } else {
         list.push(recordPayload);
+        changed = true;
       }
     }
-    localStorage.setItem(STORAGE_PREFIX + collName, JSON.stringify(list));
-    notifySubscribers(collName, list);
+    if (changed) {
+      localStorage.setItem(STORAGE_PREFIX + collName, JSON.stringify(list));
+      notifySubscribers(collName, list);
+    }
   } catch (e) {
     console.warn("Local persistence bulk write error", e);
   }
@@ -131,6 +145,9 @@ export async function deleteDocument(collName: string, docId: string): Promise<v
   try {
     const list = await getLocalDocuments<any>(collName);
     const filtered = list.filter(r => r.id !== docId);
+    const currentStr = JSON.stringify(list);
+    const filteredStr = JSON.stringify(filtered);
+    if (currentStr === filteredStr) return; // No change
     localStorage.setItem(STORAGE_PREFIX + collName, JSON.stringify(filtered));
     notifySubscribers(collName, filtered);
   } catch (e) {
@@ -154,7 +171,12 @@ export async function getStoreValue<T>(key: string, defaultVal: T): Promise<T> {
 
 export async function saveStoreValue<T>(key: string, value: T): Promise<void> {
   try {
-    localStorage.setItem(STORAGE_PREFIX + "store_" + key, JSON.stringify(value));
+    const rawCurrent = localStorage.getItem(STORAGE_PREFIX + "store_" + key);
+    const newStr = JSON.stringify(value);
+    if (rawCurrent === newStr) {
+      return; // No change, prevent notifying
+    }
+    localStorage.setItem(STORAGE_PREFIX + "store_" + key, newStr);
     notifySubscribers("store_" + key, value);
   } catch (err) {
     console.warn("Local storage save error", err);
@@ -175,6 +197,13 @@ export async function saveBrandingData(data: any): Promise<void> {
   try {
     const current = await getBrandingData();
     const updated = { ...current, ...data };
+    
+    const currentStr = JSON.stringify(current);
+    const updatedStr = JSON.stringify(updated);
+    if (currentStr === updatedStr) {
+      return; // Do nothing if identical
+    }
+    
     localStorage.setItem(STORAGE_PREFIX + "branding", JSON.stringify(updated));
     notifySubscribers("branding", updated);
   } catch (e) {}
@@ -191,7 +220,13 @@ export async function getRegisteredUsers(): Promise<any[]> {
 
 export async function saveRegisteredUsers(users: any[]): Promise<void> {
   try {
-    localStorage.setItem(STORAGE_PREFIX + "users", JSON.stringify(users));
+    const current = await getRegisteredUsers();
+    const currentStr = JSON.stringify(current);
+    const newStr = JSON.stringify(users);
+    if (currentStr === newStr) {
+      return; // No change
+    }
+    localStorage.setItem(STORAGE_PREFIX + "users", newStr);
     notifySubscribers("users", users);
   } catch (e) {}
 }
