@@ -337,7 +337,7 @@ export default function Dashboard({
   const [fbStorageBucket, setFbStorageBucket] = useState(firebaseConfig.storageBucket || "");
   const [fbMessagingSenderId, setFbMessagingSenderId] = useState(firebaseConfig.messagingSenderId || "");
   const [fbAppId, setFbAppId] = useState(firebaseConfig.appId || "");
-  const [fbMeasurementId, setFbMeasurementId] = useState(firebaseConfig.measurementId || "");
+  const [fbMeasurementId, setFbMeasurementId] = useState((firebaseConfig as any).measurementId || "");
   const [fbDatabaseId, setFbDatabaseId] = useState((firebaseConfig as any).firestoreDatabaseId || "");
   const [fbIsSaving, setFbIsSaving] = useState(false);
   const [fbRawConfigPaste, setFbRawConfigPaste] = useState("");

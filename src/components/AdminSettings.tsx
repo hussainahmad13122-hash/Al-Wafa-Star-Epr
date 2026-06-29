@@ -751,50 +751,230 @@ export default function AdminSettings({
     }
   };
 
-  const handleImportDatabase = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (!file) return;
+  const handleImportDatabase = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const files = event.target.files;
+    if (!files || files.length === 0) return;
 
-    const reader = new FileReader();
-    reader.onload = (e) => {
-      try {
-        const data = JSON.parse(e.target?.result as string);
-        if (typeof data !== "object" || data === null) {
-          throw new Error("Invalid backup format");
+    const confirmMerge = window.confirm(
+      language === "bn"
+        ? "আপনি কি এই ফাইল(গুলি) রিস্টোর করতে চান? এটি আপনার বর্তমান ডাটায় কোনো ক্ষতি না করে নতুন রিপোর্ট ও তথ্যগুলোকে অটোমেটিকলি যুক্ত (Merge) করে দিবে।"
+        : "Are you sure you want to import this file(s)? This will automatically merge newly found reports and registry entries with your current local database."
+    );
+    if (!confirmMerge) return;
+
+    let totalServiceReportsImported = 0;
+    let totalEngineeringReportsImported = 0;
+    let totalLocationsImported = 0;
+    let totalSupervisorsImported = 0;
+    let totalRequisitionsImported = 0;
+    let totalOtherKeysImported = 0;
+    let filesProcessed = 0;
+
+    const fileList = Array.from(files) as File[];
+
+    const mergeArraysById = (existingList: any[], newList: any[]) => {
+      const merged = [...existingList];
+      newList.forEach(newItem => {
+        if (!newItem || typeof newItem !== "object") return;
+        const existingIndex = merged.findIndex(item => item && item.id === newItem.id);
+        if (existingIndex > -1) {
+          merged[existingIndex] = { ...merged[existingIndex], ...newItem };
+        } else {
+          merged.push(newItem);
         }
-
-        // Validate at least some keys
-        const keys = Object.keys(data);
-        const hasAlwKeys = keys.some(k => k.startsWith("ALW_") || k.startsWith("alwafa_") || k.startsWith("al-wafa-") || k.startsWith("store_"));
-        if (!hasAlwKeys) {
-          alert(language === "bn" ? "ভুল ফাইল! এটি কোনো সঠিক আল ওয়াফা স্টার ব্যাকআপ ফাইল নয়।" : "Invalid backup file! No Al Wafa Star keys detected.");
-          return;
-        }
-
-        if (confirm(language === "bn" ? "আপনি কি এই ব্যাকআপটি রিস্টোর করতে চান? এটি আপনার বর্তমান মেমোরির ডাটা পরিবর্তন করে ব্যাকআপের ডাটা বসিয়ে দিবে।" : "Are you sure you want to restore this backup? This will overwrite your current device data with the backup file contents.")) {
-          // Clear previous database keys
-          for (let i = localStorage.length - 1; i >= 0; i--) {
-            const key = localStorage.key(i);
-            if (key && (key.startsWith("ALW_") || key.startsWith("alwafa_") || key.startsWith("al-wafa-") || key.startsWith("store_"))) {
-              localStorage.removeItem(key);
-            }
-          }
-
-          // Set new keys
-          for (const [key, val] of Object.entries(data)) {
-            localStorage.setItem(key, val as string);
-          }
-
-          setSuccessMsg(language === "bn" ? "ডাটাবেজ সফলভাবে রিস্টোর হয়েছে! পেজটি রিলোড হচ্ছে..." : "Database successfully restored! Reloading portal...");
-          setTimeout(() => {
-            window.location.reload();
-          }, 1500);
-        }
-      } catch (err) {
-        alert("Error parsing backup file: " + err);
-      }
+      });
+      return merged;
     };
-    reader.readAsText(file);
+
+    const readAndProcessFile = (file: File): Promise<void> => {
+      return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = (e) => {
+          try {
+            const fileContent = e.target?.result as string;
+            const parsed = JSON.parse(fileContent);
+            if (!parsed || typeof parsed !== "object") {
+              throw new Error("Invalid JSON structure");
+            }
+
+            // Case A: Is it a complete backup file mapping keys to strings/objects?
+            const keys = Object.keys(parsed);
+            const isBackupFile = keys.some(k => k.startsWith("ALW_") || k.startsWith("alwafa_") || k.startsWith("al-wafa-") || k.startsWith("store_"));
+
+            if (isBackupFile) {
+              // Iterate over all backup keys and merge them
+              for (const [key, val] of Object.entries(parsed)) {
+                let stringVal = "";
+                let objectVal: any = null;
+
+                if (typeof val === "string") {
+                  stringVal = val;
+                  try {
+                    objectVal = JSON.parse(val);
+                  } catch (e) {}
+                } else {
+                  objectVal = val;
+                  stringVal = JSON.stringify(val);
+                }
+
+                const existingRaw = localStorage.getItem(key);
+                if (existingRaw) {
+                  let existingObj: any = null;
+                  try {
+                    existingObj = JSON.parse(existingRaw);
+                  } catch (e) {}
+
+                  if (Array.isArray(existingObj) && Array.isArray(objectVal)) {
+                    const merged = mergeArraysById(existingObj, objectVal);
+                    localStorage.setItem(key, JSON.stringify(merged));
+                    
+                    const countDiff = merged.length - existingObj.length;
+                    if (key === "ALW_STARE_ERP_REPORTS") totalServiceReportsImported += Math.max(0, countDiff);
+                    else if (key === "ALW_ENGINEERING_REPORTS") totalEngineeringReportsImported += Math.max(0, countDiff);
+                    else if (key === "ALW_LOCATIONS_REGISTRY") totalLocationsImported += Math.max(0, countDiff);
+                    else if (key === "ALW_SUPERVISORS_REGISTRY") totalSupervisorsImported += Math.max(0, countDiff);
+                    else if (key === "ALW_STAR_SAVED_REQUISITIONS") totalRequisitionsImported += Math.max(0, countDiff);
+                    else totalOtherKeysImported++;
+                  } else {
+                    localStorage.setItem(key, stringVal);
+                    totalOtherKeysImported++;
+                  }
+                } else {
+                  localStorage.setItem(key, stringVal);
+                  if (Array.isArray(objectVal)) {
+                    if (key === "ALW_STARE_ERP_REPORTS") totalServiceReportsImported += objectVal.length;
+                    else if (key === "ALW_ENGINEERING_REPORTS") totalEngineeringReportsImported += objectVal.length;
+                    else if (key === "ALW_LOCATIONS_REGISTRY") totalLocationsImported += objectVal.length;
+                    else if (key === "ALW_SUPERVISORS_REGISTRY") totalSupervisorsImported += objectVal.length;
+                    else if (key === "ALW_STAR_SAVED_REQUISITIONS") totalRequisitionsImported += objectVal.length;
+                    else totalOtherKeysImported++;
+                  } else {
+                    totalOtherKeysImported++;
+                  }
+                }
+              }
+            } else {
+              // Case B or C: Raw array of items or a single item (reports, locations, etc.)
+              const items = Array.isArray(parsed) ? parsed : [parsed];
+              if (items.length > 0) {
+                const firstItem = items[0];
+                if (firstItem && typeof firstItem === "object") {
+                  let targetKey = "";
+                  
+                  if (
+                    "engineerName" in firstItem ||
+                    "reportTitle" in firstItem ||
+                    "workDetails" in firstItem ||
+                    "rawEngineeringData" in firstItem ||
+                    "ventilationType" in firstItem ||
+                    "systemType" in firstItem
+                  ) {
+                    targetKey = "ALW_ENGINEERING_REPORTS";
+                  } else if (
+                    "facilityName" in firstItem ||
+                    "clientId" in firstItem ||
+                    "dateOfOperation" in firstItem ||
+                    "contractNo" in firstItem ||
+                    "pestType" in firstItem
+                  ) {
+                    targetKey = "ALW_STARE_ERP_REPORTS";
+                  } else if ("locationName" in firstItem || "emirate" in firstItem) {
+                    targetKey = "ALW_LOCATIONS_REGISTRY";
+                  } else if ("supervisorName" in firstItem || ("role" in firstItem && "phone" in firstItem)) {
+                    targetKey = "ALW_SUPERVISORS_REGISTRY";
+                  } else if ("requisitionNo" in firstItem || "requestedChemicals" in firstItem) {
+                    targetKey = "ALW_STAR_SAVED_REQUISITIONS";
+                  } else {
+                    if ("clientName" in firstItem && "reportNo" in firstItem) {
+                      targetKey = "ALW_ENGINEERING_REPORTS";
+                    } else if ("id" in firstItem) {
+                      targetKey = "ALW_STARE_ERP_REPORTS";
+                    }
+                  }
+
+                  if (targetKey) {
+                    const existingRaw = localStorage.getItem(targetKey);
+                    let existingObj: any[] = [];
+                    if (existingRaw) {
+                      try {
+                        existingObj = JSON.parse(existingRaw);
+                      } catch (e) {}
+                    }
+                    if (!Array.isArray(existingObj)) existingObj = [];
+
+                    const merged = mergeArraysById(existingObj, items);
+                    localStorage.setItem(targetKey, JSON.stringify(merged));
+
+                    const countDiff = merged.length - existingObj.length;
+                    if (targetKey === "ALW_STARE_ERP_REPORTS") totalServiceReportsImported += Math.max(0, countDiff);
+                    else if (targetKey === "ALW_ENGINEERING_REPORTS") totalEngineeringReportsImported += Math.max(0, countDiff);
+                    else if (targetKey === "ALW_LOCATIONS_REGISTRY") totalLocationsImported += Math.max(0, countDiff);
+                    else if (targetKey === "ALW_SUPERVISORS_REGISTRY") totalSupervisorsImported += Math.max(0, countDiff);
+                    else if (targetKey === "ALW_STAR_SAVED_REQUISITIONS") totalRequisitionsImported += Math.max(0, countDiff);
+                  } else {
+                    throw new Error("Could not determine report type for raw JSON");
+                  }
+                }
+              }
+            }
+
+            filesProcessed++;
+            resolve();
+          } catch (err) {
+            reject(err);
+          }
+        };
+        reader.onerror = (e) => reject(new Error("File reading error"));
+        reader.readAsText(file);
+      });
+    };
+
+    try {
+      await Promise.all(fileList.map(file => readAndProcessFile(file)));
+
+      try {
+        const freshReports = localStorage.getItem("ALW_STARE_ERP_REPORTS");
+        if (freshReports) {
+          onUpdateReports(JSON.parse(freshReports));
+        }
+      } catch (e) {}
+
+      window.dispatchEvent(new Event("storage"));
+
+      const summaryMsg = language === "bn"
+        ? `সফলভাবে ${filesProcessed}টি ফাইল প্রসেস করা হয়েছে! 
+🎉 মোট নতুন যুক্ত/হালনাগাদ করা হয়েছে:
+• সার্ভিস রিপোর্ট: ${totalServiceReportsImported}টি
+• ইঞ্জিনিয়ারিং রিপোর্ট: ${totalEngineeringReportsImported}টি
+• লোকেশন: ${totalLocationsImported}টি
+• সুপারভাইজার: ${totalSupervisorsImported}টি
+• কেমিক্যাল চাহিদাপত্র: ${totalRequisitionsImported}টি
+• অন্যান্য সেটিংস: ${totalOtherKeysImported}টি
+
+পেজটি স্বয়ংক্রিয়ভাবে রিলোড হচ্ছে...`
+        : `Successfully processed ${filesProcessed} file(s)!
+🎉 Total newly added/updated items:
+• Service Reports: ${totalServiceReportsImported}
+• Engineering Reports: ${totalEngineeringReportsImported}
+• Registered Locations: ${totalLocationsImported}
+• Supervisors: ${totalSupervisorsImported}
+• Requisitions: ${totalRequisitionsImported}
+• Other Settings: ${totalOtherKeysImported}
+
+Reloading portal to apply updates...`;
+
+      alert(summaryMsg);
+      setSuccessMsg(language === "bn" ? "ডাটাবেজ সফলভাবে রিস্টোর হয়েছে!" : "Database successfully restored!");
+      setTimeout(() => {
+        window.location.reload();
+      }, 1000);
+
+    } catch (err: any) {
+      alert(language === "bn" 
+        ? "ফাইল রিস্টোর করতে সমস্যা হয়েছে। দয়া করে সঠিক JSON ব্যাকআপ ফাইল আপলোড করুন। ভুল: " + (err.message || err)
+        : "Error processing one or more files. Please ensure you are uploading valid JSON reports or backup files. Details: " + (err.message || err)
+      );
+    }
   };
 
   const getRequisitionsCount = () => {
@@ -2444,6 +2624,7 @@ export default function AdminSettings({
             <input
               type="file"
               accept=".json"
+              multiple
               onChange={handleImportDatabase}
               className="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
             />

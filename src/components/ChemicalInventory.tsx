@@ -267,6 +267,7 @@ export default function ChemicalInventory({ language, themeMode = "dark" }: Chem
         <title>${customFileName}</title>
         <meta charset="utf-8">
         <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+        <script src="https://cdn.tailwindcss.com"></script>
         <style>
           @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;900&display=swap');
           body {
@@ -287,6 +288,18 @@ export default function ChemicalInventory({ language, themeMode = "dark" }: Chem
             background: #ffffff !important;
             position: relative;
           }
+          svg { display: inline-block; vertical-align: middle; }
+          /* Exact fallbacks for arbitrary classes in old/headless printing environments */
+          .w-\\[52px\\] { width: 52px !important; }
+          .h-\\[52px\\] { height: 52px !important; }
+          .w-\\[48px\\] { width: 48px !important; }
+          .h-\\[48px\\] { height: 48px !important; }
+          .w-36 { width: 144px !important; }
+          .h-12 { height: 48px !important; }
+          .max-w-\\[170px\\] { max-width: 170px !important; }
+          .text-\\[11px\\] { font-size: 11px !important; }
+          .text-\\[9\\.5px\\] { font-size: 9.5px !important; }
+          .text-\\[10px\\] { font-size: 10px !important; }
           @media print {
             @page { size: A4 portrait; margin: 0; }
             body {
@@ -938,95 +951,99 @@ export default function ChemicalInventory({ language, themeMode = "dark" }: Chem
             </span>
           </div>
 
-          <div className="overflow-x-auto">
-            <table className="w-full border-collapse text-xs text-left">
-              <thead>
-                <tr className={`border-b ${isDark ? "bg-slate-800/50 border-slate-700" : "bg-slate-100 border-slate-250"}`}>
-                  <th className={`p-3 font-extrabold ${isDark ? "text-slate-300" : "text-[#555]"}`}>{t.chemName}</th>
-                  <th className={`p-3 font-extrabold ${isDark ? "text-slate-300" : "text-[#555]"}`}>{t.receivedDate}</th>
-                  <th className={`p-3 font-extrabold ${isDark ? "text-slate-300" : "text-[#555]"}`}>{t.dilution}</th>
-                  <th className={`p-3 font-extrabold ${isDark ? "text-slate-300" : "text-[#555]"}`}>{t.batch}</th>
-                  <th className={`p-3 font-extrabold ${isDark ? "text-slate-300" : "text-[#555]"}`}>{t.remaining}</th>
-                  <th className={`p-3 font-extrabold text-right ${isDark ? "text-slate-300" : "text-[#555]"}`}>{t.expiry}</th>
-                  <th className={`p-3 font-extrabold text-center ${isDark ? "text-slate-300" : "text-[#555]"}`}>{language === "bn" ? "অ্যাকশন" : "Actions"}</th>
-                </tr>
-              </thead>
-              <tbody className={`divide-y font-semibold ${isDark ? "divide-slate-800 text-slate-300" : "divide-slate-100 text-slate-700"}`}>
-                {chemicals.map((chem) => {
-                  const threshold = chem.alertThreshold || 1.0;
-                  const isLow = chem.stock <= threshold;
-                  const isMedium = chem.stock > threshold && chem.stock <= threshold * 4;
-                  
-                  // Color statuses as explicitly requested by user
-                  let statusBg = "bg-emerald-500/10";
-                  let statusTextCls = "text-emerald-400 font-bold";
-                  let statusBorder = "border-emerald-500/20";
-                  let statusLabel = language === "bn" ? "পর্যাপ্ত মজুদ (সবুজ)" : "High Stock (Green)";
-                  let dotColor = "bg-emerald-500 animate-pulse";
-                  
-                  if (isLow) {
-                    statusBg = "bg-red-500/10";
-                    statusTextCls = "text-red-400 font-black animate-pulse";
-                    statusBorder = "border-red-500/20";
-                    statusLabel = language === "bn" ? "অল্প মজুদ (লাল)" : "Low Stock (Red)";
-                    dotColor = "bg-red-500 animate-ping";
-                  } else if (isMedium) {
-                    statusBg = "bg-amber-500/10";
-                    statusTextCls = "text-amber-450 font-extrabold";
-                    statusBorder = "border-amber-500/20";
-                    statusLabel = language === "bn" ? "মধ্যম মজুদ (হলুদ)" : "Medium Stock (Yellow)";
-                    dotColor = "bg-amber-500";
-                  }
+          <div className={`border rounded-xl overflow-hidden shadow-sm ${isDark ? "border-slate-700 bg-[#0F172A]" : "border-slate-300 bg-white"}`}>
+            <div className="overflow-x-auto">
+              <table className="w-full border-collapse text-xs text-left">
+                <thead>
+                  <tr className={`border-b select-none font-mono text-[10px] uppercase tracking-wider font-extrabold ${isDark ? "bg-slate-800 border-slate-700 text-slate-100" : "bg-slate-200 border-slate-300 text-slate-900"}`}>
+                    <th className={`p-3 border-r ${isDark ? "border-slate-700 text-slate-100" : "border-slate-300 text-slate-900"}`}>{t.chemName}</th>
+                    <th className={`p-3 border-r ${isDark ? "border-slate-700 text-slate-100" : "border-slate-300 text-slate-900"}`}>{t.receivedDate}</th>
+                    <th className={`p-3 border-r ${isDark ? "border-slate-700 text-slate-100" : "border-slate-300 text-slate-900"}`}>{t.dilution}</th>
+                    <th className={`p-3 border-r ${isDark ? "border-slate-700 text-slate-100" : "border-slate-300 text-slate-900"}`}>{t.batch}</th>
+                    <th className={`p-3 border-r ${isDark ? "border-slate-700 text-slate-100" : "border-slate-300 text-slate-900"}`}>{t.remaining}</th>
+                    <th className={`p-3 border-r text-right ${isDark ? "border-slate-700 text-slate-100" : "border-slate-300 text-slate-900"}`}>{t.expiry}</th>
+                    <th className={`p-3 text-center ${isDark ? "text-slate-100" : "text-slate-900"}`}>{language === "bn" ? "অ্যাকশন" : "Actions"}</th>
+                  </tr>
+                </thead>
+                <tbody className={`divide-y font-semibold ${isDark ? "divide-slate-800 text-slate-300" : "divide-slate-200 text-slate-700"}`}>
+                  {chemicals.map((chem, index) => {
+                    const threshold = chem.alertThreshold || 1.0;
+                    const isLow = chem.stock <= threshold;
+                    const isMedium = chem.stock > threshold && chem.stock <= threshold * 4;
+                    
+                    // Color statuses with strong high contrast for light/dark mode
+                    let statusBg = isDark ? "bg-emerald-500/15" : "bg-emerald-50";
+                    let statusTextCls = isDark ? "text-emerald-400 font-bold" : "text-emerald-700 font-extrabold";
+                    let statusBorder = isDark ? "border-emerald-500/20" : "border-emerald-250";
+                    let statusLabel = language === "bn" ? "পর্যাপ্ত মজুদ (সবুজ)" : "High Stock (Green)";
+                    let dotColor = "bg-emerald-500 animate-pulse";
+                    
+                    if (isLow) {
+                      statusBg = isDark ? "bg-red-500/15" : "bg-red-50";
+                      statusTextCls = isDark ? "text-red-400 font-black animate-pulse" : "text-red-600 font-black animate-pulse";
+                      statusBorder = isDark ? "border-red-500/20" : "border-red-250";
+                      statusLabel = language === "bn" ? "অল্প মজুদ (লাল)" : "Low Stock (Red)";
+                      dotColor = "bg-red-500 animate-ping";
+                    } else if (isMedium) {
+                      statusBg = isDark ? "bg-amber-500/15" : "bg-amber-50";
+                      statusTextCls = isDark ? "text-amber-400 font-extrabold" : "text-amber-700 font-extrabold";
+                      statusBorder = isDark ? "border-amber-500/20" : "border-amber-250";
+                      statusLabel = language === "bn" ? "মধ্যম মজুদ (হলুদ)" : "Medium Stock (Yellow)";
+                      dotColor = "bg-amber-500";
+                    }
 
-                  return (
-                    <tr 
-                      id={`chem-row-${chem.name}`} 
-                      key={chem.name} 
-                      className={`group transition-colors ${isDark ? "hover:bg-slate-800/40 border-slate-800" : "hover:bg-slate-50 border-slate-100"} ${isLow ? (isDark ? "bg-red-950/20" : "bg-red-50/40") : ""}`}
-                    >
-                      <td className="p-3">
-                        <div className="flex flex-col">
-                          <span className={`font-bold ${isDark ? "text-slate-100" : "text-slate-900"}`}>{chem.name}</span>
-                          {isLow && (
-                            <span className="text-[8px] text-red-400 uppercase font-mono mt-0.5 animate-pulse">⚠️ {language === "bn" ? "রি-অর্ডার প্রয়োজন!" : "Low Stock alert!"}</span>
-                          )}
-                        </div>
-                      </td>
-                      <td className="p-3 font-mono">{chem.receivedDate || "N/A"}</td>
-                      <td className="p-3 font-mono">{chem.dilution}</td>
-                      <td className="p-3">
-                        <span className={`font-mono px-1.5 py-0.5 rounded border ${isDark ? "bg-slate-800 border-slate-700 text-slate-300" : "bg-slate-100 border-slate-200 text-slate-600"}`}>
-                          {chem.batch}
-                        </span>
-                      </td>
-                      <td className="p-3">
-                        <div className="flex flex-col gap-1.5 justify-start">
-                          <span className={`${statusTextCls} font-mono text-sm`}>
-                            {chem.stock} {chem.unit}
+                    return (
+                      <tr 
+                        id={`chem-row-${chem.name}`} 
+                        key={chem.name} 
+                        className={`group transition-colors ${
+                          index % 2 === 0 ? (isDark ? "bg-[#1E293B]" : "bg-white") : (isDark ? "bg-[#111A2E]" : "bg-slate-50/80")
+                        } ${isLow ? (isDark ? "bg-red-950/20" : "bg-red-50/30") : ""}`}
+                      >
+                        <td className={`p-3 border-r ${isDark ? "border-slate-800" : "border-slate-300"}`}>
+                          <div className="flex flex-col">
+                            <span className={`font-bold ${isDark ? "text-white" : "text-slate-950 font-extrabold"}`}>{chem.name}</span>
+                            {isLow && (
+                              <span className="text-[9px] text-red-500 uppercase font-mono mt-0.5 animate-pulse font-extrabold">⚠️ {language === "bn" ? "রি-অর্ডার প্রয়োজন!" : "Low Stock alert!"}</span>
+                            )}
+                          </div>
+                        </td>
+                        <td className={`p-3 font-mono border-r font-extrabold ${isDark ? "border-slate-800 text-slate-200" : "border-slate-300 text-slate-900"}`}>{chem.receivedDate || "N/A"}</td>
+                        <td className={`p-3 font-mono border-r font-extrabold ${isDark ? "border-slate-800 text-slate-200" : "border-slate-300 text-slate-900"}`}>{chem.dilution}</td>
+                        <td className={`p-3 border-r ${isDark ? "border-slate-800" : "border-slate-300"}`}>
+                          <span className={`font-mono px-1.5 py-0.5 rounded border font-extrabold ${isDark ? "bg-slate-800 border-slate-700 text-slate-100" : "bg-slate-100 border-slate-300 text-slate-900"}`}>
+                            {chem.batch}
                           </span>
-                          <span className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[9px] w-fit font-bold border ${statusBg} ${statusTextCls} ${statusBorder}`}>
-                            <span className={`w-1.5 h-1.5 rounded-full ${dotColor}`} />
-                            <span>{statusLabel}</span>
-                          </span>
-                        </div>
-                      </td>
-                      <td className="p-3 text-right font-mono text-slate-500">
-                        {chem.expiry}
-                      </td>
-                      <td className="p-3 text-center">
-                        <button
-                          title={language === "bn" ? "মুছে ফেলুন" : "Delete chemical"}
-                          onClick={() => handleDeleteChemical(chem.name)}
-                          className="md:opacity-0 md:group-hover:opacity-100 md:pointer-events-none md:group-hover:pointer-events-auto transition-all duration-200 p-1.5 text-rose-500 hover:text-rose-400 hover:bg-rose-500/10 rounded-lg cursor-pointer inline-flex items-center justify-center active:scale-95"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
+                        </td>
+                        <td className={`p-3 border-r ${isDark ? "border-slate-800" : "border-slate-300"}`}>
+                          <div className="flex flex-col gap-1.5 justify-start">
+                            <span className={`${statusTextCls} font-mono text-xs`}>
+                              {chem.stock} {chem.unit}
+                            </span>
+                            <span className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[9px] w-fit font-bold border ${statusBg} ${statusTextCls} ${statusBorder}`}>
+                              <span className={`w-1.5 h-1.5 rounded-full ${dotColor}`} />
+                              <span>{statusLabel}</span>
+                            </span>
+                          </div>
+                        </td>
+                        <td className={`p-3 text-right font-mono border-r font-extrabold ${isDark ? "border-slate-800 text-slate-200" : "border-slate-300 text-slate-900"}`}>
+                          {chem.expiry}
+                        </td>
+                        <td className="p-3 text-center">
+                          <button
+                            title={language === "bn" ? "মুছে ফেলুন" : "Delete chemical"}
+                            onClick={() => handleDeleteChemical(chem.name)}
+                            className="md:opacity-0 md:group-hover:opacity-100 md:pointer-events-none md:group-hover:pointer-events-auto transition-all duration-200 p-1.5 text-rose-500 hover:text-rose-400 hover:bg-rose-500/10 rounded-lg cursor-pointer inline-flex items-center justify-center active:scale-95"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
           </div>
 
           {/* Warning Card */}
@@ -1343,7 +1360,7 @@ export default function ChemicalInventory({ language, themeMode = "dark" }: Chem
             </div>
 
             {/* Modal Body & Filtering */}
-            <div className={`p-4 sm:p-5 space-y-4 flex-1 overflow-y-auto ${isDark ? "bg-slate-900/30" : "bg-white"}`}>
+            <div className={`p-4 sm:p-5 space-y-4 flex-1 overflow-y-auto ${isDark ? "bg-[#0F172A]" : "bg-white"}`}>
               <div className="flex flex-col sm:flex-row gap-3 items-stretch sm:items-center justify-between">
                 
                 {/* Search Bar */}
@@ -1358,8 +1375,8 @@ export default function ChemicalInventory({ language, themeMode = "dark" }: Chem
                     placeholder={language === "bn" ? "নাম, ব্যাচ অথবা তারিখ দিয়ে সার্চ করুন..." : "Search sheet by Chemical Name / date received / batch..."}
                     className={`w-full pl-9 pr-3 py-2 text-xs font-semibold rounded-xl border outline-none transition-all ${
                       isDark 
-                        ? "bg-[#0E172B] border-slate-705 text-slate-100 placeholder:text-slate-500 focus:border-indigo-500" 
-                        : "bg-white border-slate-300 text-slate-800 placeholder:text-slate-400 focus:border-indigo-550"
+                        ? "bg-[#0E172B] border-slate-700 text-white placeholder:text-slate-500 focus:border-indigo-500" 
+                        : "bg-white border-slate-400 text-slate-900 placeholder:text-slate-500 focus:border-indigo-600 focus:ring-1 focus:ring-indigo-600 font-bold"
                     }`}
                   />
                 </div>
@@ -1379,17 +1396,17 @@ export default function ChemicalInventory({ language, themeMode = "dark" }: Chem
               </div>
 
               {/* Data Grid table */}
-              <div className={`border rounded-xl overflow-hidden shadow-sm ${isDark ? "border-slate-700 bg-slate-950/40" : "border-slate-250 bg-white"}`}>
+              <div className={`border rounded-xl overflow-hidden shadow-sm ${isDark ? "border-slate-700 bg-[#0F172A]" : "border-slate-300 bg-white"}`}>
                 <div className="overflow-x-auto">
                   <table className="w-full text-left border-collapse text-xs">
                     <thead>
-                      <tr className={`border-b select-none font-mono text-[9px] uppercase tracking-wider font-bold ${isDark ? "bg-slate-800/80 border-slate-700 text-slate-400" : "bg-slate-100 border-slate-250 text-slate-500"}`}>
-                        <th className="py-2.5 px-3 text-center border-r border-[#CBD5E1]/30 dark:border-slate-800 max-w-[50px]">ROW</th>
-                        <th className="py-2.5 px-3 border-r border-[#CBD5E1]/30 dark:border-slate-800 min-w-[110px]">{language === "bn" ? "গ্রহণের তারিখ" : "Date Received"}</th>
-                        <th className="py-2.5 px-3 border-r border-[#CBD5E1]/30 dark:border-slate-800 min-w-[160px]">{language === "bn" ? "কেমিক্যালের নাম" : "Chemical Name"}</th>
-                        <th className="py-2.5 px-3 border-r border-[#CBD5E1]/30 dark:border-slate-800 min-w-[90px]">{language === "bn" ? "ব্যাচ নং" : "Batch No"}</th>
-                        <th className="py-2.5 px-3 border-r border-[#CBD5E1]/30 dark:border-slate-800 text-center min-w-[100px]">{language === "bn" ? "পরিমাণ" : "Qty Received"}</th>
-                        <th className="py-2.5 px-3 border-r border-[#CBD5E1]/30 dark:border-slate-800 min-w-[110px]">{language === "bn" ? "মেয়াদ চর্তুথী" : "Expiry Date"}</th>
+                      <tr className={`border-b select-none font-mono text-[10px] uppercase tracking-wider font-extrabold ${isDark ? "bg-slate-800 border-slate-700 text-slate-100" : "bg-slate-200 border-slate-300 text-slate-900"}`}>
+                        <th className={`py-2.5 px-3 text-center border-r max-w-[50px] ${isDark ? "border-slate-700" : "border-slate-300"}`}>ROW</th>
+                        <th className={`py-2.5 px-3 border-r min-w-[110px] ${isDark ? "border-slate-700" : "border-slate-300"}`}>{language === "bn" ? "গ্রহণের তারিখ" : "Date Received"}</th>
+                        <th className={`py-2.5 px-3 border-r min-w-[160px] ${isDark ? "border-slate-700" : "border-slate-300"}`}>{language === "bn" ? "কেমিক্যালের নাম" : "Chemical Name"}</th>
+                        <th className={`py-2.5 px-3 border-r min-w-[90px] ${isDark ? "border-slate-700" : "border-slate-300"}`}>{language === "bn" ? "ব্যাচ নং" : "Batch No"}</th>
+                        <th className={`py-2.5 px-3 border-r text-center min-w-[100px] ${isDark ? "border-slate-700" : "border-slate-300"}`}>{language === "bn" ? "পরিমাণ" : "Qty Received"}</th>
+                        <th className={`py-2.5 px-3 border-r min-w-[110px] ${isDark ? "border-slate-700" : "border-slate-300"}`}>{language === "bn" ? "মেয়াদ চর্তুথী" : "Expiry Date"}</th>
                         <th className="py-2.5 px-3 min-w-[110px]">{language === "bn" ? "জলীয় মিশ্রণ হার" : "Dilution Rate"}</th>
                       </tr>
                     </thead>
@@ -1407,17 +1424,17 @@ export default function ChemicalInventory({ language, themeMode = "dark" }: Chem
                         .map((log, index) => (
                           <tr 
                             key={index} 
-                            className={`font-semibold hover:bg-slate-100/40 dark:hover:bg-slate-800/40 transition-colors ${
-                              index % 2 === 0 ? (isDark ? "bg-slate-900/10" : "bg-white") : (isDark ? "bg-slate-800/20" : "bg-slate-50/50")
+                            className={`font-semibold hover:bg-slate-100/60 dark:hover:bg-slate-800/40 transition-colors ${
+                              index % 2 === 0 ? (isDark ? "bg-[#1E293B]" : "bg-white") : (isDark ? "bg-[#111A2E]" : "bg-slate-50/80")
                             }`}
                           >
-                            <td className="py-3 px-3 text-center text-slate-400 font-bold border-r border-[#CBD5E1]/30 dark:border-slate-800 max-w-[50px]">{index + 1}</td>
-                            <td className="py-3 px-3 border-r border-[#CBD5E1]/30 dark:border-slate-800 text-teal-600 dark:text-teal-400 font-bold whitespace-nowrap">{log.date || log.receivedDate || "N/A"}</td>
-                            <td className="py-3 px-3 font-sans font-bold border-r border-[#CBD5E1]/30 dark:border-slate-800 text-slate-900 dark:text-slate-100 max-w-[200px] truncate">{log.name}</td>
-                            <td className="py-3 px-3 border-r border-[#CBD5E1]/30 dark:border-slate-800 text-slate-600 dark:text-slate-350">{log.batch || "N/A"}</td>
-                            <td className="py-3 px-3 text-center border-r border-[#CBD5E1]/30 dark:border-slate-800 text-indigo-600 dark:text-indigo-400 font-extrabold">{log.stock} <span className="text-[9px] text-[#94A3B8] lowercase">{log.unit || "L"}</span></td>
-                            <td className="py-3 px-3 border-r border-[#CBD5E1]/30 dark:border-slate-800 text-rose-600 dark:text-rose-400 whitespace-nowrap">{log.expiry || "N/A"}</td>
-                            <td className="py-3 px-3 text-slate-500 dark:text-slate-400">{log.dilution || "N/A"}</td>
+                            <td className={`py-3 px-3 text-center font-bold border-r max-w-[50px] ${isDark ? "border-slate-800 text-slate-300" : "border-slate-300 text-slate-900"}`}>{index + 1}</td>
+                            <td className={`py-3 px-3 border-r font-extrabold whitespace-nowrap ${isDark ? "border-slate-800 text-teal-400" : "border-slate-300 text-teal-700"}`}>{log.date || log.receivedDate || "N/A"}</td>
+                            <td className={`py-3 px-3 font-sans font-bold border-r max-w-[200px] truncate ${isDark ? "border-slate-800 text-white" : "border-slate-300 text-slate-900"}`}>{log.name}</td>
+                            <td className={`py-3 px-3 border-r font-extrabold ${isDark ? "border-slate-800 text-slate-300" : "border-slate-300 text-slate-800"}`}>{log.batch || "N/A"}</td>
+                            <td className={`py-3 px-3 text-center border-r font-extrabold ${isDark ? "border-slate-800 text-indigo-400" : "border-slate-300 text-indigo-700"}`}>{log.stock} <span className="text-[9px] text-[#94A3B8] lowercase">{log.unit || "L"}</span></td>
+                            <td className={`py-3 px-3 border-r font-extrabold whitespace-nowrap ${isDark ? "border-slate-800 text-rose-400" : "border-slate-300 text-rose-700"}`}>{log.expiry || "N/A"}</td>
+                            <td className={`py-3 px-3 font-extrabold ${isDark ? "text-slate-300" : "text-slate-800"}`}>{log.dilution || "N/A"}</td>
                           </tr>
                         ))}
                       {historyLogs.filter(log => {
@@ -1430,7 +1447,7 @@ export default function ChemicalInventory({ language, themeMode = "dark" }: Chem
                         );
                       }).length === 0 && (
                         <tr>
-                          <td colSpan={7} className="p-8 text-center text-[#94A3B8] font-bold font-sans text-xs">
+                          <td colSpan={7} className={`p-8 text-center font-bold font-sans text-xs ${isDark ? "text-slate-300 bg-slate-900/40" : "text-slate-800 bg-slate-100/40"}`}>
                             {language === "bn" ? "কোন তথ্য খুঁজে পাওয়া যায় নি।" : "No matches found. Try modifying your search criteria."}
                           </td>
                         </tr>
@@ -1496,7 +1513,7 @@ export default function ChemicalInventory({ language, themeMode = "dark" }: Chem
             </div>
 
             {/* Modal Body & Filtering */}
-            <div className={`p-4 sm:p-5 space-y-4 flex-1 overflow-y-auto ${isDark ? "bg-[#0F172A]/35" : "bg-white"}`}>
+            <div className={`p-4 sm:p-5 space-y-4 flex-1 overflow-y-auto ${isDark ? "bg-[#0F172A]" : "bg-white"}`}>
               <div className="flex flex-col sm:flex-row gap-3 items-stretch sm:items-center justify-between">
                 
                 {/* Search Bar */}
@@ -1511,8 +1528,8 @@ export default function ChemicalInventory({ language, themeMode = "dark" }: Chem
                     placeholder={language === "bn" ? "হাসপাতাল/ক্লিনিকের নাম, কেমিক্যালের নাম বা তারিখ দিয়ে খুঁজুন..." : "Search usage by Hospital name / chemical used / date / batch..."}
                     className={`w-full pl-9 pr-3 py-2 text-xs font-semibold rounded-xl border outline-none transition-all ${
                       isDark 
-                        ? "bg-[#0E172B] border-slate-700 text-slate-100 placeholder:text-slate-500 focus:border-indigo-505" 
-                        : "bg-white border-slate-300 text-slate-800 placeholder:text-slate-400 focus:border-indigo-550"
+                        ? "bg-[#0E172B] border-slate-700 text-white placeholder:text-slate-500 focus:border-indigo-505" 
+                        : "bg-white border-slate-400 text-slate-900 placeholder:text-slate-500 focus:border-indigo-600 focus:ring-1 focus:ring-indigo-600 font-bold"
                     }`}
                   />
                 </div>
@@ -1549,66 +1566,66 @@ export default function ChemicalInventory({ language, themeMode = "dark" }: Chem
                           {/* Month Heading */}
                           <div className="flex items-center gap-2 px-1">
                             <Calendar className="w-4 h-4 text-violet-500" />
-                            <h4 className={`text-xs font-extrabold uppercase tracking-wider ${isDark ? "text-[#94A3B8]" : "text-slate-605"}`}>
+                            <h4 className={`text-xs font-extrabold uppercase tracking-wider ${isDark ? "text-slate-200" : "text-slate-900"}`}>
                               {monthKey} ({monthEntries.length} {language === "bn" ? "টি ব্যবহার" : "usages"})
                             </h4>
-                            <div className={`flex-1 h-px ml-2 ${isDark ? "bg-slate-800" : "bg-slate-100"}`} />
+                            <div className={`flex-1 h-px ml-2 ${isDark ? "bg-slate-800" : "bg-slate-300"}`} />
                           </div>
 
                           {/* Table Container */}
-                          <div className={`border rounded-2xl overflow-hidden shadow-sm ${isDark ? "border-slate-800 bg-[#0B1324]/40" : "border-slate-200 bg-white"}`}>
+                          <div className={`border rounded-2xl overflow-hidden shadow-sm ${isDark ? "border-slate-800 bg-[#0F172A]" : "border-slate-300 bg-white"}`}>
                             <div className="overflow-x-auto">
                               <table className="w-full text-left border-collapse text-xs">
                                 <thead>
-                                  <tr className={`border-b select-none font-mono text-[9px] uppercase tracking-wider font-bold ${isDark ? "bg-slate-800/60 border-slate-700 text-slate-400" : "bg-slate-100 border-slate-200 text-slate-500"}`}>
-                                    <th className="py-2 px-3 text-center border-r border-[#CBD5E1]/20 dark:border-slate-800/30 max-w-[44px]">ROW</th>
-                                    <th className="py-2 px-3 border-r border-[#CBD5E1]/20 dark:border-slate-800/30 min-w-[200px]">{language === "bn" ? "হসপিটাল / ক্লিনিক এর নাম" : "Hospital / Clinic Name"}</th>
-                                    <th className="py-2 px-3 border-r border-[#CBD5E1]/20 dark:border-slate-800/30 min-w-[95px]">{language === "bn" ? "ডেট" : "Date"}</th>
-                                    <th className="py-2 px-3 border-r border-[#CBD5E1]/20 dark:border-slate-800/30 min-w-[200px]">{language === "bn" ? "ব্যবহৃত কেমিক্যাল এবং পরিমাণ" : "Chemical Used & Consumed"}</th>
+                                  <tr className={`border-b select-none font-mono text-[10px] uppercase tracking-wider font-extrabold ${isDark ? "bg-slate-800 border-slate-700 text-slate-100" : "bg-slate-200 border-slate-300 text-slate-900"}`}>
+                                    <th className={`py-2 px-3 text-center border-r max-w-[44px] ${isDark ? "border-slate-700" : "border-slate-300"}`}>ROW</th>
+                                    <th className={`py-2 px-3 border-r min-w-[200px] ${isDark ? "border-slate-700" : "border-slate-300"}`}>{language === "bn" ? "হসপিটাল / ক্লিনিক এর নাম" : "Hospital / Clinic Name"}</th>
+                                    <th className={`py-2 px-3 border-r min-w-[95px] ${isDark ? "border-slate-700" : "border-slate-300"}`}>{language === "bn" ? "ডেট" : "Date"}</th>
+                                    <th className={`py-2 px-3 border-r min-w-[200px] ${isDark ? "border-slate-700" : "border-slate-300"}`}>{language === "bn" ? "ব্যবহৃত কেমিক্যাল এবং পরিমাণ" : "Chemical Used & Consumed"}</th>
                                     <th className="py-2 px-3 min-w-[90px]">{language === "bn" ? "ব্যাচ নং" : "Batch No"}</th>
                                   </tr>
                                 </thead>
-                                <tbody className={`divide-y font-semibold ${isDark ? "divide-slate-800 text-slate-300" : "divide-slate-150 text-slate-700"}`}>
+                                <tbody className={`divide-y font-semibold ${isDark ? "divide-slate-800 text-slate-300" : "divide-slate-200 text-slate-700"}`}>
                                   {monthEntries.map((entry, idx) => (
                                     <tr 
                                       key={idx} 
-                                      className={`hover:bg-slate-50/40 dark:hover:bg-slate-800/35 transition-all ${
-                                        idx % 2 === 0 ? (isDark ? "bg-slate-900/10" : "bg-white") : (isDark ? "bg-slate-800/10" : "bg-slate-50/25")
+                                      className={`hover:bg-slate-100/60 dark:hover:bg-slate-800/35 transition-all ${
+                                        idx % 2 === 0 ? (isDark ? "bg-[#1E293B]" : "bg-white") : (isDark ? "bg-[#111A2E]" : "bg-slate-50/80")
                                       }`}
                                     >
                                       {/* Row Index */}
-                                      <td className="py-3 px-3 text-center font-mono font-bold text-slate-400 border-r border-[#CBD5E1]/20 dark:border-slate-800/20 max-w-[44px]">
+                                      <td className={`py-3 px-3 text-center font-mono font-bold border-r max-w-[44px] ${isDark ? "border-slate-800 text-slate-300" : "border-slate-300 text-slate-900"}`}>
                                         {idx + 1}
                                       </td>
 
                                       {/* Hospital/Clinic with Icon */}
-                                      <td className="py-3 px-3 border-r border-[#CBD5E1]/20 dark:border-slate-800/20">
+                                      <td className={`py-3 px-3 border-r ${isDark ? "border-slate-800" : "border-slate-300"}`}>
                                         <div className="flex items-center gap-2">
                                           <div className={`p-1 rounded bg-blue-500/10 text-blue-500 ${isDark ? "bg-blue-500/15" : "bg-blue-50"}`}>
                                             <Building2 className="w-3.5 h-3.5" />
                                           </div>
-                                          <span className={`font-bold tracking-tight text-[11px] ${isDark ? "text-slate-100" : "text-slate-900"}`}>
+                                          <span className={`font-bold tracking-tight text-[11.5px] ${isDark ? "text-white" : "text-slate-950 font-extrabold"}`}>
                                             {entry.facilityName}
                                           </span>
                                         </div>
                                       </td>
 
                                       {/* Date with Icon */}
-                                      <td className="py-3 px-3 font-mono border-r border-[#CBD5E1]/20 dark:border-slate-800/20">
-                                        <div className="flex items-center gap-1.5 text-slate-500 dark:text-slate-400 text-[10.5px]">
+                                      <td className={`py-3 px-3 font-mono border-r ${isDark ? "border-slate-800" : "border-slate-300"}`}>
+                                        <div className={`flex items-center gap-1.5 text-[11px] ${isDark ? "text-slate-200" : "text-slate-900 font-extrabold"}`}>
                                           <Calendar className="w-3 h-3 text-[#10B981]" />
                                           <span>{entry.dateStr}</span>
                                         </div>
                                       </td>
 
                                       {/* Chemical & Consumption with Icon */}
-                                      <td className="py-3 px-3 border-r border-[#CBD5E1]/20 dark:border-slate-800/20">
+                                      <td className={`py-3 px-3 border-r ${isDark ? "border-slate-800" : "border-slate-300"}`}>
                                         <div className="flex items-center gap-2">
                                           <div className={`p-1 rounded bg-violet-500/10 text-violet-500 ${isDark ? "bg-violet-500/15" : "bg-violet-50"}`}>
                                             <Droplets className="w-3.5 h-3.5 animate-pulse" />
                                           </div>
                                           <div className="flex items-baseline gap-1.5 min-w-0">
-                                            <span className={`font-bold truncate text-[11.5px] ${isDark ? "text-slate-100" : "text-slate-800"}`}>
+                                            <span className={`font-bold truncate text-[11.5px] ${isDark ? "text-white" : "text-slate-950 font-extrabold"}`}>
                                               {entry.chemicalName}
                                             </span>
                                             <span className="font-mono font-extrabold text-[#7C3AED] dark:text-violet-400 text-[12px] bg-violet-500/5 dark:bg-violet-500/10 px-1.5 py-0.5 rounded border border-violet-500/10 shrink-0">
@@ -1619,7 +1636,7 @@ export default function ChemicalInventory({ language, themeMode = "dark" }: Chem
                                       </td>
 
                                       {/* Batch No */}
-                                      <td className="py-3 px-3 font-mono text-[10.5px] text-slate-500 dark:text-slate-400">
+                                      <td className={`py-3 px-3 font-mono text-[11px] font-extrabold ${isDark ? "text-slate-300" : "text-slate-900"}`}>
                                         {entry.batch}
                                       </td>
                                     </tr>
@@ -2269,9 +2286,28 @@ export default function ChemicalInventory({ language, themeMode = "dark" }: Chem
                       </button>
                     </div>
 
-                    <span className="text-[11px] px-2.5 py-1 bg-emerald-500/10 text-emerald-500 rounded-full font-bold self-end sm:self-center">
-                      {requisitionItems.length} {language === "bn" ? "টি রিকুয়েস্ট আইটেম" : "Items Added"}
-                    </span>
+                    <div className="flex items-center gap-2 self-end sm:self-center">
+                      {requisitionViewMode === "preview" && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (requisitionItems.length === 0) {
+                              showToast(language === "bn" ? "চাহিদা তালিকা খালি থাকায় প্রিন্ট করা সম্ভব নয়।" : "Requisition items are empty. Please add items first.", "error");
+                              return;
+                            }
+                            const defaultName = `AlWafaStar-Requisition-${Date.now().toString().slice(-4)}`;
+                            handleDownloadPdf(defaultName, false);
+                          }}
+                          className="px-3 py-1.5 bg-indigo-650 hover:bg-indigo-700 text-white text-[11px] font-bold rounded-xl shadow-md flex items-center gap-1.5 transition-all cursor-pointer select-none active:scale-95 whitespace-nowrap animate-fade-in"
+                        >
+                          <Printer className="w-3.5 h-3.5" />
+                          <span>{language === "bn" ? "পিডিএফ / প্রিন্ট করুন" : "Print & Save to PDF"}</span>
+                        </button>
+                      )}
+                      <span className="text-[11px] px-2.5 py-1 bg-emerald-500/10 text-emerald-500 rounded-full font-bold">
+                        {requisitionItems.length} {language === "bn" ? "টি আইটেম" : "Items Added"}
+                      </span>
+                    </div>
                   </div>
 
                   {requisitionViewMode === "draft" ? (
@@ -2616,52 +2652,51 @@ export default function ChemicalInventory({ language, themeMode = "dark" }: Chem
             <p className="hidden select-none mr-2"></p>
             <style dangerouslySetInnerHTML={{ __html: `
           @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;900&display=swap');
-          * { box-sizing: border-box; }
-          body {
-            background-color: #ffffff !important;
-            color: #000000 !important;
-            margin: 0 !important;
-            padding: 0 !important;
-            -webkit-print-color-adjust: exact !important;
-            print-color-adjust: exact !important;
-            color-adjust: exact !important;
-            font-family: Arial, Helvetica, sans-serif !important;
-          }
-          #print-content {
-            width: 210mm;
-            min-height: 297mm;
-            padding: 15mm;
-            margin: 0 auto;
-            box-sizing: border-box;
-            background: #ffffff;
-            border: 1px solid #e5e5e5;
-            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
-            position: relative;
-          }
-          .watermark-chemical {
-            position: absolute;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            width: 140mm;
-            height: 140mm;
-            opacity: 0.05;
-            pointer-events: none;
-            z-index: 0;
-          }
-          #print-content > * {
-            position: relative;
-            z-index: 10;
-          }
-          table { width: 100%; border-collapse: collapse; margin-top: 15px; background: #fff;}
-          th, td { border: 1px solid #111; padding: 8px; text-align: left; }
-          th { background-color: #f3f4f6 !important; font-weight: bold; }
-          .watermark svg, .watermark-chemical svg, .watermark-absolute svg { width: 100%; height: 100%; object-fit: contain; }
-        .header-box { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 25px; border-bottom: 3px solid #111; padding-bottom: 10px; }
-          .signature-box { border: 1px dashed #999; height: 80px; width: 100%; margin-top: 5px; background: #fafafa;}
           @media print {
+            * { box-sizing: border-box; }
+            body {
+              background-color: #ffffff !important;
+              color: #000000 !important;
+              margin: 0 !important;
+              padding: 0 !important;
+              -webkit-print-color-adjust: exact !important;
+              print-color-adjust: exact !important;
+              color-adjust: exact !important;
+              font-family: Arial, Helvetica, sans-serif !important;
+            }
+            #print-content {
+              width: 210mm;
+              min-height: 297mm;
+              padding: 15mm;
+              margin: 0 auto;
+              box-sizing: border-box;
+              background: #ffffff;
+              border: 1px solid #e5e5e5;
+              box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+              position: relative;
+            }
+            .watermark-chemical {
+              position: absolute;
+              top: 50%;
+              left: 50%;
+              transform: translate(-50%, -50%);
+              width: 140mm;
+              height: 140mm;
+              opacity: 0.05;
+              pointer-events: none;
+              z-index: 0;
+            }
+            #print-content > * {
+              position: relative;
+              z-index: 10;
+            }
+            table { width: 100%; border-collapse: collapse; margin-top: 15px; background: #fff;}
+            th, td { border: 1px solid #111; padding: 8px; text-align: left; }
+            th { background-color: #f3f4f6 !important; font-weight: bold; }
+            .watermark svg, .watermark-chemical svg, .watermark-absolute svg { width: 100%; height: 100%; object-fit: contain; }
+            .header-box { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 25px; border-bottom: 3px solid #111; padding-bottom: 10px; }
+            .signature-box { border: 1px dashed #999; height: 80px; width: 100%; margin-top: 5px; background: #fafafa;}
             @page { size: A4 portrait; margin: 0; }
-            body { margin: 0 !important; }
             #print-content {
                width: 210mm !important;
                min-height: 297mm !important;
@@ -2676,7 +2711,7 @@ export default function ChemicalInventory({ language, themeMode = "dark" }: Chem
             <div className="flex items-center justify-between pb-1" style={{ borderBottom: '2.5px solid #dc2626' }}>
               <div className="flex items-center gap-4">
                 {/* Red 5-Point star logo */}
-                <svg viewBox="0 0 24 24" className="w-[52px] h-[52px] shrink-0" style={{ fill: '#dc2626', filter: 'drop-shadow(1px 1.5px 1px rgba(0,0,0,0.1))' }}>
+                <svg viewBox="0 0 24 24" className="w-[52px] h-[52px] shrink-0" style={{ fill: '#dc2626', filter: 'drop-shadow(1px 1.5px 1px rgba(0,0,0,0.1))', width: '52px', height: '52px' }}>
                   <polygon points="12,2 15,9 22,9 17,14 19,21 12,17 5,21 7,14 2,9 9,9" />
                 </svg>
                 <div>
@@ -2785,10 +2820,10 @@ export default function ChemicalInventory({ language, themeMode = "dark" }: Chem
                         src={activePrintData.customSignatureUrl} 
                         alt="Authorized Signature" 
                         className="h-12 max-w-[170px] object-contain mix-blend-multiply opacity-95 block mb-1" 
-                        style={{ maxHeight: '48px' }}
+                        style={{ maxHeight: '48px', maxWidth: '170px', height: '48px' }}
                       />
                     ) : (
-                      <svg viewBox="0 0 100 35" className="w-36 h-12 text-blue-900 ml-5 opacity-90 block">
+                      <svg viewBox="0 0 100 35" className="w-36 h-12 text-blue-900 ml-5 opacity-90 block" style={{ width: '144px', height: '48px' }}>
                         <path d="M5,25 C15,5 30,10 40,22 C50,30 65,5 75,18 C85,25 90,15 98,24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" />
                         <path d="M12,18 C35,15 60,30 85,15" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
                         <circle cx="85" cy="24" r="8" fill="none" stroke="#dc2626" strokeWidth="1" strokeDasharray="2,1" />

@@ -1,17 +1,17 @@
 import { useState, useEffect, useRef } from "react";
-import { 
-  Menu, 
-  X, 
-  Globe, 
-  User, 
-  TrendingUp, 
-  HelpCircle, 
-  ShieldCheck, 
+import {
+  Menu,
+  X,
+  Globe,
+  User,
+  TrendingUp,
+  HelpCircle,
+  ShieldCheck,
   Award,
   BookOpen,
   Briefcase,
   Layers,
-  Activity
+  Activity,
 } from "lucide-react";
 
 import Sidebar from "./components/Sidebar";
@@ -23,9 +23,12 @@ import EngineeringReport from "./components/EngineeringReport";
 import ChemicalInventory from "./components/ChemicalInventory";
 import Technicians from "./components/Technicians";
 import AIPestDetection from "./components/AIPestDetection";
+import CustomSpaceNotes from "./components/CustomSpaceNotes";
 import ClientPortalView from "./components/ClientPortalView";
 import AdminSettings from "./components/AdminSettings";
-import LocationsRegistry, { INITIAL_LOCATIONS_REGISTRY } from "./components/LocationsRegistry";
+import LocationsRegistry, {
+  INITIAL_LOCATIONS_REGISTRY,
+} from "./components/LocationsRegistry";
 import SupervisorsRegistry from "./components/SupervisorsRegistry";
 import LoginScreen from "./components/LoginScreen";
 import AlWafaLogo from "./components/AlWafaLogo";
@@ -33,22 +36,28 @@ import ProjectScheduler from "./components/ProjectScheduler";
 import CustomServiceModule from "./components/CustomServiceModule";
 import TimesheetPayroll from "./components/TimesheetPayroll";
 
-import { AppLanguage, UserRole, ReportItem, DICTIONARY, AppUser, LocationRegistryItem, SupervisorRegistryItem } from "./types";
+import {
+  AppLanguage,
+  UserRole,
+  ReportItem,
+  DICTIONARY,
+  AppUser,
+  LocationRegistryItem,
+  SupervisorRegistryItem,
+} from "./types";
 import { INITIAL_SUPERVISORS_REGISTRY } from "./initialSupervisors";
-import { 
-  getDocuments, 
-  saveDocument, 
+import {
+  getDocuments,
+  saveDocument,
   saveDocumentsBulk,
-  deleteDocument, 
-  getBrandingData, 
+  deleteDocument,
+  getBrandingData,
   saveBrandingData,
   subscribeCollection,
-  subscribeBrandingData
+  subscribeBrandingData,
 } from "./localDatabase";
 
-
 export default function App() {
-
   // ERP Passcode authentication state
   const [appPassword, setAppPassword] = useState<string>(() => {
     return localStorage.getItem("ALW_STAR_APP_PASSWORD") || "123456";
@@ -56,7 +65,9 @@ export default function App() {
 
   // App theme customizer properties
   const [themeMode, setThemeMode] = useState<"dark" | "light">(() => {
-    return (localStorage.getItem("ALW_THEME_MODE") as "dark" | "light") || "dark";
+    return (
+      (localStorage.getItem("ALW_THEME_MODE") as "dark" | "light") || "dark"
+    );
   });
   const [themeColor, setThemeColor] = useState<string>(() => {
     return localStorage.getItem("ALW_THEME_COLOR") || "emerald";
@@ -74,22 +85,85 @@ export default function App() {
 
   // Generate dynamic CSS variables to perfectly override classes globally
   useEffect(() => {
-    const accents: Record<string, { hex: string; hover: string; light: string }> = {
-      emerald: { hex: "#2DD4BF", hover: "#14B8A6", light: "rgba(45, 212, 191, 0.15)" }, // Soft Teal/Mint
-      amber: { hex: "#FBBF24", hover: "#F59E0B", light: "rgba(251, 191, 36, 0.15)" }, // Soft Amber/Peach
-      sky: { hex: "#38BDF8", hover: "#0EA5E9", light: "rgba(56, 189, 248, 0.15)" }, // Soft Sky
-      rose: { hex: "#FB7185", hover: "#F43F5E", light: "rgba(251, 113, 133, 0.15)" }, // Soft Rose/Blush
-      crimson: { hex: "#F43F5E", hover: "#E11D48", light: "rgba(244, 63, 94, 0.15)" }, // Soft Crimson
-      indigo: { hex: "#818CF8", hover: "#6366F1", light: "rgba(129, 140, 248, 0.15)" }, // Soft Indigo
-      violet: { hex: "#A78BFA", hover: "#8B5CF6", light: "rgba(167, 139, 250, 0.15)" }, // Soft Lavender
-      orange: { hex: "#FB923C", hover: "#F97316", light: "rgba(251, 146, 60, 0.15)" }, // Sunset Orange
-      gold: { hex: "#FACC15", hover: "#EAB308", light: "rgba(250, 204, 21, 0.15)" }, // Luxury Gold
-      fuchsia: { hex: "#E879F9", hover: "#D946EF", light: "rgba(232, 121, 249, 0.15)" }, // Electric Fuchsia
-      turquoise: { hex: "#22D3EE", hover: "#06B6D4", light: "rgba(34, 211, 238, 0.15)" }, // Ocean Turquoise
-      lime: { hex: "#A3E635", hover: "#84CC16", light: "rgba(163, 230, 53, 0.15)" }, // Electric Lime
-      sapphire: { hex: "#60A5FA", hover: "#3B82F6", light: "rgba(96, 165, 250, 0.15)" }, // Royal Sapphire
-      magenta: { hex: "#F472B6", hover: "#EC4899", light: "rgba(244, 114, 182, 0.15)" }, // Hot Pink
-      forest: { hex: "#4ADE80", hover: "#22C55E", light: "rgba(74, 222, 128, 0.15)" }, // Forest Green
+    const accents: Record<
+      string,
+      { hex: string; hover: string; light: string }
+    > = {
+      emerald: {
+        hex: "#2DD4BF",
+        hover: "#14B8A6",
+        light: "rgba(45, 212, 191, 0.15)",
+      }, // Soft Teal/Mint
+      amber: {
+        hex: "#FBBF24",
+        hover: "#F59E0B",
+        light: "rgba(251, 191, 36, 0.15)",
+      }, // Soft Amber/Peach
+      sky: {
+        hex: "#38BDF8",
+        hover: "#0EA5E9",
+        light: "rgba(56, 189, 248, 0.15)",
+      }, // Soft Sky
+      rose: {
+        hex: "#FB7185",
+        hover: "#F43F5E",
+        light: "rgba(251, 113, 133, 0.15)",
+      }, // Soft Rose/Blush
+      crimson: {
+        hex: "#F43F5E",
+        hover: "#E11D48",
+        light: "rgba(244, 63, 94, 0.15)",
+      }, // Soft Crimson
+      indigo: {
+        hex: "#818CF8",
+        hover: "#6366F1",
+        light: "rgba(129, 140, 248, 0.15)",
+      }, // Soft Indigo
+      violet: {
+        hex: "#A78BFA",
+        hover: "#8B5CF6",
+        light: "rgba(167, 139, 250, 0.15)",
+      }, // Soft Lavender
+      orange: {
+        hex: "#FB923C",
+        hover: "#F97316",
+        light: "rgba(251, 146, 60, 0.15)",
+      }, // Sunset Orange
+      gold: {
+        hex: "#FACC15",
+        hover: "#EAB308",
+        light: "rgba(250, 204, 21, 0.15)",
+      }, // Luxury Gold
+      fuchsia: {
+        hex: "#E879F9",
+        hover: "#D946EF",
+        light: "rgba(232, 121, 249, 0.15)",
+      }, // Electric Fuchsia
+      turquoise: {
+        hex: "#22D3EE",
+        hover: "#06B6D4",
+        light: "rgba(34, 211, 238, 0.15)",
+      }, // Ocean Turquoise
+      lime: {
+        hex: "#A3E635",
+        hover: "#84CC16",
+        light: "rgba(163, 230, 53, 0.15)",
+      }, // Electric Lime
+      sapphire: {
+        hex: "#60A5FA",
+        hover: "#3B82F6",
+        light: "rgba(96, 165, 250, 0.15)",
+      }, // Royal Sapphire
+      magenta: {
+        hex: "#F472B6",
+        hover: "#EC4899",
+        light: "rgba(244, 114, 182, 0.15)",
+      }, // Hot Pink
+      forest: {
+        hex: "#4ADE80",
+        hover: "#22C55E",
+        light: "rgba(74, 222, 128, 0.15)",
+      }, // Forest Green
     };
 
     const choice = accents[themeColor] || accents.emerald;
@@ -244,7 +318,9 @@ export default function App() {
 
   // User auth state
   const [currentUser, setCurrentUser] = useState<AppUser | null>(() => {
-    const s = localStorage.getItem("ALW_STAR_LOGGED_IN_USER") || sessionStorage.getItem("ALW_STAR_LOGGED_IN_USER");
+    const s =
+      localStorage.getItem("ALW_STAR_LOGGED_IN_USER") ||
+      sessionStorage.getItem("ALW_STAR_LOGGED_IN_USER");
     if (s) {
       try {
         return JSON.parse(s);
@@ -269,7 +345,9 @@ export default function App() {
 
   const [language, setLanguage] = useState<AppLanguage>("en");
   const [role, setRole] = useState<UserRole>(() => {
-    const s = localStorage.getItem("ALW_STAR_LOGGED_IN_USER") || sessionStorage.getItem("ALW_STAR_LOGGED_IN_USER");
+    const s =
+      localStorage.getItem("ALW_STAR_LOGGED_IN_USER") ||
+      sessionStorage.getItem("ALW_STAR_LOGGED_IN_USER");
     if (s) {
       try {
         const u = JSON.parse(s) as AppUser;
@@ -287,13 +365,20 @@ export default function App() {
     return localStorage.getItem("ALW_STAR_COMPANY_BRAND") || "AL WAFA STAR";
   });
   const [companySubtitle, setCompanySubtitle] = useState<string>(() => {
-    return localStorage.getItem("ALW_STAR_COMPANY_SUBTITLE") || "ERP Smart Control v2.5";
+    return (
+      localStorage.getItem("ALW_STAR_COMPANY_SUBTITLE") ||
+      "ERP Smart Control v2.5"
+    );
   });
   const [profileUser, setProfileUser] = useState<string>(() => {
-    return localStorage.getItem("ALW_STAR_PROFILE_USER") || "Superintendent Hamdy";
+    return (
+      localStorage.getItem("ALW_STAR_PROFILE_USER") || "Superintendent Hamdy"
+    );
   });
   const [profileEmail, setProfileEmail] = useState<string>(() => {
-    return localStorage.getItem("ALW_STAR_PROFILE_EMAIL") || "allitokmal@gmail.com";
+    return (
+      localStorage.getItem("ALW_STAR_PROFILE_EMAIL") || "allitokmal@gmail.com"
+    );
   });
   const [profileAvatarUrl, setProfileAvatarUrl] = useState<string>(() => {
     return localStorage.getItem("ALW_STAR_PROFILE_AVATAR") || "";
@@ -330,57 +415,67 @@ export default function App() {
 
   useEffect(() => {
     localStorage.setItem("ALW_LOCATIONS_REGISTRY", JSON.stringify(locations));
-    for (const loc of locations) {
-      if (loc.id) {
-        saveDocument("locations", loc.id, loc).catch((e) => console.warn(e));
-      }
-    }
   }, [locations]);
 
   // Supervisors registry persistent state
-  const [supervisors, setSupervisors] = useState<SupervisorRegistryItem[]>(() => {
-    const saved = localStorage.getItem("ALW_SUPERVISORS_REGISTRY");
-    if (saved) {
-      try {
-        const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed) && parsed.length > 0) {
-          return parsed;
-        }
-      } catch (e) {}
-    }
-    return INITIAL_SUPERVISORS_REGISTRY;
-  });
+  const [supervisors, setSupervisors] = useState<SupervisorRegistryItem[]>(
+    () => {
+      const saved = localStorage.getItem("ALW_SUPERVISORS_REGISTRY");
+      if (saved) {
+        try {
+          const parsed = JSON.parse(saved);
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            return parsed;
+          }
+        } catch (e) {}
+      }
+      return INITIAL_SUPERVISORS_REGISTRY;
+    },
+  );
 
   useEffect(() => {
-    localStorage.setItem("ALW_SUPERVISORS_REGISTRY", JSON.stringify(supervisors));
-    for (const sup of supervisors) {
-      if (sup.id) {
-        saveDocument("supervisors", sup.id, sup).catch((e) => console.warn(e));
-      }
-    }
+    localStorage.setItem(
+      "ALW_SUPERVISORS_REGISTRY",
+      JSON.stringify(supervisors),
+    );
   }, [supervisors]);
-  
+
   // Temporary client auto prefill linkage
   const [prefilledClient, setPrefilledClient] = useState<any>(null);
 
   // Connection & PWA Installation tracker
-  const [isOnline, setIsOnline] = useState<boolean>(typeof window !== 'undefined' ? window.navigator.onLine : true);
-  const [deferredPrompt, setDeferredPrompt] = useState<any>((window as any).deferredPWAInstallPrompt || null);
+  const [isOnline, setIsOnline] = useState<boolean>(
+    typeof window !== "undefined" ? window.navigator.onLine : true,
+  );
+  const [deferredPrompt, setDeferredPrompt] = useState<any>(
+    (window as any).deferredPWAInstallPrompt || null,
+  );
   const [isAppInstalled, setIsAppInstalled] = useState<boolean>(false);
   const [isInstallModalOpen, setIsInstallModalOpen] = useState<boolean>(false);
-  const [showPwaWelcomeOverlay, setShowPwaWelcomeOverlay] = useState<boolean>(() => {
-    return typeof window !== "undefined" && window.location.search.includes("pwa-install=true");
-  });
+  const [showPwaWelcomeOverlay, setShowPwaWelcomeOverlay] = useState<boolean>(
+    () => {
+      return (
+        typeof window !== "undefined" &&
+        window.location.search.includes("pwa-install=true")
+      );
+    },
+  );
 
   // App compilation & direct download state
-  const [downloadStatus, setDownloadStatus] = useState<"idle" | "compiling" | "ready">("idle");
+  const [downloadStatus, setDownloadStatus] = useState<
+    "idle" | "compiling" | "ready"
+  >("idle");
   const [downloadProgress, setDownloadProgress] = useState<number>(0);
   const [downloadLog, setDownloadLog] = useState<string>("");
 
   const startAppDownload = () => {
     setDownloadStatus("compiling");
     setDownloadProgress(0);
-    setDownloadLog(language === "bn" ? "ডিভাইস অপারেটিং সিস্টেম স্ক্যান করা হচ্ছে..." : "Detecting device system specifications...");
+    setDownloadLog(
+      language === "bn"
+        ? "ডিভাইস অপারেটিং সিস্টেম স্ক্যান করা হচ্ছে..."
+        : "Detecting device system specifications...",
+    );
 
     const interval = setInterval(() => {
       setDownloadProgress((prev) => {
@@ -388,9 +483,11 @@ export default function App() {
         if (next >= 100) {
           clearInterval(interval);
           setDownloadStatus("ready");
-          
+
           // Trigger file download on PC
-          const isPC = typeof window !== "undefined" && !/Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+          const isPC =
+            typeof window !== "undefined" &&
+            !/Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
           if (isPC) {
             const shortcutContent = `[InternetShortcut]\nURL=${window.location.origin + window.location.pathname}?pwa-install=true\nIconIndex=0\n`;
             const blob = new Blob([shortcutContent], { type: "text/plain" });
@@ -403,29 +500,50 @@ export default function App() {
             document.body.removeChild(a);
             URL.revokeObjectURL(url);
           }
-          
+
           // Trigger actual PWA prompt if available
-          const promptEvent = deferredPrompt || (window as any).deferredPWAInstallPrompt;
-          if (promptEvent && typeof promptEvent.prompt === 'function') {
+          const promptEvent =
+            deferredPrompt || (window as any).deferredPWAInstallPrompt;
+          if (promptEvent && typeof promptEvent.prompt === "function") {
             try {
               promptEvent.prompt();
             } catch (err) {}
           }
-          
+
           return 100;
         }
 
         // Update logs based on progress percentage
         if (next < 25) {
-          setDownloadLog(language === "bn" ? "🔍 ডিভাইস অপারেটিং সিস্টেম স্ক্যান করা হচ্ছে..." : "🔍 Analyzing device system runtime environment...");
+          setDownloadLog(
+            language === "bn"
+              ? "🔍 ডিভাইস অপারেটিং সিস্টেম স্ক্যান করা হচ্ছে..."
+              : "🔍 Analyzing device system runtime environment...",
+          );
         } else if (next < 50) {
-          setDownloadLog(language === "bn" ? "📦 স্ট্যান্ডঅ্যালোন ওয়েব-অ্যাপ প্যাকেজ ফাইল কম্পাইল করা হচ্ছে..." : "📦 Compiling standalone webapp asset wrappers...");
+          setDownloadLog(
+            language === "bn"
+              ? "📦 স্ট্যান্ডঅ্যালোন ওয়েব-অ্যাপ প্যাকেজ ফাইল কম্পাইল করা হচ্ছে..."
+              : "📦 Compiling standalone webapp asset wrappers...",
+          );
         } else if (next < 75) {
-          setDownloadLog(language === "bn" ? "🔐 অফলাইন লোকাল সিকিউরিটি সার্টিফিকেট জেনারেট হচ্ছে..." : "🔐 Generating cryptographic offline sandbox certificates...");
+          setDownloadLog(
+            language === "bn"
+              ? "🔐 অফলাইন লোকাল সিকিউরিটি সার্টিফিকেট জেনারেট হচ্ছে..."
+              : "🔐 Generating cryptographic offline sandbox certificates...",
+          );
         } else if (next < 90) {
-          setDownloadLog(language === "bn" ? "⚡ অফলাইন ক্যাশ মেমোরি ও ডাটাবেজ ইন্টিগ্রেট করা হচ্ছে..." : "⚡ Synchronizing high-performance offline databases...");
+          setDownloadLog(
+            language === "bn"
+              ? "⚡ অফলাইন ক্যাশ মেমোরি ও ডাটাবেজ ইন্টিগ্রেট করা হচ্ছে..."
+              : "⚡ Synchronizing high-performance offline databases...",
+          );
         } else {
-          setDownloadLog(language === "bn" ? "🚀 ডাউনলোড ফাইল চূড়ান্তভাবে প্রস্তুত করা হচ্ছে..." : "🚀 Compiling final deployment bundle packages...");
+          setDownloadLog(
+            language === "bn"
+              ? "🚀 ডাউনলোড ফাইল চূড়ান্তভাবে প্রস্তুত করা হচ্ছে..."
+              : "🚀 Compiling final deployment bundle packages...",
+          );
         }
 
         return next;
@@ -435,11 +553,15 @@ export default function App() {
 
   // Install dropdown menu references & state
   const installDropdownRef = useRef<HTMLDivElement>(null);
-  const [isInstallDropdownOpen, setIsInstallDropdownOpen] = useState<boolean>(false);
+  const [isInstallDropdownOpen, setIsInstallDropdownOpen] =
+    useState<boolean>(false);
 
   useEffect(() => {
     const handleOutsideClick = (event: MouseEvent) => {
-      if (installDropdownRef.current && !installDropdownRef.current.contains(event.target as Node)) {
+      if (
+        installDropdownRef.current &&
+        !installDropdownRef.current.contains(event.target as Node)
+      ) {
         setIsInstallDropdownOpen(false);
       }
     };
@@ -457,24 +579,30 @@ export default function App() {
   const handleSetFullscreenLayout = (val: boolean) => {
     setIsFullscreenLayout(val);
     localStorage.setItem("ALW_STAR_FULL_LAYOUT", val ? "true" : "false");
-    
-    // Attemp standard HTML5 native full screen request 
+
+    // Attemp standard HTML5 native full screen request
     try {
       if (val) {
         if (!document.fullscreenElement) {
-          document.documentElement.requestFullscreen().catch(err => {
-            console.log("Browser blocked native fullscreen (common if inside an iframe). Software layout fallback active.", err);
+          document.documentElement.requestFullscreen().catch((err) => {
+            console.log(
+              "Browser blocked native fullscreen (common if inside an iframe). Software layout fallback active.",
+              err,
+            );
           });
         }
       } else {
         if (document.fullscreenElement) {
-          document.exitFullscreen().catch(err => {
+          document.exitFullscreen().catch((err) => {
             console.log("Error exiting browser native fullscreen:", err);
           });
         }
       }
     } catch (e) {
-      console.log("Native Fullscreen API not supported or disabled in container.", e);
+      console.log(
+        "Native Fullscreen API not supported or disabled in container.",
+        e,
+      );
     }
   };
 
@@ -504,12 +632,12 @@ export default function App() {
     const handleOffline = () => setIsOnline(false);
 
     const checkAndTriggerPendingPrompt = (e: any) => {
-      const hasPending = typeof window !== "undefined" && (
-        window.location.search.includes("pwa-install=true") ||
-        sessionStorage.getItem("pwa_install_pending") === "true"
-      );
-      
-      if (hasPending && e && typeof e.prompt === 'function') {
+      const hasPending =
+        typeof window !== "undefined" &&
+        (window.location.search.includes("pwa-install=true") ||
+          sessionStorage.getItem("pwa_install_pending") === "true");
+
+      if (hasPending && e && typeof e.prompt === "function") {
         try {
           e.prompt();
           e.userChoice.then((choiceResult: { outcome: string }) => {
@@ -553,20 +681,29 @@ export default function App() {
     window.addEventListener("appinstalled", handleAppInstalled);
 
     // Check if running in standalone PWA mode
-    if (window.matchMedia('(display-mode: standalone)').matches || (window.navigator as any).standalone) {
+    if (
+      window.matchMedia("(display-mode: standalone)").matches ||
+      (window.navigator as any).standalone
+    ) {
       setIsAppInstalled(true);
     }
 
     // Auto-detect PWA installation intent from parameter and activate dedicated installation helper
-    if (typeof window !== "undefined" && window.location.search.includes("pwa-install=true")) {
+    if (
+      typeof window !== "undefined" &&
+      window.location.search.includes("pwa-install=true")
+    ) {
       try {
         sessionStorage.setItem("pwa_install_pending", "true");
       } catch (err) {}
       setShowPwaWelcomeOverlay(true);
-      
+
       // Clean up URL query param silently
       try {
-        const cleanUrl = window.location.origin + window.location.pathname + window.location.hash;
+        const cleanUrl =
+          window.location.origin +
+          window.location.pathname +
+          window.location.hash;
         window.history.replaceState({ path: cleanUrl }, "", cleanUrl);
       } catch (e) {
         console.warn("Could not clean URL params:", e);
@@ -576,22 +713,25 @@ export default function App() {
     return () => {
       window.removeEventListener("online", handleOnline);
       window.removeEventListener("offline", handleOffline);
-      window.removeEventListener("beforeinstallprompt", handleBeforeInstallPrompt);
+      window.removeEventListener(
+        "beforeinstallprompt",
+        handleBeforeInstallPrompt,
+      );
       window.removeEventListener("appinstalled", handleAppInstalled);
     };
   }, []);
 
   const triggerPwaInstall = () => {
     // Check if we are running inside an iframe (like the AI Studio sandboxed preview)
-    const isIframe = typeof window !== "undefined" && window.self !== window.top;
+    const isIframe =
+      typeof window !== "undefined" && window.self !== window.top;
     if (isIframe) {
-      // Instantly open a new standalone tab with the installer parameter
-      const directUrl = window.location.origin + window.location.pathname + "?pwa-install=true" + window.location.hash;
-      window.open(directUrl, "_blank");
+      setIsInstallModalOpen(true);
       return;
     }
 
-    const promptEvent = deferredPrompt || (window as any).deferredPWAInstallPrompt;
+    const promptEvent =
+      deferredPrompt || (window as any).deferredPWAInstallPrompt;
     if (promptEvent) {
       promptEvent.prompt();
       promptEvent.userChoice.then((choiceResult: { outcome: string }) => {
@@ -610,78 +750,130 @@ export default function App() {
   // Fetch latest reports, locations, supervisors, and branding on startup in real-time
   useEffect(() => {
     // 1. Synchronize Pest Reports via Firestore in real-time
-    const unsubscribeReports = subscribeCollection<ReportItem>("serviceReports", (list) => {
-      if (list && list.length > 0) {
-        setReports((curr) => {
-          if (JSON.stringify(curr) !== JSON.stringify(list)) {
-            localStorage.setItem("ALW_STARE_ERP_REPORTS", JSON.stringify(list));
-            return list;
-          }
-          return curr;
-        });
-      } else {
-        // Fallback: seed from local storage if standard list is empty
-        const saved = localStorage.getItem("ALW_STARE_ERP_REPORTS");
-        if (saved) {
-          try {
-            const parsed = JSON.parse(saved);
-            if (Array.isArray(parsed) && parsed.length > 0) {
-              setReports((curr) => {
-                if (JSON.stringify(curr) !== JSON.stringify(parsed)) {
-                  saveDocumentsBulk("serviceReports", parsed);
-                  return parsed;
-                }
-                return curr;
-              });
+    const unsubscribeReports = subscribeCollection<ReportItem>(
+      "serviceReports",
+      (list) => {
+        if (list && list.length > 0) {
+          setReports((curr) => {
+            if (JSON.stringify(curr) !== JSON.stringify(list)) {
+              localStorage.setItem(
+                "ALW_STARE_ERP_REPORTS",
+                JSON.stringify(list),
+              );
+              return list;
             }
-          } catch (e) {}
+            return curr;
+          });
+        } else {
+          // Fallback: seed from local storage if standard list is empty
+          const saved = localStorage.getItem("ALW_STARE_ERP_REPORTS");
+          if (saved) {
+            try {
+              const parsed = JSON.parse(saved);
+              if (Array.isArray(parsed) && parsed.length > 0) {
+                setReports((curr) => {
+                  if (JSON.stringify(curr) !== JSON.stringify(parsed)) {
+                    saveDocumentsBulk("serviceReports", parsed);
+                    return parsed;
+                  }
+                  return curr;
+                });
+              }
+            } catch (e) {}
+          }
         }
-      }
-    });
+      },
+    );
 
     // 2. Synchronize Locations Registry in real-time
-    const unsubscribeLocations = subscribeCollection<LocationRegistryItem>("locations", (list) => {
-      if (list && list.length > 0) {
-        setLocations((curr) => {
-          if (JSON.stringify(curr) !== JSON.stringify(list)) {
-            localStorage.setItem("ALW_LOCATIONS_REGISTRY", JSON.stringify(list));
-            return list;
-          }
-          return curr;
-        });
-      } else {
-        setLocations((curr) => {
-          if (JSON.stringify(curr) !== JSON.stringify(INITIAL_LOCATIONS_REGISTRY)) {
-            localStorage.setItem("ALW_LOCATIONS_REGISTRY", JSON.stringify(INITIAL_LOCATIONS_REGISTRY));
+    const unsubscribeLocations = subscribeCollection<LocationRegistryItem>(
+      "locations",
+      (list) => {
+        if (list && list.length > 0) {
+          setLocations((curr) => {
+            if (JSON.stringify(curr) !== JSON.stringify(list)) {
+              localStorage.setItem(
+                "ALW_LOCATIONS_REGISTRY",
+                JSON.stringify(list),
+              );
+              return list;
+            }
+            return curr;
+          });
+        } else {
+          // Fallback: seed from local storage if standard list is empty
+          const saved = localStorage.getItem("ALW_LOCATIONS_REGISTRY");
+          if (saved) {
+            try {
+              const parsed = JSON.parse(saved);
+              if (Array.isArray(parsed) && parsed.length > 0) {
+                setLocations((curr) => {
+                  if (JSON.stringify(curr) !== JSON.stringify(parsed)) {
+                    saveDocumentsBulk("locations", parsed);
+                    return parsed;
+                  }
+                  return curr;
+                });
+              } else {
+                saveDocumentsBulk("locations", INITIAL_LOCATIONS_REGISTRY);
+                setLocations(INITIAL_LOCATIONS_REGISTRY);
+              }
+            } catch (e) {
+              saveDocumentsBulk("locations", INITIAL_LOCATIONS_REGISTRY);
+              setLocations(INITIAL_LOCATIONS_REGISTRY);
+            }
+          } else {
             saveDocumentsBulk("locations", INITIAL_LOCATIONS_REGISTRY);
-            return INITIAL_LOCATIONS_REGISTRY;
+            setLocations(INITIAL_LOCATIONS_REGISTRY);
           }
-          return curr;
-        });
-      }
-    });
+        }
+      },
+    );
 
     // 3. Synchronize Supervisors Registry in real-time
-    const unsubscribeSupervisors = subscribeCollection<SupervisorRegistryItem>("supervisors", (list) => {
-      if (list && list.length > 0) {
-        setSupervisors((curr) => {
-          if (JSON.stringify(curr) !== JSON.stringify(list)) {
-            localStorage.setItem("ALW_SUPERVISORS_REGISTRY", JSON.stringify(list));
-            return list;
-          }
-          return curr;
-        });
-      } else {
-        setSupervisors((curr) => {
-          if (JSON.stringify(curr) !== JSON.stringify(INITIAL_SUPERVISORS_REGISTRY)) {
-            localStorage.setItem("ALW_SUPERVISORS_REGISTRY", JSON.stringify(INITIAL_SUPERVISORS_REGISTRY));
+    const unsubscribeSupervisors = subscribeCollection<SupervisorRegistryItem>(
+      "supervisors",
+      (list) => {
+        if (list && list.length > 0) {
+          setSupervisors((curr) => {
+            if (JSON.stringify(curr) !== JSON.stringify(list)) {
+              localStorage.setItem(
+                "ALW_SUPERVISORS_REGISTRY",
+                JSON.stringify(list),
+              );
+              return list;
+            }
+            return curr;
+          });
+        } else {
+          // Fallback: seed from local storage if standard list is empty
+          const saved = localStorage.getItem("ALW_SUPERVISORS_REGISTRY");
+          if (saved) {
+            try {
+              const parsed = JSON.parse(saved);
+              if (Array.isArray(parsed) && parsed.length > 0) {
+                setSupervisors((curr) => {
+                  if (JSON.stringify(curr) !== JSON.stringify(parsed)) {
+                    saveDocumentsBulk("supervisors", parsed);
+                    return parsed;
+                  }
+                  return curr;
+                });
+              } else {
+                saveDocumentsBulk("supervisors", INITIAL_SUPERVISORS_REGISTRY);
+                setSupervisors(INITIAL_SUPERVISORS_REGISTRY);
+              }
+            } catch (e) {
+              saveDocumentsBulk("supervisors", INITIAL_SUPERVISORS_REGISTRY);
+              setSupervisors(INITIAL_SUPERVISORS_REGISTRY);
+            }
+          } else {
             saveDocumentsBulk("supervisors", INITIAL_SUPERVISORS_REGISTRY);
-            return INITIAL_SUPERVISORS_REGISTRY;
+            setSupervisors(INITIAL_SUPERVISORS_REGISTRY);
           }
-          return curr;
-        });
-      }
-    });
+        }
+      },
+    );
 
     // 4. Synchronize Branding & Security Passwords in real-time
     const unsubscribeBranding = subscribeBrandingData((b) => {
@@ -697,7 +889,10 @@ export default function App() {
       if (b.companySubtitle) {
         setCompanySubtitle((curr) => {
           if (curr !== b.companySubtitle) {
-            localStorage.setItem("ALW_STAR_COMPANY_SUBTITLE", b.companySubtitle);
+            localStorage.setItem(
+              "ALW_STAR_COMPANY_SUBTITLE",
+              b.companySubtitle,
+            );
             return b.companySubtitle;
           }
           return curr;
@@ -724,7 +919,10 @@ export default function App() {
       if (b.profileAvatarUrl !== undefined) {
         setProfileAvatarUrl((curr) => {
           if (curr !== b.profileAvatarUrl) {
-            localStorage.setItem("ALW_STAR_PROFILE_AVATAR", b.profileAvatarUrl || "");
+            localStorage.setItem(
+              "ALW_STAR_PROFILE_AVATAR",
+              b.profileAvatarUrl || "",
+            );
             return b.profileAvatarUrl || "";
           }
           return curr;
@@ -749,18 +947,31 @@ export default function App() {
     };
   }, []);
 
+  const isInitialMount = useRef(true);
+
   // Keep Firestore branding parameters updated
   useEffect(() => {
+    if (isInitialMount.current) {
+      isInitialMount.current = false;
+      return;
+    }
     const payload = {
       companyBrand,
       companySubtitle,
       profileUser,
       profileEmail,
       profileAvatarUrl,
-      appPassword
+      appPassword,
     };
-    saveBrandingData(payload).catch(e => console.warn(e));
-  }, [companyBrand, companySubtitle, profileUser, profileEmail, profileAvatarUrl, appPassword]);
+    saveBrandingData(payload).catch((e) => console.warn(e));
+  }, [
+    companyBrand,
+    companySubtitle,
+    profileUser,
+    profileEmail,
+    profileAvatarUrl,
+    appPassword,
+  ]);
 
   // Update localStorage and server reports in the background
   const saveReports = (newReports: ReportItem[]) => {
@@ -772,10 +983,10 @@ export default function App() {
   const handleAddReport = async (newReport: ReportItem) => {
     // Offline-First: update local state instantly so user never loses entry using functional updates to prevent loss of past records
     setReports((prev) => {
-      const exists = prev.some(r => r.id === newReport.id);
+      const exists = prev.some((r) => r.id === newReport.id);
       let updated;
       if (exists) {
-        updated = prev.map(r => r.id === newReport.id ? newReport : r);
+        updated = prev.map((r) => (r.id === newReport.id ? newReport : r));
       } else {
         updated = [newReport, ...prev];
       }
@@ -795,7 +1006,9 @@ export default function App() {
   const handleUpdateReport = async (updatedReport: ReportItem) => {
     // Offline-First: update local state instantly using functional updates
     setReports((prev) => {
-      const updated = prev.map(r => r.id === updatedReport.id ? updatedReport : r);
+      const updated = prev.map((r) =>
+        r.id === updatedReport.id ? updatedReport : r,
+      );
       localStorage.setItem("ALW_STARE_ERP_REPORTS", JSON.stringify(updated));
       return updated;
     });
@@ -813,7 +1026,7 @@ export default function App() {
   const handleDeleteReport = async (id: string) => {
     // Offline-First: update local state instantly using functional updates
     setReports((prev) => {
-      const updated = prev.filter(r => r.id !== id);
+      const updated = prev.filter((r) => r.id !== id);
       localStorage.setItem("ALW_STARE_ERP_REPORTS", JSON.stringify(updated));
       return updated;
     });
@@ -821,7 +1034,10 @@ export default function App() {
     try {
       await deleteDocument("serviceReports", id);
     } catch (e) {
-      console.warn("Failed to delete report from Firestore, removed locally:", e);
+      console.warn(
+        "Failed to delete report from Firestore, removed locally:",
+        e,
+      );
     }
   };
 
@@ -862,7 +1078,8 @@ export default function App() {
   const translations = DICTIONARY[language];
 
   if (showPwaWelcomeOverlay) {
-    const activePrompt = deferredPrompt || (window as any).deferredPWAInstallPrompt;
+    const activePrompt =
+      deferredPrompt || (window as any).deferredPWAInstallPrompt;
 
     const handlePwaDirectTrigger = () => {
       if (activePrompt) {
@@ -933,7 +1150,9 @@ export default function App() {
                 <div>
                   <h3 className="text-xs font-black text-slate-200 uppercase tracking-wider flex items-center gap-2">
                     <span className="text-base">📁</span>
-                    {language === "bn" ? "১০০% অফলাইন ডাটা সেভ" : "100% Offline Operations"}
+                    {language === "bn"
+                      ? "১০০% অফলাইন ডাটা সেভ"
+                      : "100% Offline Operations"}
                   </h3>
                   <p className="text-[11px] text-slate-400 font-medium leading-relaxed mt-1">
                     {language === "bn"
@@ -947,7 +1166,9 @@ export default function App() {
                 <div>
                   <h3 className="text-xs font-black text-slate-200 uppercase tracking-wider flex items-center gap-2">
                     <span className="text-base">⚡</span>
-                    {language === "bn" ? "ডেডিকেটেড ডেস্কটপ/মোবাইল অ্যাপ" : "Native System Speeds"}
+                    {language === "bn"
+                      ? "ডেডিকেটেড ডেস্কটপ/মোবাইল অ্যাপ"
+                      : "Native System Speeds"}
                   </h3>
                   <p className="text-[11px] text-slate-400 font-medium leading-relaxed mt-1">
                     {language === "bn"
@@ -963,7 +1184,9 @@ export default function App() {
           <div className="bg-slate-850 p-5 rounded-2xl border border-dashed border-[#10B981]/35 flex flex-col items-center justify-center text-center space-y-4 shadow-xl">
             <div className="space-y-1">
               <div className="inline-flex items-center gap-1.5 px-3 py-1 bg-emerald-500/10 border border-emerald-500/25 rounded-full text-[10px] font-bold text-[#10B981] uppercase tracking-widest leading-none font-mono">
-                {language === "bn" ? "১-ক্লিকে সরাসরি ইন্সটল" : "Recommended Installation Pathway"}
+                {language === "bn"
+                  ? "১-ক্লিকে সরাসরি ইন্সটল"
+                  : "Recommended Installation Pathway"}
               </div>
               <h3 className="text-sm font-black text-slate-50">
                 {language === "bn"
@@ -977,7 +1200,9 @@ export default function App() {
               onClick={handlePwaDirectTrigger}
               className="relative overflow-hidden w-full sm:w-auto px-8 py-4 bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-slate-950 font-black text-sm uppercase tracking-wider rounded-2xl active:scale-98 transition-all cursor-pointer shadow-lg shadow-emerald-500/15 duration-150 flex items-center justify-center gap-2 group"
             >
-              <span className="text-lg group-hover:scale-110 transition-transform">📥</span>
+              <span className="text-lg group-hover:scale-110 transition-transform">
+                📥
+              </span>
               <span>
                 {language === "bn"
                   ? "📲 এখনই অ্যাপটি ইনস্টল করুন"
@@ -988,7 +1213,8 @@ export default function App() {
 
             {!activePrompt && (
               <p className="text-[10px] text-amber-400 font-semibold leading-relaxed">
-                ℹ️ {language === "bn"
+                ℹ️{" "}
+                {language === "bn"
                   ? "ব্রাউজার স্বয়ংক্রিয় প্রম্পট লোড করতে কয়েক সেকেন্ড সময় নিতে পারে। অথবা আপনি নিচে দেওয়া সহজ নিয়মাবলি ব্যবহার করেও ডাউনলোড করে নিতে পারেন।"
                   : "If your browser does not immediately open the native prompt, please utilize the simple device steps described below."}
               </p>
@@ -998,7 +1224,10 @@ export default function App() {
           {/* Quick Installation Steps Per Platform */}
           <div className="space-y-3.5 pt-2">
             <h4 className="text-xs font-black uppercase tracking-widest text-[#10B981] border-l-4 border-[#10B981] pl-2.5">
-              📌 {language === "bn" ? "সহজে ডাউনলোড করার নিয়মাবলী" : "Platform-Specific Support Steps"}
+              📌{" "}
+              {language === "bn"
+                ? "সহজে ডাউনলোড করার নিয়মাবলী"
+                : "Platform-Specific Support Steps"}
             </h4>
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
@@ -1012,9 +1241,21 @@ export default function App() {
                     </span>
                   </div>
                   <ol className="list-decimal pl-4.5 text-[11px] text-slate-400 space-y-1.5 mt-2.5 leading-relaxed font-sans font-medium">
-                    <li>{language === "bn" ? "ডানদিকের ৩-ডট মেনু বাটন ট্যাপ করুন" : "Tap the browser's 3-dot settings icon."}</li>
-                    <li>{language === "bn" ? "'Install App' বা 'Add to Home Screen' চাপুন" : "Choose 'Install App' or 'Add to Home Screen'."}</li>
-                    <li>{language === "bn" ? "কনফার্ম করুন এবং অফলাইন অ্যাপটি ব্যবহার করুন!" : "Accept confirmation and deploy natively on spring board."}</li>
+                    <li>
+                      {language === "bn"
+                        ? "ডানদিকের ৩-ডট মেনু বাটন ট্যাপ করুন"
+                        : "Tap the browser's 3-dot settings icon."}
+                    </li>
+                    <li>
+                      {language === "bn"
+                        ? "'Install App' বা 'Add to Home Screen' চাপুন"
+                        : "Choose 'Install App' or 'Add to Home Screen'."}
+                    </li>
+                    <li>
+                      {language === "bn"
+                        ? "কনফার্ম করুন এবং অফলাইন অ্যাপটি ব্যবহার করুন!"
+                        : "Accept confirmation and deploy natively on spring board."}
+                    </li>
                   </ol>
                 </div>
               </div>
@@ -1029,9 +1270,21 @@ export default function App() {
                     </span>
                   </div>
                   <ol className="list-decimal pl-4.5 text-[11px] text-slate-400 space-y-1.5 mt-2.5 leading-relaxed font-sans font-medium">
-                    <li>{language === "bn" ? "সাফারি ব্রাউজারের নিচে থাকা শেয়ার (📥) আইকন চাপুন" : "Tap Safari's bottom Share button (📤)."}</li>
-                    <li>{language === "bn" ? "লিংকটি স্ক্রল করে 'Add to Home Screen' চাপুন" : "Select 'Add to Home Screen' from the tray options."}</li>
-                    <li>{language === "bn" ? "উপরে 'Add' বাটনে চাপ দিয়ে চিরকালের মত অ্যাপ নামান" : "Tap 'Add' on top right. Launch directly from springboard!"}</li>
+                    <li>
+                      {language === "bn"
+                        ? "সাফারি ব্রাউজারের নিচে থাকা শেয়ার (📥) আইকন চাপুন"
+                        : "Tap Safari's bottom Share button (📤)."}
+                    </li>
+                    <li>
+                      {language === "bn"
+                        ? "লিংকটি স্ক্রল করে 'Add to Home Screen' চাপুন"
+                        : "Select 'Add to Home Screen' from the tray options."}
+                    </li>
+                    <li>
+                      {language === "bn"
+                        ? "উপরে 'Add' বাটনে চাপ দিয়ে চিরকালের মত অ্যাপ নামান"
+                        : "Tap 'Add' on top right. Launch directly from springboard!"}
+                    </li>
                   </ol>
                 </div>
               </div>
@@ -1046,9 +1299,21 @@ export default function App() {
                     </span>
                   </div>
                   <ol className="list-decimal pl-4.5 text-[11px] text-slate-400 space-y-1.5 mt-2.5 leading-relaxed font-sans font-medium">
-                    <li>{language === "bn" ? "ব্রাউজার এড্রেস বারের ডানে মনিটর বা ইন্সটল ([+]) বাটন চাপুন" : "Click the monitor icon or [+] icon inside URL bar."}</li>
-                    <li>{language === "bn" ? "অথবা ক্রোম মেনু থেকে 'Save & Share' ➔ 'Install Page' এ চাপুন" : "Or open settings -> 'Save and Share' -> 'Install Page'."}</li>
-                    <li>{language === "bn" ? "এটি সাথে সাথে ডেস্কটপ অ্যাপ আইকন হিসেবে যোগ হবে!" : "Launches clean speed windows inside taskbar instantly."}</li>
+                    <li>
+                      {language === "bn"
+                        ? "ব্রাউজার এড্রেস বারের ডানে মনিটর বা ইন্সটল ([+]) বাটন চাপুন"
+                        : "Click the monitor icon or [+] icon inside URL bar."}
+                    </li>
+                    <li>
+                      {language === "bn"
+                        ? "অথবা ক্রোম মেনু থেকে 'Save & Share' ➔ 'Install Page' এ চাপুন"
+                        : "Or open settings -> 'Save and Share' -> 'Install Page'."}
+                    </li>
+                    <li>
+                      {language === "bn"
+                        ? "এটি সাথে সাথে ডেস্কটপ অ্যাপ আইকন হিসেবে যোগ হবে!"
+                        : "Launches clean speed windows inside taskbar instantly."}
+                    </li>
                   </ol>
                 </div>
               </div>
@@ -1058,7 +1323,8 @@ export default function App() {
           {/* Proceed Options Box */}
           <div className="border-t border-slate-800 pt-5 flex flex-col sm:flex-row gap-3.5 items-center justify-between">
             <p className="text-[10px] text-slate-500 font-mono font-medium max-w-sm leading-relaxed text-center sm:text-left">
-              * AL WAFA STAR Smart ERP employs offline state cache storage to allow safe continuous forensic reporting.
+              * AL WAFA STAR Smart ERP employs offline state cache storage to
+              allow safe continuous forensic reporting.
             </p>
             <button
               type="button"
@@ -1081,7 +1347,7 @@ export default function App() {
 
   if (!isAuthenticated) {
     return (
-      <LoginScreen 
+      <LoginScreen
         appPassword={appPassword}
         language={language}
         setLanguage={setLanguage}
@@ -1110,14 +1376,16 @@ export default function App() {
   }
 
   return (
-    <div id="app-shell-root-container" className="flex h-screen bg-[#0F172A] text-slate-100 overflow-hidden font-sans select-none antialiased">
-      
+    <div
+      id="app-shell-root-container"
+      className="flex h-screen bg-[#0F172A] text-slate-100 overflow-hidden font-sans select-none antialiased"
+    >
       {/* Desktop Sidebar Panel */}
       <div className="hidden lg:flex shrink-0">
-        <Sidebar 
-          currentTab={currentTab} 
-          setTab={setTab} 
-          language={language} 
+        <Sidebar
+          currentTab={currentTab}
+          setTab={setTab}
+          language={language}
           setLanguage={setLanguage}
           role={role}
           setRole={setRole}
@@ -1139,19 +1407,31 @@ export default function App() {
       {sidebarOpen && (
         <div className="fixed inset-0 z-50 flex lg:hidden bg-black/50 backdrop-blur-sm">
           <div className="relative w-80 shrink-0 h-full animate-slide-right flex">
-            <Sidebar 
-              currentTab={currentTab} 
-              setTab={(tab) => { setTab(tab); setSidebarOpen(false); }}
-              language={language} 
-              setLanguage={(lang) => { setLanguage(lang); setSidebarOpen(false); }}
+            <Sidebar
+              currentTab={currentTab}
+              setTab={(tab) => {
+                setTab(tab);
+                setSidebarOpen(false);
+              }}
+              language={language}
+              setLanguage={(lang) => {
+                setLanguage(lang);
+                setSidebarOpen(false);
+              }}
               role={role}
-              setRole={(r) => { setRole(r); setSidebarOpen(false); }}
+              setRole={(r) => {
+                setRole(r);
+                setSidebarOpen(false);
+              }}
               companyBrand={companyBrand}
               companySubtitle={companySubtitle}
               profileUser={profileUser}
               profileEmail={profileEmail}
               profileAvatarUrl={profileAvatarUrl}
-              onOpenProfileEditor={() => { setShowProfileEditor(true); setSidebarOpen(false); }}
+              onOpenProfileEditor={() => {
+                setShowProfileEditor(true);
+                setSidebarOpen(false);
+              }}
               onLogout={handleLogout}
               themeMode={themeMode}
               onSetThemeMode={handleSetThemeMode}
@@ -1171,82 +1451,100 @@ export default function App() {
       )}
 
       {/* Primary Workspace Space */}
-      <div id="app-workspace-content-shell" className="flex-1 flex flex-col min-w-0 bg-[#0F172A] h-screen overflow-hidden">
-        
+      <div
+        id="app-workspace-content-shell"
+        className="flex-1 flex flex-col min-w-0 bg-[#0F172A] h-screen overflow-hidden"
+      >
         {/* Top Header navbar with system indicators */}
         <header className="border-b border-[#1E293B] bg-[#111827] px-4 sm:px-6 py-3 flex justify-between items-center z-40 shrink-0">
-            <div className="flex items-center gap-4 min-w-0">
-              <button
-                id="mobile-hamburger-nav"
-                onClick={() => setSidebarOpen(true)}
-                className="p-1.5 rounded-lg bg-slate-800 border border-slate-700 hover:bg-slate-700 block lg:hidden cursor-pointer"
-              >
-                <Menu className="w-5 h-5 text-slate-100" />
-              </button>
+          <div className="flex items-center gap-4 min-w-0">
+            <button
+              id="mobile-hamburger-nav"
+              onClick={() => setSidebarOpen(true)}
+              className="p-1.5 rounded-lg bg-slate-800 border border-slate-700 hover:bg-slate-700 block lg:hidden cursor-pointer"
+            >
+              <Menu className="w-5 h-5 text-slate-100" />
+            </button>
 
-              {/* Title segment */}
-              <div className="flex items-center gap-2 min-w-0 overflow-visible select-none">
-                {/* Small Red Star indicator inside the box position */}
-                <div className="shrink-0 flex items-center justify-center">
-                  <svg 
-                    viewBox="0 0 512 512" 
-                    fill="none" 
-                    className="w-3.5 h-3.5 text-[#ED1C24] drop-shadow-[0_1px_3px_rgba(237,28,36,0.3)] animate-pulse"
-                    style={{ filter: "drop-shadow(0 0 3px #ED1C24)" }}
-                  >
-                    <polygon 
-                      points="256,40 327,184 486,207 371,319 398,477 256,403 114,477 141,319 26,207 185,184" 
-                      fill="#ED1C24" 
-                    />
-                  </svg>
-                </div>
-                <div className="flex flex-col select-none leading-none">
-                  <span className="text-[10px] font-black tracking-wider text-slate-100 font-sans">{companyBrand}</span>
-                  <span className="text-[8px] font-bold text-emerald-400 tracking-widest mt-0.5">ERP v2.5 ● {isOnline ? "ONLINE" : "OFFLINE"}</span>
-                </div>
+            {/* Title segment */}
+            <div className="flex items-center gap-2 min-w-0 overflow-visible select-none">
+              {/* Small Red Star indicator inside the box position */}
+              <div className="shrink-0 flex items-center justify-center">
+                <svg
+                  viewBox="0 0 512 512"
+                  fill="none"
+                  className="w-3.5 h-3.5 text-[#ED1C24] drop-shadow-[0_1px_3px_rgba(237,28,36,0.3)] animate-pulse"
+                  style={{ filter: "drop-shadow(0 0 3px #ED1C24)" }}
+                >
+                  <polygon
+                    points="256,40 327,184 486,207 371,319 398,477 256,403 114,477 141,319 26,207 185,184"
+                    fill="#ED1C24"
+                  />
+                </svg>
+              </div>
+              <div className="flex flex-col select-none leading-none">
+                <span className="text-[10px] font-black tracking-wider text-slate-100 font-sans">
+                  {companyBrand}
+                </span>
+                <span className="text-[8px] font-bold text-emerald-400 tracking-widest mt-0.5">
+                  ERP v2.5 ● {isOnline ? "ONLINE" : "OFFLINE"}
+                </span>
               </div>
             </div>
+          </div>
 
-            {/* Right side controls */}
-            <div className="flex items-center gap-3 sm:gap-4 shrink-0">
-              {/* App Download Button */}
-              <button
-                type="button"
-                onClick={() => {
-                  setDownloadStatus("idle");
-                  setDownloadProgress(0);
-                  setIsInstallModalOpen(true);
-                }}
-                className="bg-gradient-to-r from-blue-600 to-[#10B981] hover:from-blue-500 hover:to-emerald-400 active:scale-95 transition-all text-white font-extrabold text-[10px] sm:text-xs rounded-xl py-1.5 px-3 sm:px-4 flex items-center gap-1.5 cursor-pointer shadow-lg shadow-emerald-500/10 select-none border border-emerald-500/20"
-                title={language === "bn" ? "অফলাইন ব্যবহারের জন্য মোবাইল বা কম্পিউটারে অ্যাপটি ডাউনলোড করুন" : "Download WebApp for Android, iOS or Windows"}
-              >
-                <span className="text-sm">📥</span>
-                <span className="hidden sm:inline">{language === "bn" ? "অ্যাপ ডাউনলোড" : "Download App"}</span>
-                <span className="sm:hidden">{language === "bn" ? "ডাউনলোড" : "Download"}</span>
-              </button>
+          {/* Right side controls */}
+          <div className="flex items-center gap-3 sm:gap-4 shrink-0">
+            {/* App Download Button */}
+            <button
+              type="button"
+              onClick={() => {
+                setDownloadStatus("idle");
+                setDownloadProgress(0);
+                triggerPwaInstall();
+              }}
+              className="bg-gradient-to-r from-blue-600 to-[#10B981] hover:from-blue-500 hover:to-emerald-400 active:scale-95 transition-all text-white font-extrabold text-[10px] sm:text-xs rounded-xl py-1.5 px-3 sm:px-4 flex items-center gap-1.5 cursor-pointer shadow-lg shadow-emerald-500/10 select-none border border-emerald-500/20"
+              title={
+                language === "bn"
+                  ? "অফলাইন ব্যবহারের জন্য মোবাইল বা কম্পিউটারে অ্যাপটি ডাউনলোড করুন"
+                  : "Download WebApp for Android, iOS or Windows"
+              }
+            >
+              <span className="text-sm">📥</span>
+              <span className="hidden sm:inline">
+                {language === "bn" ? "অ্যাপ ডাউনলোড" : "Download App"}
+              </span>
+              <span className="sm:hidden">
+                {language === "bn" ? "ডাউনলোড" : "Download"}
+              </span>
+            </button>
 
-              {/* User credentials identifier / Avatar */}
-              <div 
-                onClick={() => setShowProfileEditor(true)}
-                className="w-9 h-9 bg-slate-850 rounded-full flex items-center justify-center font-bold text-xs border border-slate-700 text-[#10B981] hover:border-[#10B981] transition-all cursor-pointer overflow-hidden shadow-sm shrink-0" 
-                title="Click to Configure Profile & Brand"
-              >
-                {profileAvatarUrl ? (
-                  <img src={profileAvatarUrl} className="w-full h-full object-cover" alt="Profile" />
-                ) : (
-                  <User className="w-5 h-5 text-slate-400" />
-                )}
-              </div>
+            {/* User credentials identifier / Avatar */}
+            <div
+              onClick={() => setShowProfileEditor(true)}
+              className="w-9 h-9 bg-slate-850 rounded-full flex items-center justify-center font-bold text-xs border border-slate-700 text-[#10B981] hover:border-[#10B981] transition-all cursor-pointer overflow-hidden shadow-sm shrink-0"
+              title="Click to Configure Profile & Brand"
+            >
+              {profileAvatarUrl ? (
+                <img
+                  src={profileAvatarUrl}
+                  className="w-full h-full object-cover"
+                  alt="Profile"
+                />
+              ) : (
+                <User className="w-5 h-5 text-slate-400" />
+              )}
             </div>
-          </header>
+          </div>
+        </header>
 
         {currentUser?.role === "Visitor" && (
           <div className="bg-amber-550/15 border-b border-amber-500/20 px-4 sm:px-6 py-2.5 flex items-center justify-between text-amber-400 text-xs font-semibold select-none animate-pulse shrink-0">
             <span className="flex items-center gap-2 min-w-0">
               <span className="shrink-0">👁️</span>
               <span className="truncate">
-                {language === "bn" 
-                  ? "ভিজিটর (লিমিটেড ভিউয়ার) মোড সক্রিয় - আপনি কোনো প্রকার তথ্য যোগ, রূপান্তর, সেটিংস পরিবর্তন বা ডিলিট করতে পারবেন না।" 
+                {language === "bn"
+                  ? "ভিজিটর (লিমিটেড ভিউয়ার) মোড সক্রিয় - আপনি কোনো প্রকার তথ্য যোগ, রূপান্তর, সেটিংস পরিবর্তন বা ডিলিট করতে পারবেন না।"
                   : "READ-ONLY COMPANION MODE ACTIVE - You are viewing this dashboard as a guest and do not have edit/write permissions."}
               </span>
             </span>
@@ -1258,13 +1556,12 @@ export default function App() {
 
         {/* Dynamic Workspace Container */}
         <main className="flex-1 overflow-y-auto p-3 sm:p-5 md:p-8 space-y-4 md:space-y-6 bg-gradient-to-lg from-[#0F172A] via-[#111827] to-[#0F172A]">
-          
           {/* Render Active View Tab */}
           {currentTab === "dashboard" && (
-            <Dashboard 
-              reports={reports} 
-              language={language} 
-              setTab={setTab} 
+            <Dashboard
+              reports={reports}
+              language={language}
+              setTab={setTab}
               onSelectReport={handleSelectReport}
               onUpdateReports={saveReports}
               locations={locations}
@@ -1277,10 +1574,10 @@ export default function App() {
           )}
 
           {currentTab === "completed_registry" && (
-            <CompletedRegistry 
-              reports={reports} 
-              language={language} 
-              setTab={setTab} 
+            <CompletedRegistry
+              reports={reports}
+              language={language}
+              setTab={setTab}
               onSelectReport={handleSelectReport}
               onUpdateReports={saveReports}
               supervisors={supervisors}
@@ -1292,7 +1589,7 @@ export default function App() {
           )}
 
           {currentTab === "locations" && (
-            <LocationsRegistry 
+            <LocationsRegistry
               language={language}
               locations={locations}
               setLocations={setLocations}
@@ -1300,7 +1597,7 @@ export default function App() {
           )}
 
           {currentTab === "supervisors_directory" && (
-            <SupervisorsRegistry 
+            <SupervisorsRegistry
               language={language}
               locations={locations}
               supervisors={supervisors}
@@ -1309,8 +1606,8 @@ export default function App() {
           )}
 
           {currentTab === "directory" && (
-            <ClientDirectory 
-              onSelectClientToPrefill={handleSelectClientToPrefill} 
+            <ClientDirectory
+              onSelectClientToPrefill={handleSelectClientToPrefill}
               language={language}
               reports={reports}
               onUpdateReports={saveReports}
@@ -1318,7 +1615,7 @@ export default function App() {
           )}
 
           {currentTab === "engineering_report" && (
-            <EngineeringReport 
+            <EngineeringReport
               language={language}
               companyBrand={companyBrand}
               profileUser={profileUser}
@@ -1327,11 +1624,11 @@ export default function App() {
           )}
 
           {currentTab === "master_form" && (
-            <MasterForm 
-              onAddReport={handleAddReport} 
+            <MasterForm
+              onAddReport={handleAddReport}
               editingReport={editingReport}
               onUpdateReport={handleUpdateReport}
-              prefilledClient={prefilledClient} 
+              prefilledClient={prefilledClient}
               language={language}
               setTab={setTab}
               locations={locations}
@@ -1345,54 +1642,21 @@ export default function App() {
           )}
 
           {currentTab === "inventory" && (
-            <ChemicalInventory 
-              language={language}
-              themeMode={themeMode}
-            />
+            <ChemicalInventory language={language} themeMode={themeMode} />
           )}
 
           {currentTab === "technicians" && (
-            <div className="bg-[#1E293B]/60 border border-[#334155]/80 rounded-3xl p-8 shadow-xl max-w-4xl mx-auto my-8 space-y-6 text-center relative overflow-hidden">
-              <div className="absolute inset-0 flex items-center justify-center opacity-[0.03] pointer-events-none select-none">
-                <svg viewBox="0 0 24 24" className="w-[450px] h-[450px]" style={{ fill: '#3b82f6' }}>
-                  <polygon points="12,2 15,9 22,9 17,14 19,21 12,17 5,21 7,14 2,9 9,9" />
-                </svg>
-              </div>
-              <div className="py-12 space-y-4">
-                <div className="inline-flex items-center justify-center w-20 h-20 bg-slate-800/80 rounded-full border border-slate-700 shadow-xl mb-4 text-4xl">
-                  📁
-                </div>
-                <h3 className="text-xl font-extrabold text-slate-100">
-                  {language === "bn" ? "কাস্টম স্পেস (খালি)" : "Custom Space (Empty Slate)"}
-                </h3>
-                <p className="text-xs text-slate-400 max-w-lg mx-auto leading-relaxed">
-                  {language === "bn"
-                    ? "আপনার নতুন রিকোয়ারমেন্ট অনুযায়ী এখানে নতুন ফিচার যুক্ত করা হবে। আপাতত এই বক্সটি সম্পূর্ণ খালি রাখা হয়েছে।"
-                    : "This workspace is kept clean and empty as requested. We can integrate any of your custom reports, interactive tools, or dashboards here whenever you are ready."}
-                </p>
-                <div className="pt-6">
-                  <span className="inline-flex items-center gap-1.5 px-4 py-1.5 rounded-full bg-[#10B981]/10 border border-[#10B981]/30 text-[11px] font-bold text-[#10B981]">
-                    ● {language === "bn" ? "নতুন ফিচারের অপেক্ষায়" : "Awaiting Your Instructions"}
-                  </span>
-                </div>
-              </div>
-            </div>
+            <CustomSpaceNotes language={language} />
           )}
 
-          {currentTab === "ai_pest" && (
-            <AIPestDetection 
-              language={language}
-            />
-          )}
+          {currentTab === "ai_pest" && <AIPestDetection language={language} />}
 
           {currentTab === "client_portal" && (
-            <ClientPortalView 
-              reports={reports}
-            />
+            <ClientPortalView reports={reports} />
           )}
 
           {currentTab === "custom_option_1" && (
-            <ProjectScheduler 
+            <ProjectScheduler
               language={language}
               isDark={themeMode === "dark"}
               defaultViewTab="projects"
@@ -1400,17 +1664,17 @@ export default function App() {
           )}
 
           {currentTab === "custom_option_2" && (
-            <CustomServiceModule 
-              language={language} 
-              isDark={themeMode === "dark"} 
-              reports={reports} 
+            <CustomServiceModule
+              language={language}
+              isDark={themeMode === "dark"}
+              reports={reports}
               onEditReport={handleEditReport}
               onDeleteReport={handleDeleteReport}
             />
           )}
 
           {currentTab === "custom_option_3" && (
-            <Technicians 
+            <Technicians
               language={language}
               locations={locations}
               supervisors={supervisors}
@@ -1421,7 +1685,7 @@ export default function App() {
           )}
 
           {currentTab === "admin_settings" && (
-            <AdminSettings 
+            <AdminSettings
               language={language}
               companyBrand={companyBrand}
               setCompanyBrand={setCompanyBrand}
@@ -1449,15 +1713,15 @@ export default function App() {
               loggedInUser={currentUser}
             />
           )}
-
         </main>
 
         {/* Global Footer */}
         <footer className="h-10 border-t border-[#1E293B] bg-[#0B0F19] px-6 flex justify-between items-center z-10 text-[10px] text-slate-500 shrink-0 select-none">
           <span>{translations.allRightsReserved}</span>
-          <span className="hidden sm:inline font-mono">Al Wafa Star ERP Professional Suite v2.5 | Dubai, Sharjah, Ajman</span>
+          <span className="hidden sm:inline font-mono">
+            Al Wafa Star ERP Professional Suite v2.5 | Dubai, Sharjah, Ajman
+          </span>
         </footer>
-
       </div>
 
       {/* Dynamic Profile & Brand Editor Modal (পছন্দমত ব্র্যান্ড পরিবর্তন) */}
@@ -1468,7 +1732,9 @@ export default function App() {
               <div className="flex items-center gap-2">
                 <span className="text-xl">⚙️</span>
                 <h3 className="text-md font-bold text-slate-50">
-                  {language === "bn" ? "ব্র্যান্ড ও প্রোফাইল কাস্টমাইজ" : "Brand & Operational Profile Customizer"}
+                  {language === "bn"
+                    ? "ব্র্যান্ড ও প্রোফাইল কাস্টমাইজ"
+                    : "Brand & Operational Profile Customizer"}
                 </h3>
               </div>
               <button
@@ -1483,14 +1749,19 @@ export default function App() {
               {/* Field 1: Brand Title */}
               <div className="space-y-1">
                 <label className="text-slate-300 block">
-                  {language === "bn" ? "কোম্পানি বা ব্র্যান্ডের নাম" : "Company / Brand Name"}
+                  {language === "bn"
+                    ? "কোম্পানি বা ব্র্যান্ডের নাম"
+                    : "Company / Brand Name"}
                 </label>
                 <input
                   type="text"
                   value={companyBrand}
                   onChange={(e) => {
                     setCompanyBrand(e.target.value);
-                    localStorage.setItem("ALW_STAR_COMPANY_BRAND", e.target.value);
+                    localStorage.setItem(
+                      "ALW_STAR_COMPANY_BRAND",
+                      e.target.value,
+                    );
                   }}
                   className="w-full bg-slate-950 border border-slate-700 text-slate-100 rounded-xl py-2.5 px-3 text-xs outline-none focus:border-[#10B981] focus:ring-1 focus:ring-[#10B981]"
                 />
@@ -1499,14 +1770,19 @@ export default function App() {
               {/* Field 2: Subtitle */}
               <div className="space-y-1">
                 <label className="text-slate-300 block">
-                  {language === "bn" ? "স্লোগান বা উপশিরোনাম" : "ERP Subtitle & Tagline"}
+                  {language === "bn"
+                    ? "স্লোগান বা উপশিরোনাম"
+                    : "ERP Subtitle & Tagline"}
                 </label>
                 <input
                   type="text"
                   value={companySubtitle}
                   onChange={(e) => {
                     setCompanySubtitle(e.target.value);
-                    localStorage.setItem("ALW_STAR_COMPANY_SUBTITLE", e.target.value);
+                    localStorage.setItem(
+                      "ALW_STAR_COMPANY_SUBTITLE",
+                      e.target.value,
+                    );
                   }}
                   className="w-full bg-slate-950 border border-slate-700 text-slate-100 rounded-xl py-2.5 px-3 text-xs outline-none focus:border-[#10B981] focus:ring-1 focus:ring-[#10B981]"
                 />
@@ -1515,14 +1791,19 @@ export default function App() {
               {/* Field 3: Superintendent Name */}
               <div className="space-y-1">
                 <label className="text-slate-300 block">
-                  {language === "bn" ? "অপারেশনাল ম্যানেজারের নাম" : "Supervisor / Operator Name"}
+                  {language === "bn"
+                    ? "অপারেশনাল ম্যানেজারের নাম"
+                    : "Supervisor / Operator Name"}
                 </label>
                 <input
                   type="text"
                   value={profileUser}
                   onChange={(e) => {
                     setProfileUser(e.target.value);
-                    localStorage.setItem("ALW_STAR_PROFILE_USER", e.target.value);
+                    localStorage.setItem(
+                      "ALW_STAR_PROFILE_USER",
+                      e.target.value,
+                    );
                   }}
                   className="w-full bg-slate-950 border border-slate-700 text-slate-100 rounded-xl py-2.5 px-3 text-xs outline-none focus:border-[#10B981] focus:ring-1 focus:ring-[#10B981]"
                 />
@@ -1531,14 +1812,19 @@ export default function App() {
               {/* Field 4: Superintendent Email */}
               <div className="space-y-1">
                 <label className="text-slate-300 block">
-                  {language === "bn" ? "অফিসিয়াল ইমেইল এড্রেস" : "Admin Email Address"}
+                  {language === "bn"
+                    ? "অফিসিয়াল ইমেইল এড্রেস"
+                    : "Admin Email Address"}
                 </label>
                 <input
                   type="email"
                   value={profileEmail}
                   onChange={(e) => {
                     setProfileEmail(e.target.value);
-                    localStorage.setItem("ALW_STAR_PROFILE_EMAIL", e.target.value);
+                    localStorage.setItem(
+                      "ALW_STAR_PROFILE_EMAIL",
+                      e.target.value,
+                    );
                   }}
                   className="w-full bg-slate-950 border border-slate-700 text-slate-100 rounded-xl py-2.5 px-3 text-xs outline-none focus:border-[#10B981] focus:ring-1 focus:ring-[#10B981]"
                 />
@@ -1547,7 +1833,9 @@ export default function App() {
               {/* Field 5: Profile picture conversion */}
               <div className="space-y-2 pt-2 border-t border-slate-850">
                 <label className="text-slate-300 block">
-                  {language === "bn" ? "প্রোফাইল পিকচার পরিবর্তন করুন" : "Change Profile Photo"}
+                  {language === "bn"
+                    ? "প্রোফাইল পিকচার পরিবর্তন করুন"
+                    : "Change Profile Photo"}
                 </label>
                 <div className="flex items-center gap-4">
                   {profileAvatarUrl ? (
@@ -1569,14 +1857,19 @@ export default function App() {
                           const reader = new FileReader();
                           reader.onloadend = () => {
                             setProfileAvatarUrl(reader.result as string);
-                            localStorage.setItem("ALW_STAR_PROFILE_AVATAR", reader.result as string);
+                            localStorage.setItem(
+                              "ALW_STAR_PROFILE_AVATAR",
+                              reader.result as string,
+                            );
                           };
                           reader.readAsDataURL(file);
                         }
                       }}
                       className="text-xs text-slate-400 file:mr-3 file:py-1.5 file:px-3 file:rounded-xl file:border-0 file:text-[10px] file:font-semibold file:bg-slate-800 file:text-[#10B981] hover:file:bg-slate-700 transition cursor-pointer"
                     />
-                    <p className="text-[10px] text-slate-500 mt-1">Accepts PNG, JPG, WebP. Updates persistently on the fly.</p>
+                    <p className="text-[10px] text-slate-500 mt-1">
+                      Accepts PNG, JPG, WebP. Updates persistently on the fly.
+                    </p>
                   </div>
                 </div>
               </div>
@@ -1617,17 +1910,20 @@ export default function App() {
       {isInstallModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 backdrop-blur-md p-4 animate-fade-in font-sans">
           <div className="w-full max-w-2xl bg-slate-900 border border-slate-700/80 rounded-3xl p-6 shadow-2xl text-slate-100 flex flex-col max-h-[90vh] overflow-hidden">
-            
             {/* Header */}
             <div className="flex justify-between items-center border-b border-slate-800 pb-3">
               <div className="flex items-center gap-2.5">
                 <span className="text-2xl">📲</span>
                 <div>
                   <h3 className="text-base font-extrabold text-slate-50 leading-tight">
-                    {language === "bn" ? "অফলাইন অ্যাপ কম্পাইলার ও ডাউনলোড সেন্টার" : "App Compiler & Download Center"}
+                    {language === "bn"
+                      ? "অফলাইন অ্যাপ কম্পাইলার ও ডাউনলোড সেন্টার"
+                      : "App Compiler & Download Center"}
                   </h3>
                   <p className="text-[10px] text-slate-400 font-medium font-mono">
-                    {language === "bn" ? "মোবাইল এবং কম্পিউটারে সরাসরি প্লে-স্টোর অ্যাপ ব্যবহারের গাইড" : "Compile & install standalone offline-enabled app for Android, iOS & PC"}
+                    {language === "bn"
+                      ? "মোবাইল এবং কম্পিউটারে সরাসরি প্লে-স্টোর অ্যাপ ব্যবহারের গাইড"
+                      : "Compile & install standalone offline-enabled app for Android, iOS & PC"}
                   </p>
                 </div>
               </div>
@@ -1642,204 +1938,328 @@ export default function App() {
 
             {/* Content Body - Scrollable */}
             <div className="flex-1 overflow-y-auto pr-1 py-4 space-y-5 text-slate-300 text-xs font-sans leading-relaxed">
-              
-              {/* COMPILER ENGINE CONTAINER */}
-              <div className="p-5 bg-slate-950/80 border border-slate-800 rounded-2xl relative overflow-hidden shadow-inner">
-                <div className="absolute top-2 right-3 flex items-center gap-1.5">
-                  <span className="w-2 h-2 rounded-full bg-[#10B981] animate-ping"></span>
-                  <span className="text-[9px] font-mono font-bold text-[#10B981] uppercase tracking-wider">
-                    {downloadStatus === "compiling" ? "Compiling..." : downloadStatus === "ready" ? "Compiled" : "Engine Online"}
-                  </span>
+              {/* Conditional Rendering: Check if inside iframe */}
+              {typeof window !== "undefined" && window.self !== window.top ? (
+                <div className="space-y-4 animate-fade-in">
+                  <div className="p-5 bg-amber-500/10 border border-amber-500/20 rounded-2xl text-amber-200 shadow-xl space-y-3.5">
+                    <span className="font-extrabold flex items-center gap-2 text-sm text-amber-400">
+                      ⚠️{" "}
+                      {language === "bn"
+                        ? "আইফ্রেম লিমিটেশন সতর্কবার্তা (অ্যাপ ডাউনলোড করার নিয়ম)"
+                        : "Running Inside Preview Sandbox (App Download Guide)"}
+                    </span>
+                    <p className="text-xs font-medium leading-relaxed text-slate-200">
+                      {language === "bn"
+                        ? "আপনি বর্তমানে AI Studio প্রিভিউ উইন্ডোর ভেতরে আছেন। ব্রাউজারের কঠোর নিরাপত্তা বিধিনিষেধের কারণে আইফ্রেম (preview) উইন্ডোর ভেতর থেকে সরাসরি ল্যাপটপ বা মোবাইলে অ্যাপ ডাউনলোড/ইন্সটল করা যায় না।"
+                        : "You are currently running inside the AI Studio preview frame. Due to browser sandbox security policies, native app installation cannot be triggered directly from within an iframe."}
+                    </p>
+                    <div className="p-4 bg-slate-950/80 rounded-xl border border-slate-800 space-y-2 text-slate-300 text-[11px] font-sans">
+                      <p className="font-bold text-slate-200 text-xs text-[#10B981]">
+                        {language === "bn"
+                          ? "মোবাইল বা কম্পিউটারে সরাসরি প্লে-স্টোরের মত অ্যাপ নামাতে ২ সেকেন্ডের সহজ নিয়ম:"
+                          : "To download and install the app on your Phone or Computer in 2 easy steps:"}
+                      </p>
+                      <ul className="list-decimal pl-4.5 space-y-2 font-medium">
+                        <li>
+                          {language === "bn"
+                            ? "প্রথমে নিচে থাকা বড় সবুজ রঙের 'নতুন ট্যাবে খুলুন এবং অ্যাপ ডাউনলোড করুন' বাটনটিতে ক্লিক করুন।"
+                            : "First, click the green 'Open in New Tab & Download' button below."}
+                        </li>
+                        <li>
+                          {language === "bn"
+                            ? "নতুন ট্যাবটি ওপেন হলে, সেখানে একেবারে উপরে থাকা 'Download App' বাটনটিতে ক্লিক করুন।"
+                            : "Once the new tab opens, click the 'Download App' button in the top header."}
+                        </li>
+                        <li>
+                          {language === "bn"
+                            ? "১-ক্লিক করলেই ব্রাউজার আপনাকে অ্যাপটি সরাসরি ল্যাপটপের ডেক্সটপ (Desktop icon) বা মোবাইলের স্ক্রিনে প্লে-স্টোরের মত ডাউনলোড করে দেবে!"
+                            : "The browser will immediately download and install the app onto your phone home screen or PC desktop like a native store app!"}
+                        </li>
+                      </ul>
+                    </div>
+                    <div className="pt-2 text-center">
+                      <a
+                        href={
+                          window.location.origin +
+                          window.location.pathname +
+                          "?pwa-install=true" +
+                          window.location.hash
+                        }
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        onClick={() => setIsInstallModalOpen(false)}
+                        className="inline-flex items-center gap-2.5 bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-slate-950 font-black text-xs px-6 py-4 rounded-2xl transition-all cursor-pointer shadow-lg shadow-emerald-500/25 active:scale-95 font-sans animate-pulse uppercase tracking-wider"
+                        style={{ textDecoration: "none" }}
+                      >
+                        🚀{" "}
+                        {language === "bn"
+                          ? "নতুন ট্যাবে খুলুন এবং অ্যাপ ডাউনলোড করুন"
+                          : "Open in New Tab & Download App"}
+                      </a>
+                    </div>
+                  </div>
+
+                  {/* PWA Benefits Mockup Card */}
+                  <div className="p-4 bg-slate-850 rounded-2xl border border-slate-800 space-y-3">
+                    <h4 className="text-xs font-black text-slate-100 uppercase tracking-wider flex items-center gap-1.5">
+                      <span>💡</span>
+                      {language === "bn"
+                        ? "প্লে-স্টোর অ্যাপ এবং এই অ্যাপের পার্থক্য কি?"
+                        : "Why download the Al Wafa Star App?"}
+                    </h4>
+                    <p className="text-[11px] text-slate-400 leading-relaxed font-medium">
+                      {language === "bn"
+                        ? "এটি একটি প্রগ্রেসিভ ওয়েব অ্যাপ (PWA)। প্লে-স্টোর বা অ্যাপ-স্টোর ছাড়াই এটি সরাসরি ওয়েবসাইট থেকে আপনার ডিভাইসে ইন্সটল হয়। এটি মোবাইলের রিয়েল অ্যাপের মতই নিজস্ব লোগো ও আইকন নিয়ে হোম স্ক্রিনে যুক্ত হবে, ব্রাউজার ছাড়াই সম্পূর্ণ ফুল-স্ক্রিনে চলবে এবং মরুভূমি বা ইন্টারনেট সংযোগবিহীন লো-সিগন্যাল এলাকাতেও সম্পূর্ণ অফলাইনে সচল থাকবে!"
+                        : "This uses PWA (Progressive Web App) technology, the modern standard which allows direct installation of web apps from browser onto Android, iOS, and PC. It behaves exactly like native app store downloads: gets an icon on your screen, opens in a standalone system window, runs at maximum native speed, and has 100% offline support."}
+                    </p>
+                  </div>
                 </div>
+              ) : (
+                /* Standalone Mode content */
+                <>
+                  {/* COMPILER ENGINE CONTAINER */}
+                  <div className="p-5 bg-slate-950/80 border border-slate-800 rounded-2xl relative overflow-hidden shadow-inner">
+                    <div className="absolute top-2 right-3 flex items-center gap-1.5">
+                      <span className="w-2 h-2 rounded-full bg-[#10B981] animate-ping"></span>
+                      <span className="text-[9px] font-mono font-bold text-[#10B981] uppercase tracking-wider">
+                        {downloadStatus === "compiling"
+                          ? "Compiling..."
+                          : downloadStatus === "ready"
+                            ? "Compiled"
+                            : "Engine Online"}
+                      </span>
+                    </div>
 
-                {downloadStatus === "idle" && (
-                  <div className="text-center py-6 space-y-4">
-                    <div className="inline-flex items-center justify-center w-16 h-16 bg-slate-900 rounded-full border border-slate-700/60 shadow-xl text-3xl">
-                      ⚙️
-                    </div>
-                    <div className="space-y-1">
-                      <h4 className="text-sm font-black text-slate-100">
-                        {language === "bn" ? "অফলাইন-সক্ষম স্ট্যান্ডঅ্যালোন অ্যাপ কম্পাইলার" : "Offline-Enabled Standalone App Compiler"}
-                      </h4>
-                      <p className="text-[11px] text-slate-400 max-w-md mx-auto leading-relaxed">
-                        {language === "bn"
-                          ? "আপনার ফোন বা কম্পিউটারের জন্য সম্পূর্ণ প্লে-স্টোর কোয়ালিটি সম্পন্ন স্ট্যান্ডঅ্যালোন অ্যাপ বিল্ড এবং প্যাকেজিং করুন যা অফলাইনেও সম্পূর্ণ সচল থাকবে।"
-                          : "Package this platform into a high-performance, standalone desktop/mobile app wrapper that operates 100% offline with zero browser clutter."}
-                      </p>
-                    </div>
-                    <div className="pt-2">
-                      <button
-                        type="button"
-                        onClick={startAppDownload}
-                        className="bg-gradient-to-r from-blue-600 to-[#10B981] hover:from-blue-500 hover:to-emerald-400 active:scale-95 text-white font-black text-xs px-6 py-3 rounded-xl transition-all cursor-pointer shadow-lg shadow-blue-500/20 hover:shadow-emerald-500/30 uppercase tracking-wider"
-                      >
-                        ⚡ {language === "bn" ? "কম্পাইল এবং অ্যাপ ডাউনলোড করুন" : "Compile & Download App Now"}
-                      </button>
-                    </div>
-                  </div>
-                )}
-
-                {downloadStatus === "compiling" && (
-                  <div className="space-y-4 py-4">
-                    <div className="flex items-center justify-between text-[11px] font-mono font-bold text-slate-400">
-                      <span>{language === "bn" ? "প্যাকেজ বিল্ড প্রোগ্রেস:" : "PWA Package Progress:"}</span>
-                      <span className="text-[#10B981]">{downloadProgress}%</span>
-                    </div>
-                    
-                    {/* Progress Bar Container */}
-                    <div className="w-full h-3.5 bg-slate-900 rounded-full overflow-hidden border border-slate-800 p-0.5">
-                      <div 
-                        className="h-full bg-gradient-to-r from-blue-600 to-[#10B981] rounded-full transition-all duration-150 relative overflow-hidden"
-                        style={{ width: `${downloadProgress}%` }}
-                      >
-                        <div className="absolute inset-0 bg-[linear-gradient(45deg,rgba(255,255,255,0.15)_25%,transparent_25%,transparent_50%,rgba(255,255,255,0.15)_50%,rgba(255,255,255,0.15)_75%,transparent_75%,transparent)] bg-[length:1rem_1rem] animate-[progress-bar-stripes_1s_linear_infinite]"></div>
+                    {downloadStatus === "idle" && (
+                      <div className="text-center py-6 space-y-4">
+                        <div className="inline-flex items-center justify-center w-16 h-16 bg-slate-900 rounded-full border border-slate-700/60 shadow-xl text-3xl">
+                          ⚙️
+                        </div>
+                        <div className="space-y-1">
+                          <h4 className="text-sm font-black text-slate-100">
+                            {language === "bn"
+                              ? "অফলাইন-সক্ষম স্ট্যান্ডঅ্যালোন অ্যাপ কম্পাইলার"
+                              : "Offline-Enabled Standalone App Compiler"}
+                          </h4>
+                          <p className="text-[11px] text-slate-400 max-w-md mx-auto leading-relaxed">
+                            {language === "bn"
+                              ? "আপনার ফোন বা কম্পিউটারের জন্য সম্পূর্ণ প্লে-স্টোর কোয়ালিটি সম্পন্ন স্ট্যান্ডঅ্যালোন অ্যাপ বিল্ড এবং প্যাকেজিং করুন যা অফলাইনেও সম্পূর্ণ সচল থাকবে।"
+                              : "Package this platform into a high-performance, standalone desktop/mobile app wrapper that operates 100% offline with zero browser clutter."}
+                          </p>
+                        </div>
+                        <div className="pt-2">
+                          <button
+                            type="button"
+                            onClick={startAppDownload}
+                            className="bg-gradient-to-r from-blue-600 to-[#10B981] hover:from-blue-500 hover:to-emerald-400 active:scale-95 text-white font-black text-xs px-6 py-3 rounded-xl transition-all cursor-pointer shadow-lg shadow-blue-500/20 hover:shadow-emerald-500/30 uppercase tracking-wider"
+                          >
+                            ⚡{" "}
+                            {language === "bn"
+                              ? "কম্পাইল এবং অ্যাপ ডাউনলোড করুন"
+                              : "Compile & Download App Now"}
+                          </button>
+                        </div>
                       </div>
-                    </div>
+                    )}
 
-                    {/* Compile Logs Console */}
-                    <div className="bg-slate-900/90 border border-slate-800/80 rounded-xl p-3 font-mono text-[10px] text-[#10B981] space-y-1.5 shadow-inner">
-                      <div className="flex items-center gap-1.5 opacity-60">
-                        <span>$</span>
-                        <span>npm run build:wrapper --device-target=auto</span>
+                    {downloadStatus === "compiling" && (
+                      <div className="space-y-4 py-4">
+                        <div className="flex items-center justify-between text-[11px] font-mono font-bold text-slate-400">
+                          <span>
+                            {language === "bn"
+                              ? "প্যাকেজ বিল্ড প্রোগ্রেস:"
+                              : "PWA Package Progress:"}
+                          </span>
+                          <span className="text-[#10B981]">
+                            {downloadProgress}%
+                          </span>
+                        </div>
+
+                        {/* Progress Bar Container */}
+                        <div className="w-full h-3.5 bg-slate-900 rounded-full overflow-hidden border border-slate-800 p-0.5">
+                          <div
+                            className="h-full bg-gradient-to-r from-blue-600 to-[#10B981] rounded-full transition-all duration-150 relative overflow-hidden"
+                            style={{ width: `${downloadProgress}%` }}
+                          >
+                            <div className="absolute inset-0 bg-[linear-gradient(45deg,rgba(255,255,255,0.15)_25%,transparent_25%,transparent_50%,rgba(255,255,255,0.15)_50%,rgba(255,255,255,0.15)_75%,transparent_75%,transparent)] bg-[length:1rem_1rem] animate-[progress-bar-stripes_1s_linear_infinite]"></div>
+                          </div>
+                        </div>
+
+                        {/* Compile Logs Console */}
+                        <div className="bg-slate-900/90 border border-slate-800/80 rounded-xl p-3 font-mono text-[10px] text-[#10B981] space-y-1.5 shadow-inner">
+                          <div className="flex items-center gap-1.5 opacity-60">
+                            <span>$</span>
+                            <span>
+                              npm run build:wrapper --device-target=auto
+                            </span>
+                          </div>
+                          <div className="flex items-center gap-2 animate-pulse font-bold text-slate-200">
+                            <span className="inline-block w-2 h-3.5 bg-[#10B981] shrink-0"></span>
+                            <span className="truncate">{downloadLog}</span>
+                          </div>
+                        </div>
                       </div>
-                      <div className="flex items-center gap-2 animate-pulse font-bold text-slate-200">
-                        <span className="inline-block w-2 h-3.5 bg-[#10B981] shrink-0"></span>
-                        <span className="truncate">{downloadLog}</span>
-                      </div>
-                    </div>
-                  </div>
-                )}
+                    )}
 
-                {downloadStatus === "ready" && (
-                  <div className="text-center py-4 space-y-4">
-                    <div className="inline-flex items-center justify-center w-16 h-16 bg-emerald-900/40 rounded-full border border-emerald-500/50 shadow-xl text-3xl animate-bounce">
-                      🎉
-                    </div>
-                    <div className="space-y-1">
-                      <h4 className="text-sm font-black text-emerald-400">
-                        {language === "bn" ? "কম্পাইলেশন সফল হয়েছে!" : "App Compiled Successfully!"}
-                      </h4>
-                      <p className="text-[11px] text-slate-300 max-w-md mx-auto leading-relaxed">
-                        {language === "bn"
-                          ? "আপনার ডিভাইসের জন্য স্ট্যান্ডঅ্যালোন অ্যাপটি পুরোপুরি প্রস্তুত। সরাসরি মোবাইলের অন্যান্য সাধারণ অ্যাপের মত হোমস্ক্রিনে ডাউনলোড করতে নিচে চাপুন।"
-                          : "The app shell is fully optimized. Click below to install it on your device home screen or download the PC desktop app."}
-                      </p>
-                    </div>
+                    {downloadStatus === "ready" && (
+                      <div className="text-center py-4 space-y-4">
+                        <div className="inline-flex items-center justify-center w-16 h-16 bg-emerald-900/40 rounded-full border border-emerald-500/50 shadow-xl text-3xl animate-bounce">
+                          🎉
+                        </div>
+                        <div className="space-y-1">
+                          <h4 className="text-sm font-black text-emerald-400">
+                            {language === "bn"
+                              ? "কম্পাইলেশন সফল হয়েছে!"
+                              : "App Compiled Successfully!"}
+                          </h4>
+                          <p className="text-[11px] text-slate-300 max-w-md mx-auto leading-relaxed">
+                            {language === "bn"
+                              ? "আপনার ডিভাইসের জন্য স্ট্যান্ডঅ্যালোন অ্যাপটি পুরোপুরি প্রস্তুত। সরাসরি মোবাইলের হোমস্ক্রিনে বা ল্যাপটপের ডেক্সটপে ডাউনলোড করতে নিচে চাপুন।"
+                              : "The app shell is fully optimized. Click below to install it on your device home screen or download the PC desktop app."}
+                          </p>
+                        </div>
 
-                    <div className="flex flex-col sm:flex-row gap-3 justify-center pt-2">
-                      <button
-                        type="button"
-                        onClick={() => {
-                          const promptEvent = deferredPrompt || (window as any).deferredPWAInstallPrompt;
-                          if (promptEvent && typeof promptEvent.prompt === 'function') {
-                            promptEvent.prompt();
-                            promptEvent.userChoice.then((choiceResult: { outcome: string }) => {
-                              if (choiceResult.outcome === "accepted") {
-                                setIsAppInstalled(true);
+                        <div className="flex flex-col sm:flex-row gap-3 justify-center pt-2">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const promptEvent =
+                                deferredPrompt ||
+                                (window as any).deferredPWAInstallPrompt;
+                              if (
+                                promptEvent &&
+                                typeof promptEvent.prompt === "function"
+                              ) {
+                                promptEvent.prompt();
+                                promptEvent.userChoice.then(
+                                  (choiceResult: { outcome: string }) => {
+                                    if (choiceResult.outcome === "accepted") {
+                                      setIsAppInstalled(true);
+                                    }
+                                    setIsInstallModalOpen(false);
+                                  },
+                                );
+                              } else {
+                                alert(
+                                  language === "bn"
+                                    ? "আপনার ব্রাউজারের উপরে ডানদিকের ৩টি ডট মেনু থেকে 'Install App' বা 'Add to Home Screen' অপশনটি সিলেক্ট করুন।"
+                                    : "Please select the 'Install App' or 'Add to Home Screen' option from your browser's top-right settings menu.",
+                                );
                               }
-                              setIsInstallModalOpen(false);
-                            });
-                          } else {
-                            if (window.location.search.includes("pwa-install=true") || !window.location.search.includes("iframe")) {
-                              alert(language === "bn" ? "আপনার ব্রাউজারে 'Add to Home Screen' বা 'Install' অপশনটি সিলেক্ট করুন।" : "Please look for the 'Install' or 'Add to Home Screen' icon in your browser URL bar.");
-                            } else {
-                              const directUrl = window.location.origin + window.location.pathname + "?pwa-install=true" + window.location.hash;
-                              window.open(directUrl, "_blank");
-                            }
-                          }
-                        }}
-                        className="bg-gradient-to-r from-emerald-600 to-teal-500 hover:from-emerald-500 hover:to-teal-400 active:scale-95 text-slate-950 font-black text-xs px-5 py-3 rounded-xl transition-all cursor-pointer shadow-lg shadow-emerald-500/20 inline-flex items-center justify-center gap-1.5 uppercase tracking-wider"
-                      >
-                        📲 {language === "bn" ? "সরাসরি মোবাইলে ইন্সটল করুন" : "Install Standalone App Now"}
-                      </button>
+                            }}
+                            className="bg-gradient-to-r from-emerald-600 to-teal-500 hover:from-emerald-500 hover:to-teal-400 active:scale-95 text-slate-950 font-black text-xs px-5 py-3 rounded-xl transition-all cursor-pointer shadow-lg shadow-emerald-500/20 inline-flex items-center justify-center gap-1.5 uppercase tracking-wider"
+                          >
+                            📲{" "}
+                            {language === "bn"
+                              ? "সরাসরি মোবাইলে ইন্সটল করুন"
+                              : "Install Standalone App Now"}
+                          </button>
 
-                      <button
-                        type="button"
-                        onClick={() => {
-                          const shortcutContent = `[InternetShortcut]\nURL=${window.location.origin + window.location.pathname}?pwa-install=true\nIconIndex=0\n`;
-                          const blob = new Blob([shortcutContent], { type: "text/plain" });
-                          const url = URL.createObjectURL(blob);
-                          const a = document.createElement("a");
-                          a.href = url;
-                          a.download = "Al_Wafa_Star_ERP.url";
-                          document.body.appendChild(a);
-                          a.click();
-                          document.body.removeChild(a);
-                          URL.revokeObjectURL(url);
-                        }}
-                        className="bg-slate-800 hover:bg-slate-700 active:scale-95 text-slate-100 font-bold text-xs px-5 py-3 rounded-xl transition-all cursor-pointer border border-slate-700/80 inline-flex items-center justify-center gap-1.5 uppercase tracking-wider"
-                      >
-                        🖥️ {language === "bn" ? "পিসি ডেক্সটপ লাঞ্চার নামান" : "Download PC Launcher"}
-                      </button>
-                    </div>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const shortcutContent = `[InternetShortcut]\nURL=${window.location.origin + window.location.pathname}?pwa-install=true\nIconIndex=0\n`;
+                              const blob = new Blob([shortcutContent], {
+                                type: "text/plain",
+                              });
+                              const url = URL.createObjectURL(blob);
+                              const a = document.createElement("a");
+                              a.href = url;
+                              a.download = "Al_Wafa_Star_ERP.url";
+                              document.body.appendChild(a);
+                              a.click();
+                              document.body.removeChild(a);
+                              URL.revokeObjectURL(url);
+                            }}
+                            className="bg-slate-800 hover:bg-slate-700 active:scale-95 text-slate-100 font-bold text-xs px-5 py-3 rounded-xl transition-all cursor-pointer border border-slate-700/80 inline-flex items-center justify-center gap-1.5 uppercase tracking-wider"
+                          >
+                            🖥️{" "}
+                            {language === "bn"
+                              ? "পিসি ডেক্সটপ লাঞ্চার নামান"
+                              : "Download PC Launcher"}
+                          </button>
+                        </div>
+                      </div>
+                    )}
                   </div>
-                )}
-              </div>
-
-              {/* Standalone Link Recommendation Area (Shown only if embedded inside iframe) */}
-              {typeof window !== "undefined" && window.self !== window.top && (
-                <div className="p-4 bg-amber-500/10 border border-amber-500/25 rounded-2xl text-amber-200">
-                  <span className="font-bold flex items-center gap-1 text-sm mb-1">
-                    ⚠️ {language === "bn" ? "আইফ্রেম লিমিটেশন সতর্কবার্তা" : "Running Inside Preview Sandbox"}
-                  </span>
-                  <p className="text-[11px] font-medium leading-relaxed text-slate-300">
-                    {language === "bn" 
-                      ? "আপনি বর্তমানে এম্বেডেড প্রিভিউ উইন্ডোর ভেতর আছেন। ব্রাউজার সিকিউরিটি পলিসি অনুযায়ী সরাসরি আইফ্রেম উইন্ডো থেকে প্লে-স্টোর ডাউনলোড পদ্ধতি কাজ করতে বাধা পায়। সম্পূর্ণ এবং বাধাহীন অফলাইন ডাউনলোড পেতে নিচে দেওয়া বাটনে ক্লিক করে মূল উইন্ডোটি নতুন ট্যাবে ওপেন করে সরাসরি ইন্সটল বাটন চাপুন।"
-                      : "You are currently running inside an embedded preview iframe. Browser sandbox protocols prevent store app downloads directly from within iframes. Please open the platform in a new standalone browser tab to instantly compile and download on your device."}
-                  </p>
-                  <div className="mt-3 text-left">
-                    <a 
-                      href={window.location.origin + window.location.pathname + "?pwa-install=true" + window.location.hash} 
-                      target="_blank" 
-                      rel="noopener noreferrer"
-                      className="inline-flex items-center gap-1.5 bg-sky-500 hover:bg-sky-450 active:scale-95 text-slate-950 font-black text-xs px-4 py-2.5 rounded-xl transition-all cursor-pointer shadow-lg shadow-sky-500/20 hover:shadow-sky-500/30 font-sans"
-                      style={{ textDecoration: 'none' }}
-                    >
-                      🚀 {language === "bn" ? "নতুন ট্যাবে ওপেন করে ডাউনলোড করুন" : "Open in New Tab to Download"}
-                    </a>
-                  </div>
-                </div>
+                </>
               )}
 
               {/* Steps per device platform */}
               <div className="space-y-4 pt-1">
                 <h4 className="text-slate-100 font-bold uppercase tracking-wider text-[11.5px] border-l-4 border-emerald-500 pl-2">
-                  📌 {language === "bn" ? "ডিভাইস ভিত্তিক সহজ গাইড" : "Manual Step-by-Step Device Support Guides"}
+                  📌{" "}
+                  {language === "bn"
+                    ? "ডিভাইস ভিত্তিক সহজ গাইড"
+                    : "Manual Step-by-Step Device Support Guides"}
                 </h4>
 
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                  
                   {/* Android Chrome */}
                   <div className="bg-slate-850 p-4 rounded-2xl border border-slate-800/80 space-y-2.5 flex flex-col">
                     <div className="flex items-center gap-2">
                       <span className="text-xl">🤖</span>
                       <span className="font-extrabold text-slate-100 text-[12px]">
-                        {language === "bn" ? "অ্যান্ড্রয়েড ফোন (Chrome/Edge)" : "Android Phones (Chrome / Edge)"}
+                        {language === "bn"
+                          ? "অ্যান্ড্রয়েড ফোন (Chrome/Edge)"
+                          : "Android Phones (Chrome / Edge)"}
                       </span>
                     </div>
                     <ol className="list-decimal pl-4.5 text-[11px] text-slate-400 space-y-1.5 flex-1 font-medium leading-relaxed">
-                      <li>{language === "bn" ? "প্রথমে পেজটি সাফ বা ব্যাকগ্রাউন্ড আইফ্রেমের বাইরে ক্রোম ব্রাউজারে খুলুন।" : "Open Al Wafa inside standard Android Google Chrome."}</li>
-                      <li>{language === "bn" ? "উপরে ডানদিকের ৩টি ডট মেনু বাটনে প্রেস করুন।" : "Tap the three vertical dots (Browser settings menu) in top right."}</li>
-                      <li>{language === "bn" ? "তালিকা থেকে 'Install App' বা 'Add to Home Screen' চাপ দিন।" : "Select 'Install App' or 'Add to Home Screen' from popup options."}</li>
-                      <li>{language === "bn" ? "হোমস্ক্রিনে চিরতরে অ্যাপ আইকন যুক্ত হয়ে সাইলেন্টলি অফলাইনে ওপেন হবে!" : "Confirm popup, and find your native App sitting inside your phone application drawer!"}</li>
+                      <li>
+                        {language === "bn"
+                          ? "প্রথমে পেজটি সাফ বা ব্যাকগ্রাউন্ড আইফ্রেমের বাইরে ক্রোম ব্রাউজারে খুলুন।"
+                          : "Open Al Wafa inside standard Android Google Chrome."}
+                      </li>
+                      <li>
+                        {language === "bn"
+                          ? "উপরে ডানদিকের ৩টি ডট মেনু বাটনে প্রেস করুন।"
+                          : "Tap the three vertical dots (Browser settings menu) in top right."}
+                      </li>
+                      <li>
+                        {language === "bn"
+                          ? "তালিকা থেকে 'Install App' বা 'Add to Home Screen' চাপ দিন।"
+                          : "Select 'Install App' or 'Add to Home Screen' from popup options."}
+                      </li>
+                      <li>
+                        {language === "bn"
+                          ? "হোমস্ক্রিনে চিরতরে অ্যাপ আইকন যুক্ত হয়ে সাইলেন্টলি অফলাইনে ওপেন হবে!"
+                          : "Confirm popup, and find your native App sitting inside your phone application drawer!"}
+                      </li>
                     </ol>
                   </div>
-
-
 
                   {/* iPhone/iPad Apple Safari */}
                   <div className="bg-slate-850 p-4 rounded-2xl border border-slate-800/80 space-y-2.5 flex flex-col">
                     <div className="flex items-center gap-2">
                       <span className="text-xl">🍎</span>
                       <span className="font-extrabold text-slate-100 text-[12px]">
-                        {language === "bn" ? "আইফোন বা আইপ্যাড (Safari Browser)" : "iOS iPhone & iPad (Safari)"}
+                        {language === "bn"
+                          ? "আইফোন বা আইপ্যাড (Safari Browser)"
+                          : "iOS iPhone & iPad (Safari)"}
                       </span>
                     </div>
                     <ol className="list-decimal pl-4.5 text-[11px] text-slate-400 space-y-1.5 flex-1 font-medium leading-relaxed">
-                      <li>{language === "bn" ? "সাফারি ব্রাউজারে অ্যাপলিকেশনটি খুলুন।" : "Open the Al Wafa site inside Apple's native Safari browser."}</li>
-                      <li>{language === "bn" ? "নিচে থাকা শেয়ার (Share Box 📤) আইকনটি ট্যাপ করুন।" : "Tap the share button (square box with upward arrow) at Safari's bottom bar."}</li>
-                      <li>{language === "bn" ? "একটু নিচে স্ক্রল করে 'Add to Home Screen' (➕) চাপুন।" : "Scroll and tap 'Add to Home Screen' from options."}</li>
-                      <li>{language === "bn" ? "উপরে ডানদিকের 'Add' বাটনে ক্লিক করা মাত্র হোম স্ক্রিনে সেট হয়ে যাবে।" : "Tap 'Add' to instantly transform and launch on your Apple Springboard!"}</li>
+                      <li>
+                        {language === "bn"
+                          ? "সাফারি ব্রাউজারে অ্যাপলিকেশনটি খুলুন।"
+                          : "Open the Al Wafa site inside Apple's native Safari browser."}
+                      </li>
+                      <li>
+                        {language === "bn"
+                          ? "নিচে থাকা শেয়ার (Share Box 📤) আইকনটি ট্যাপ করুন।"
+                          : "Tap the share button (square box with upward arrow) at Safari's bottom bar."}
+                      </li>
+                      <li>
+                        {language === "bn"
+                          ? "একটু নিচে স্ক্রল করে 'Add to Home Screen' (➕) চাপুন।"
+                          : "Scroll and tap 'Add to Home Screen' from options."}
+                      </li>
+                      <li>
+                        {language === "bn"
+                          ? "উপরে ডানদিকের 'Add' বাটনে ক্লিক করা মাত্র হোম স্ক্রিনে সেট হয়ে যাবে।"
+                          : "Tap 'Add' to instantly transform and launch on your Apple Springboard!"}
+                      </li>
                     </ol>
                   </div>
 
@@ -1848,26 +2268,44 @@ export default function App() {
                     <div className="flex items-center gap-2">
                       <span className="text-xl">💻</span>
                       <span className="font-extrabold text-slate-100 text-[12px]">
-                        {language === "bn" ? "ল্যাপটপ বা কম্পিউটার (PC/Desktop)" : "Laptops & Desktops (Mac/Win)"}
+                        {language === "bn"
+                          ? "ল্যাপটপ বা কম্পিউটার (PC/Desktop)"
+                          : "Laptops & Desktops (Mac/Win)"}
                       </span>
                     </div>
                     <ol className="list-decimal pl-4.5 text-[11px] text-slate-400 space-y-1.5 flex-1 font-medium leading-relaxed">
-                      <li>{language === "bn" ? "কম্পিউটার থেকে গুগল ক্রোম বা এজ ব্রাউজারে সাইটটি ভিজিট করুন।" : "Visit the platform using PC Google Chrome or Edge."}</li>
-                      <li>{language === "bn" ? "ব্রাউজার এড্রেস বারের ডানপাশে (ডাউনলোড বা পিসি চিহ্ন আইকন 🖥️) চাপুন।" : "Look inside the URL address input bar for a prompt showing device monitor to install."}</li>
-                      <li>{language === "bn" ? "অথবা ব্রাউজার অপশন থেকে 'Install Page as App' এ ক্লিক করুন।" : "Or open Chrome's top settings menu and select 'Save and Share' ➔ 'Install Page'."}</li>
-                      <li>{language === "bn" ? "এটি সম্পূর্ণ রিয়েল এবং ডেডিকেটেড অফলাইন অটো সেভ ডেক্সটপ উইন্ডো হিসেবে কাজ করবে!" : "It works as a dedicated standalone system window directly from your start menu with native app speed."}</li>
+                      <li>
+                        {language === "bn"
+                          ? "কম্পিউটার থেকে গুগল ক্রোম বা এজ ব্রাউজারে সাইটটি ভিজিট করুন।"
+                          : "Visit the platform using PC Google Chrome or Edge."}
+                      </li>
+                      <li>
+                        {language === "bn"
+                          ? "ব্রাউজার এড্রেস বারের ডানপাশে (ডাউনলোড বা পিসি চিহ্ন আইকন 🖥️) চাপুন।"
+                          : "Look inside the URL address input bar for a prompt showing device monitor to install."}
+                      </li>
+                      <li>
+                        {language === "bn"
+                          ? "অথবা ব্রাউজার অপশন থেকে 'Install Page as App' এ ক্লিক করুন।"
+                          : "Or open Chrome's top settings menu and select 'Save and Share' ➔ 'Install Page'."}
+                      </li>
+                      <li>
+                        {language === "bn"
+                          ? "এটি সম্পূর্ণ রিয়েল এবং ডেডিকেটেড অফলাইন অটো সেভ ডেক্সটপ উইন্ডো হিসেবে কাজ করবে!"
+                          : "It works as a dedicated standalone system window directly from your start menu with native app speed."}
+                      </li>
                     </ol>
                   </div>
-
                 </div>
-
               </div>
 
               {/* Utility Information Card */}
               <div className="p-3 bg-slate-850 rounded-2xl text-slate-400 text-[10px] border border-slate-800 leading-relaxed font-mono">
-                💡 {language === "bn" ? "অফলাইন ডাটাবেজ সুবিধা: একবার অ্যাপটি ডিভাইসে ডাউনলোড বা ইন্সটল হয়ে গেলে, মরুভূমি বা রিমোট সেন্টারের মত অফলাইন লোকেশনেও কোনো সিগন্যাল ছাড়াই আপনি নতুন বিল-ভাউচার বা সার্ভিস রিপোর্ট তৈরি করতে এবং সেভ করতে পারবেন। পুনরায় ইন্টারনেট সংযোগ পাওয়া মাত্রই ডাটা কেন্দ্রীয় সার্ভারে জমা হয়ে যাবে!" : "Robust Offline Database Engine: This Progressive Web Application stores active logs in client-side HTML5 indexedDB / localStorage when cellular network is unavailable. You can draft complex forensic treatment sheets anywhere, which will continuously sync background pipelines the literal moment your device connects to the internet."}
+                💡{" "}
+                {language === "bn"
+                  ? "অফলাইন ডাটাবেজ সুবিধা: একবার অ্যাপটি ডিভাইসে ডাউনলোড বা ইন্সটল হয়ে গেলে, মরুভূমি বা রিমোট সেন্টারের মত অফলাইন লোকেশনেও কোনো সিগন্যাল ছাড়াই আপনি নতুন বিল-ভাউচার বা সার্ভিস রিপোর্ট তৈরি করতে এবং সেভ করতে পারবেন। পুনরায় ইন্টারনেট সংযোগ পাওয়া মাত্রই ডাটা কেন্দ্রীয় সার্ভারে জমা হয়ে যাবে!"
+                  : "Robust Offline Database Engine: This Progressive Web Application stores active logs in client-side HTML5 indexedDB / localStorage when cellular network is unavailable. You can draft complex forensic treatment sheets anywhere, which will continuously sync background pipelines the literal moment your device connects to the internet."}
               </div>
-
             </div>
 
             {/* Footer */}
@@ -1880,7 +2318,6 @@ export default function App() {
                 {language === "bn" ? "বুঝেছি, ধন্যবাদ" : "Got it! Continue"}
               </button>
             </div>
-
           </div>
         </div>
       )}
