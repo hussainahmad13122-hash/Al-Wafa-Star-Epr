@@ -96,6 +96,7 @@ export interface ReportItem {
   supervisingLeadOfficer?: string;
   comments?: string;
   rawEngineeringData?: any;
+  updatedAt?: number;
 }
 
 export interface AppUser {

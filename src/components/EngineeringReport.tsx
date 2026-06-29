@@ -4470,12 +4470,6 @@ export default function EngineeringReport({
                 </>
               )}
               <button
-                onClick={() => handleDownloadPDF(selectedReport)}
-                className="bg-[#10B981] hover:bg-emerald-400 text-slate-950 px-4 py-2.5 rounded-xl text-xs font-black transition cursor-pointer flex items-center gap-1.5 active:scale-95 leading-none shadow-lg shadow-emerald-500/15"
-              >
-                📥 {t("Download PDF", "সরাসরি PDF ডাউনলোড", "تحميل بصيغة PDF")}
-              </button>
-              <button
                 onClick={handlePrintTrigger}
                 className="bg-indigo-600 hover:bg-[#1D4ED8] text-white px-4 py-2.5 rounded-xl text-xs font-extrabold transition cursor-pointer flex items-center gap-1.5 active:scale-95 leading-none shadow-md"
               >
@@ -4496,7 +4490,7 @@ export default function EngineeringReport({
             return (
               <div
                 id="printable-document-sheet"
-                className="relative select-text w-full max-w-4xl mx-auto bg-white text-slate-900 shadow-2xl rounded-2xl border border-slate-200/80 p-8 sm:p-12 md:p-12 print:w-[210mm] print:rounded-none print:shadow-none print:border-0 print:p-0 flex flex-col mb-8 print:mb-0"
+                className="relative select-text w-full max-w-4xl mx-auto bg-white text-slate-900 shadow-2xl rounded-2xl border border-slate-200/80 p-8 sm:p-12 md:p-12 print:w-[202mm] print:mx-auto print:my-4 print:border-2 print:border-black print:outline-[1px] print:outline-double print:outline-black print:rounded-lg print:p-12 flex flex-col mb-8 print:mb-0"
               >
                 {/* Red star watermark in the absolute background */}
                 <div className="absolute inset-0 flex items-center justify-center pointer-events-none opacity-[0.06] select-none z-0">

@@ -501,19 +501,6 @@ export default function CompletedRegistry({
               </div>
               <div className="flex items-center gap-2">
                 <button
-                  onClick={handleDownloadPDF}
-                  disabled={isGeneratingPDF}
-                  className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 disabled:bg-emerald-800 text-white font-black rounded-xl text-xs flex items-center gap-1.5 cursor-pointer transition duration-150 shadow"
-                >
-                  <span className="text-sm">📥</span>
-                  <span>
-                    {isGeneratingPDF
-                      ? (language === "bn" ? "PDF তৈরি হচ্ছে..." : "Generating PDF...")
-                      : (language === "bn" ? "সরাসরি PDF ডাউনলোড" : "Download PDF")}
-                  </span>
-                </button>
-
-                <button
                   onClick={triggerPrintDoc}
                   disabled={simulatedPrint}
                   className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-white font-black rounded-xl text-xs flex items-center gap-1.5 cursor-pointer transition duration-150 shadow border border-slate-700"

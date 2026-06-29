@@ -24,6 +24,7 @@ import {
   CreditCard,
   Download,
   FileCheck,
+  Printer,
 } from "lucide-react";
 import {
   ReportItem,
@@ -1136,7 +1137,7 @@ export const generateEngineeringHTML = (report: any, language: string) => {
         @media print {
             @page {
                 size: A4 portrait;
-                margin: 0;
+                margin: 0 !important;
             }
             body {
                 background-color: #ffffff !important;
@@ -1144,14 +1145,16 @@ export const generateEngineeringHTML = (report: any, language: string) => {
                 padding: 0 !important;
             }
             .engineering-report-wrapper {
-                margin: 0 !important;
+                margin: 4mm auto !important;
                 padding: 15mm 15mm 15mm 15mm !important;
                 box-shadow: none !important;
-                border: none !important;
-                outline: none !important;
-                border-radius: 0 !important;
-                width: 210mm !important;
-                max-width: 210mm !important;
+                border: 2px solid #000000 !important;
+                outline: 1px double #000000 !important;
+                border-radius: 8px !important;
+                background-color: #ffffff !important;
+                width: 202mm !important;
+                max-width: 202mm !important;
+                box-sizing: border-box !important;
             }
             * {
                 -webkit-print-color-adjust: exact !important;
@@ -3200,13 +3203,13 @@ export default function ClientDirectory({
                         downloadFullReportPDF(report);
                         setPreviewReport(null);
                       }}
-                      className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 disabled:bg-emerald-800 text-white font-black rounded-xl text-xs flex items-center gap-1.5 cursor-pointer transition duration-150 shadow"
+                      className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-white font-black rounded-xl text-xs flex items-center gap-1.5 cursor-pointer transition duration-150 shadow border border-slate-700"
                     >
-                      <span className="text-sm">📥</span>
+                      <Printer className="w-3.5 h-3.5" />
                       <span>
                         {language === "bn"
-                          ? "সরাসরি PDF ডাউনলোড"
-                          : "Download PDF"}
+                          ? "ব্রাউজার প্রিন্ট / PDF"
+                          : "Browser Print"}
                       </span>
                     </button>
 

@@ -315,11 +315,11 @@ export default function CustomServiceModule({ language, isDark, reports = [], on
                       downloadFullReportPDF(activeReportDetails);
                       setActiveReportDetails(null);
                     }}
-                    className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 disabled:bg-emerald-800 text-white font-black rounded-xl text-xs flex items-center gap-1.5 cursor-pointer transition duration-150 shadow"
+                    className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-white font-black rounded-xl text-xs flex items-center gap-1.5 cursor-pointer transition duration-150 shadow border border-slate-700"
                   >
-                    <span className="text-sm">📥</span>
+                    <Printer className="w-3.5 h-3.5" />
                     <span>
-                      {language === "bn" ? "সরাসরি PDF ডাউনলোড" : "Download PDF"}
+                      {language === "bn" ? "ব্রাউজার প্রিন্ট / PDF" : "Browser Print"}
                     </span>
                   </button>
 

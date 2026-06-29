@@ -900,6 +900,9 @@ export default function App() {
       }
       if (b.profileUser) {
         setProfileUser((curr) => {
+          if (localStorage.getItem("ALW_STAR_PROFILE_CUSTOMIZED") === "true") {
+            return curr;
+          }
           if (curr !== b.profileUser) {
             localStorage.setItem("ALW_STAR_PROFILE_USER", b.profileUser);
             return b.profileUser;
@@ -909,6 +912,9 @@ export default function App() {
       }
       if (b.profileEmail) {
         setProfileEmail((curr) => {
+          if (localStorage.getItem("ALW_STAR_PROFILE_CUSTOMIZED") === "true") {
+            return curr;
+          }
           if (curr !== b.profileEmail) {
             localStorage.setItem("ALW_STAR_PROFILE_EMAIL", b.profileEmail);
             return b.profileEmail;
@@ -918,6 +924,9 @@ export default function App() {
       }
       if (b.profileAvatarUrl !== undefined) {
         setProfileAvatarUrl((curr) => {
+          if (localStorage.getItem("ALW_STAR_PROFILE_CUSTOMIZED") === "true") {
+            return curr;
+          }
           if (curr !== b.profileAvatarUrl) {
             localStorage.setItem(
               "ALW_STAR_PROFILE_AVATAR",
@@ -955,7 +964,8 @@ export default function App() {
       isInitialMount.current = false;
       return;
     }
-    const payload = {
+    const isCustomized = localStorage.getItem("ALW_STAR_PROFILE_CUSTOMIZED") === "true";
+    const localPayload = {
       companyBrand,
       companySubtitle,
       profileUser,
@@ -963,7 +973,46 @@ export default function App() {
       profileAvatarUrl,
       appPassword,
     };
-    saveBrandingData(payload).catch((e) => console.warn(e));
+
+    if (isCustomized) {
+      // Save locally only (do NOT push customized profile fields to Firestore)
+      saveBrandingData(localPayload, false).catch((e) => console.warn(e));
+      
+      // Still push company brand/subtitle/password to Firestore (merging with existing global profile from Firestore)
+      Promise.all([
+        import("firebase/firestore"),
+        import("./localDatabase")
+      ]).then(([{ getDoc, doc, setDoc }, { dbInstance }]) => {
+        if (dbInstance) {
+          getDoc(doc(dbInstance, "branding", "global")).then((snap: any) => {
+            if (snap.exists()) {
+              const remote = snap.data();
+              const merged = {
+                ...remote,
+                companyBrand,
+                companySubtitle,
+                appPassword,
+                updatedAt: Date.now()
+              };
+              setDoc(doc(dbInstance, "branding", "global"), merged);
+            } else {
+              setDoc(doc(dbInstance, "branding", "global"), {
+                companyBrand,
+                companySubtitle,
+                appPassword,
+                profileUser: "Superintendent Hamdy", // default fallback
+                profileEmail: "allitokmal@gmail.com",
+                profileAvatarUrl: "",
+                updatedAt: Date.now()
+              });
+            }
+          }).catch((err: any) => console.warn(err));
+        }
+      });
+    } else {
+      // Not customized - update both locally and push everything to Firestore
+      saveBrandingData(localPayload, true).catch((e) => console.warn(e));
+    }
   }, [
     companyBrand,
     companySubtitle,
@@ -1804,6 +1853,7 @@ export default function App() {
                       "ALW_STAR_PROFILE_USER",
                       e.target.value,
                     );
+                    localStorage.setItem("ALW_STAR_PROFILE_CUSTOMIZED", "true");
                   }}
                   className="w-full bg-slate-950 border border-slate-700 text-slate-100 rounded-xl py-2.5 px-3 text-xs outline-none focus:border-[#10B981] focus:ring-1 focus:ring-[#10B981]"
                 />
@@ -1825,6 +1875,7 @@ export default function App() {
                       "ALW_STAR_PROFILE_EMAIL",
                       e.target.value,
                     );
+                    localStorage.setItem("ALW_STAR_PROFILE_CUSTOMIZED", "true");
                   }}
                   className="w-full bg-slate-950 border border-slate-700 text-slate-100 rounded-xl py-2.5 px-3 text-xs outline-none focus:border-[#10B981] focus:ring-1 focus:ring-[#10B981]"
                 />
@@ -1861,6 +1912,7 @@ export default function App() {
                               "ALW_STAR_PROFILE_AVATAR",
                               reader.result as string,
                             );
+                            localStorage.setItem("ALW_STAR_PROFILE_CUSTOMIZED", "true");
                           };
                           reader.readAsDataURL(file);
                         }

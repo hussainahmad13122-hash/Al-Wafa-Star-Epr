@@ -161,7 +161,7 @@ if (typeof window !== "undefined") {
 }
 
 // Firebase dynamic setup and lifecycle
-let dbInstance: any = null;
+export let dbInstance: any = null;
 let isFirebaseConnected = false;
 let firebaseError: string | null = null;
 
@@ -267,22 +267,33 @@ export async function synchronizeDatabase() {
           `Sync complete: Uploaded ${locals.length} entries to Firebase collection "${coll}".`,
         );
       } else if (remotes.length > 0) {
-        // Merge records
+        // Merge records based on updatedAt conflict resolution
         let mergedList = [...remotes];
-        let hasNewUploads = false;
 
         for (const localItem of locals) {
-          if (!remotes.some((r) => r.id === localItem.id)) {
+          const remoteItem = remotes.find((r) => r.id === localItem.id);
+          if (!remoteItem) {
+            // Only exists locally, upload to Firestore
             await setDoc(doc(dbInstance, coll, localItem.id), localItem);
             mergedList.push(localItem);
-            hasNewUploads = true;
+          } else {
+            // Exists in both places. Compare timestamps.
+            const localTime = localItem.updatedAt || 0;
+            const remoteTime = remoteItem.updatedAt || 0;
+            if (localTime > remoteTime) {
+              // Local is newer, upload to Firestore and update in mergedList
+              await setDoc(doc(dbInstance, coll, localItem.id), localItem);
+              mergedList = mergedList.map((item) =>
+                item.id === localItem.id ? localItem : item
+              );
+            }
           }
         }
 
         localStorage.setItem(STORAGE_PREFIX + coll, JSON.stringify(mergedList));
         notifySubscribers(coll, mergedList);
         console.log(
-          `Sync complete: Merged "${coll}". Total unified items: ${mergedList.length}.`,
+          `Sync complete: Merged "${coll}" with conflict resolution. Total unified items: ${mergedList.length}.`,
         );
       }
     } catch (err) {
@@ -531,7 +542,7 @@ export async function getBrandingData(): Promise<typeof DEFAULT_BRANDING> {
   return DEFAULT_BRANDING;
 }
 
-export async function saveBrandingData(data: any): Promise<void> {
+export async function saveBrandingData(data: any, uploadToFirestore: boolean = true): Promise<void> {
   try {
     const current = await getBrandingData();
     const updatedAt = data.updatedAt || Date.now();
@@ -540,7 +551,7 @@ export async function saveBrandingData(data: any): Promise<void> {
     localStorage.setItem(STORAGE_PREFIX + "branding", JSON.stringify(updated));
     notifySubscribers("branding", updated);
 
-    if (dbInstance) {
+    if (uploadToFirestore && dbInstance) {
       try {
         await setDoc(doc(dbInstance, "branding", "global"), updated);
       } catch (err) {

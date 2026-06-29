@@ -1089,6 +1089,7 @@ export default function MasterForm({
     const payload: ReportItem = {
       ...editingReport, // preserve other fields of the report being edited
       id: editingReport ? editingReport.id : `REP-${slNo || "0229"}-${Date.now().toString().slice(-3)}`,
+      updatedAt: Date.now(),
       facilityName,
       clientId: clientId || `ALW-CLI-${Math.floor(3000 + Math.random() * 6000)}`,
       contractNo: contractNo || "CON-PRE-2026",
@@ -1259,6 +1260,7 @@ export default function MasterForm({
     const payload: ReportItem = {
       ...editingReport, // preserve other fields of the report being edited
       id: editingReport ? editingReport.id : `REP-${slNo || "0229"}-${Date.now().toString().slice(-3)}`,
+      updatedAt: Date.now(),
       facilityName,
       clientId: clientId || `ALW-CLI-${Math.floor(3000 + Math.random() * 6000)}`,
       contractNo: contractNo || "CON-PRE-2026",

@@ -123,6 +123,33 @@ export default function AdminSettings({
   const [showRoleMenu, setShowRoleMenu] = useState(false);
   const [activeTab, setActiveTab] = useState<"appearance" | "profile" | "security" | "password_security" | "database">("appearance");
 
+  const [saveAsGlobal, setSaveAsGlobal] = useState(false);
+  const [isCustomProfile, setIsCustomProfile] = useState(() => {
+    return localStorage.getItem("ALW_STAR_PROFILE_CUSTOMIZED") === "true";
+  });
+
+  const handleResetToGlobalDefault = async () => {
+    try {
+      localStorage.removeItem("ALW_STAR_PROFILE_CUSTOMIZED");
+      setIsCustomProfile(false);
+      
+      const { getBrandingData } = await import("../localDatabase");
+      const branding = await getBrandingData();
+      
+      setProfileUser(branding.profileUser);
+      setProfileEmail(branding.profileEmail);
+      setProfileAvatarUrl(branding.profileAvatarUrl || "");
+      
+      setLocalUser(branding.profileUser);
+      setLocalEmail(branding.profileEmail);
+      setLocalAvatar(branding.profileAvatarUrl || "");
+      
+      alert(language === "bn" ? "সফলভাবে অ্যাডমিন নির্মিত গ্লোবাল প্রোফাইলে রিসেট করা হয়েছে!" : "Successfully reset to admin-defined global profile!");
+    } catch (e) {
+      console.warn("Failed to reset profile:", e);
+    }
+  };
+
   // Firebase Live Sync State controllers
   const [fbConfigStr, setFbConfigStr] = useState(() => {
     const cfg = getActiveFirebaseConfig();
@@ -696,6 +723,16 @@ export default function AdminSettings({
     localStorage.setItem("ALW_STAR_PROFILE_EMAIL", localEmail);
     localStorage.setItem("ALW_STAR_PROFILE_AVATAR", localAvatar);
     localStorage.setItem("ALW_STAR_APP_PASSWORD", localPassword || "123456");
+
+    // Manage customized status based on toggle and user role
+    const isAdmin = loggedInUser?.role === "Admin";
+    if (isAdmin && saveAsGlobal) {
+      localStorage.setItem("ALW_STAR_PROFILE_CUSTOMIZED", "false");
+      setIsCustomProfile(false);
+    } else {
+      localStorage.setItem("ALW_STAR_PROFILE_CUSTOMIZED", "true");
+      setIsCustomProfile(true);
+    }
 
     setSuccessMsg(t.successSaved);
     setTimeout(() => setSuccessMsg(null), 3000);
@@ -1508,6 +1545,52 @@ Reloading portal to apply updates...`;
                   onChange={(e) => setLocalAvatar(e.target.value)}
                   className="w-full bg-slate-950 text-slate-100 border border-slate-700 rounded-xl py-2 px-3 text-xs outline-none focus:border-[#10B981]"
                 />
+              </div>
+              
+              {/* Profile Scope Options */}
+              <div className="pt-3 border-t border-slate-800 space-y-3">
+                {loggedInUser?.role === "Admin" && (
+                  <label className="flex items-start gap-3 bg-slate-900/50 p-3 rounded-xl border border-slate-850 cursor-pointer hover:bg-slate-900 transition">
+                    <input 
+                      type="checkbox"
+                      checked={saveAsGlobal}
+                      onChange={(e) => setSaveAsGlobal(e.target.checked)}
+                      className="mt-1 accent-[#10B981] w-4 h-4"
+                    />
+                    <div>
+                      <span className="text-xs font-bold text-slate-200 block">
+                        {language === "bn" 
+                          ? "সকল ব্যবহারকারীর জন্য এটি গ্লোবাল ডিফল্ট প্রোফাইল হিসেবে সেট করুন" 
+                          : "Save as Global Default Profile for all users"}
+                      </span>
+                      <span className="text-[10px] text-slate-400 block mt-0.5">
+                        {language === "bn"
+                          ? "এটি চেক করা থাকলে, সমস্ত ইউজারের কাছে এই প্রোফাইলটি ডিফল্ট হিসেবে সেট হবে।"
+                          : "If checked, this profile will become the default template for all devices."}
+                      </span>
+                    </div>
+                  </label>
+                )}
+
+                {(!saveAsGlobal || loggedInUser?.role !== "Admin") && (
+                  <div className="text-[10px] text-slate-400 bg-slate-900/30 p-2.5 rounded-xl border border-slate-850/50">
+                    ℹ️ {language === "bn"
+                      ? "আপনার এই পরিবর্তনটি শুধুমাত্র এই ডিভাইসের জন্যই সংরক্ষিত হবে। গ্লোবাল ডিফল্ট প্রোফাইলটি অপরিবर्तিত থাকবে।"
+                      : "This profile change is saved locally for this device/session only and will not affect other users."}
+                  </div>
+                )}
+
+                {isCustomProfile && (
+                  <button
+                    type="button"
+                    onClick={handleResetToGlobalDefault}
+                    className="w-full bg-red-500/10 hover:bg-red-500/20 border border-red-500/30 hover:border-red-500/50 text-red-400 hover:text-red-300 py-2 px-3 rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 cursor-pointer"
+                  >
+                    🔄 {language === "bn" 
+                      ? "অ্যাডমিন নির্মিত গ্লোবাল ডিফল্ট প্রোফাইলে রিসেট করুন" 
+                      : "Reset to Admin's Global Default Profile"}
+                  </button>
+                )}
               </div>
             </div>
           </div>
