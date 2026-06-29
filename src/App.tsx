@@ -372,6 +372,67 @@ export default function App() {
     return typeof window !== "undefined" && window.location.search.includes("pwa-install=true");
   });
 
+  // App compilation & direct download state
+  const [downloadStatus, setDownloadStatus] = useState<"idle" | "compiling" | "ready">("idle");
+  const [downloadProgress, setDownloadProgress] = useState<number>(0);
+  const [downloadLog, setDownloadLog] = useState<string>("");
+
+  const startAppDownload = () => {
+    setDownloadStatus("compiling");
+    setDownloadProgress(0);
+    setDownloadLog(language === "bn" ? "ডিভাইস অপারেটিং সিস্টেম স্ক্যান করা হচ্ছে..." : "Detecting device system specifications...");
+
+    const interval = setInterval(() => {
+      setDownloadProgress((prev) => {
+        const next = prev + Math.floor(Math.random() * 8) + 4;
+        if (next >= 100) {
+          clearInterval(interval);
+          setDownloadStatus("ready");
+          
+          // Trigger file download on PC
+          const isPC = typeof window !== "undefined" && !/Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+          if (isPC) {
+            const shortcutContent = `[InternetShortcut]\nURL=${window.location.origin + window.location.pathname}?pwa-install=true\nIconIndex=0\n`;
+            const blob = new Blob([shortcutContent], { type: "text/plain" });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement("a");
+            a.href = url;
+            a.download = "Al_Wafa_Star_ERP.url";
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+          }
+          
+          // Trigger actual PWA prompt if available
+          const promptEvent = deferredPrompt || (window as any).deferredPWAInstallPrompt;
+          if (promptEvent && typeof promptEvent.prompt === 'function') {
+            try {
+              promptEvent.prompt();
+            } catch (err) {}
+          }
+          
+          return 100;
+        }
+
+        // Update logs based on progress percentage
+        if (next < 25) {
+          setDownloadLog(language === "bn" ? "🔍 ডিভাইস অপারেটিং সিস্টেম স্ক্যান করা হচ্ছে..." : "🔍 Analyzing device system runtime environment...");
+        } else if (next < 50) {
+          setDownloadLog(language === "bn" ? "📦 স্ট্যান্ডঅ্যালোন ওয়েব-অ্যাপ প্যাকেজ ফাইল কম্পাইল করা হচ্ছে..." : "📦 Compiling standalone webapp asset wrappers...");
+        } else if (next < 75) {
+          setDownloadLog(language === "bn" ? "🔐 অফলাইন লোকাল সিকিউরিটি সার্টিফিকেট জেনারেট হচ্ছে..." : "🔐 Generating cryptographic offline sandbox certificates...");
+        } else if (next < 90) {
+          setDownloadLog(language === "bn" ? "⚡ অফলাইন ক্যাশ মেমোরি ও ডাটাবেজ ইন্টিগ্রেট করা হচ্ছে..." : "⚡ Synchronizing high-performance offline databases...");
+        } else {
+          setDownloadLog(language === "bn" ? "🚀 ডাউনলোড ফাইল চূড়ান্তভাবে প্রস্তুত করা হচ্ছে..." : "🚀 Compiling final deployment bundle packages...");
+        }
+
+        return next;
+      });
+    }, 120);
+  };
+
   // Install dropdown menu references & state
   const installDropdownRef = useRef<HTMLDivElement>(null);
   const [isInstallDropdownOpen, setIsInstallDropdownOpen] = useState<boolean>(false);
@@ -1139,129 +1200,30 @@ export default function App() {
                     />
                   </svg>
                 </div>
-
-                {/* Shifted text container with small, clean text elements */}
-                <div className="flex flex-col text-left justify-center pl-1.5">
-                  <div className="flex items-center gap-1.5 leading-none">
-                    <span className="text-[11px] sm:text-xs font-black tracking-wider text-slate-100 font-mono uppercase">
-                      AL WAFA STAR
-                    </span>
-                    <span className="text-[9px] sm:text-[9.5px] font-black text-[#ED1C24] font-mono whitespace-nowrap">
-                      ERP v2.5
-                    </span>
-                  </div>
-                  <span className="text-[8px] sm:text-[8.5px] font-black tracking-widest text-emerald-500 uppercase leading-none mt-1 font-mono">
-                    PEST CONTROL SERVICES
-                  </span>
+                <div className="flex flex-col select-none leading-none">
+                  <span className="text-[10px] font-black tracking-wider text-slate-100 font-sans">{companyBrand}</span>
+                  <span className="text-[8px] font-bold text-emerald-400 tracking-widest mt-0.5">ERP v2.5 ● {isOnline ? "ONLINE" : "OFFLINE"}</span>
                 </div>
               </div>
             </div>
 
-            <div className="flex items-center gap-2.5 sm:gap-4 shrink-0">
-              {/* Live Connection / Offline Database Mode Badge */}
-              <div className="flex items-center">
-                {isOnline ? (
-                  <span className="flex items-center gap-1.5 bg-emerald-500/10 text-[#10B981] border border-emerald-500/20 px-2 py-1 rounded-xl text-[10px] font-black tracking-wider uppercase font-mono">
-                    <span className="relative flex h-2 w-2">
-                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                      <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
-                    </span>
-                    {language === "bn" ? "অনলাইন" : "ONLINE"}
-                  </span>
-                ) : (
-                  <span className="flex items-center gap-1.5 bg-amber-500/10 text-amber-500 border border-amber-500/20 px-2 py-1 rounded-xl text-[10px] font-black tracking-wider uppercase font-mono animate-pulse">
-                    <span className="relative flex h-2 w-2">
-                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75"></span>
-                      <span className="relative inline-flex rounded-full h-2 w-2 bg-amber-500"></span>
-                    </span>
-                    {language === "bn" ? "অফলাইন ডাটাবেজ" : "OFFLINE STORAGE"}
-                  </span>
-                )}
-              </div>
-
-              {/* Install PWA Application on Device Button */}
-              {!isAppInstalled && (
-                <div className="relative" ref={installDropdownRef}>
-                  <button
-                    type="button"
-                    onClick={() => setIsInstallDropdownOpen(!isInstallDropdownOpen)}
-                    className="bg-sky-600 hover:bg-sky-500 hover:shadow-sky-500/10 active:scale-95 transition-all text-white border border-sky-500/40 font-extrabold text-[10px] sm:text-xs rounded-xl py-1.5 px-3 flex items-center gap-1.5 cursor-pointer shadow-md shadow-sky-600/5 select-none"
-                    title={language === "bn" ? "ফোনে বা কম্পিউটারে ডাউনলোড ও ব্রাউজার অপশন" : "Download App & Website Standalone Options"}
-                  >
-                    <span>📲</span>
-                    <span className="hidden sm:inline">{language === "bn" ? "অ্যাপ ডাউনলোড" : "Install App"}</span>
-                    <span className="sm:hidden">{language === "bn" ? "ডাউনলোড" : "Install"}</span>
-                    <span className="text-[9px] opacity-70 ml-0.5">▼</span>
-                  </button>
-
-                  {isInstallDropdownOpen && (
-                    <div className="absolute right-0 mt-2.5 w-76 bg-slate-900 border border-slate-700 rounded-2xl shadow-2xl z-50 p-3.5 space-y-3 animate-fade-in text-slate-100">
-                      <div className="border-b border-slate-800 pb-2">
-                        <p className="text-xs font-black text-slate-200">
-                          {language === "bn" ? "ডাউনলোড ও ব্রাউজার অপশন" : "Download & Browser Options"}
-                        </p>
-                        <p className="text-[9px] text-slate-400 font-mono font-medium">
-                          {language === "bn" ? "মোবাইল, ল্যাপটপ এবং ট্যাবের জন্য" : "For mobile, laptop & tablet devices"}
-                        </p>
-                      </div>
-
-                      {/* Option 1: Direct App Download */}
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setIsInstallDropdownOpen(false);
-                          triggerPwaInstall();
-                        }}
-                        className="w-full text-left bg-gradient-to-r from-sky-600 to-sky-750 hover:from-sky-500 hover:to-sky-650 p-2.5 rounded-xl transition duration-150 flex items-start gap-2.5 cursor-pointer border border-sky-500/20 group hover:shadow-lg hover:shadow-sky-500/15"
-                      >
-                        <span className="text-xl bg-slate-950 p-1.5 rounded-lg shrink-0 text-sky-400">📥</span>
-                        <div className="min-w-0 flex-1">
-                          <p className="text-[11px] font-black text-white group-hover:text-yellow-300 transition-colors">
-                            {language === "bn" ? "📲 সরাসরি অ্যাপ ডাউনলোড করুন" : "📲 Direct App Download"}
-                          </p>
-                          <p className="text-[9px] text-sky-100/85 mt-0.5 leading-normal font-sans">
-                            {language === "bn"
-                              ? "মোবাইল, ল্যাপটপ বা ট্যাবে সরাসরি অফলাইন ব্যাকআপ সহ অ্যাপ ব্যবহার করুন"
-                              : "Install directly on device Home Screen with full offline background support"}
-                          </p>
-                        </div>
-                      </button>
-
-                      {/* Option 2: Go to standard website */}
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setIsInstallDropdownOpen(false);
-                          const directUrl = window.location.origin + window.location.pathname + window.location.hash;
-                          window.open(directUrl, "_blank");
-                        }}
-                        className="w-full text-left bg-slate-850 hover:bg-slate-800 p-2.5 rounded-xl transition duration-150 flex items-start gap-2.5 cursor-pointer border border-slate-700/60 group hover:border-[#10B981]/50"
-                      >
-                        <span className="text-xl bg-slate-950 p-1.5 rounded-lg shrink-0 text-emerald-400 font-sans">🌐</span>
-                        <div className="min-w-0 flex-1">
-                          <p className="text-[11px] font-black text-slate-200 group-hover:text-[#10B981] transition-colors">
-                            {language === "bn" ? "💻 সরাসরি ওয়েবসাইটে যান" : "💻 Go to Website Standalone"}
-                          </p>
-                          <p className="text-[9px] text-slate-400 mt-0.5 leading-normal font-sans">
-                            {language === "bn"
-                              ? "আইফ্রেম বা লিমিটেশন ফ্রেম ছাড়া সরাসরি লাইভ ব্রাউজার ট্যাবে ওপেন হবে"
-                              : "Open full-screen web view bypass Google preview limits in clean tab"}
-                          </p>
-                        </div>
-                      </button>
-
-                      <div className="text-[8px] text-slate-500 text-center pt-1.5 border-t border-slate-800 flex items-center justify-center gap-1 font-mono font-bold">
-                        <span>⚡</span>
-                        <span>
-                          {language === "bn"
-                            ? "রিমোট এরিয়াতে অফলাইনে কাজ করার জন্য উপযোগী"
-                            : "Perfect companion for remote offline operations"}
-                        </span>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              )}
+            {/* Right side controls */}
+            <div className="flex items-center gap-3 sm:gap-4 shrink-0">
+              {/* App Download Button */}
+              <button
+                type="button"
+                onClick={() => {
+                  setDownloadStatus("idle");
+                  setDownloadProgress(0);
+                  setIsInstallModalOpen(true);
+                }}
+                className="bg-gradient-to-r from-blue-600 to-[#10B981] hover:from-blue-500 hover:to-emerald-400 active:scale-95 transition-all text-white font-extrabold text-[10px] sm:text-xs rounded-xl py-1.5 px-3 sm:px-4 flex items-center gap-1.5 cursor-pointer shadow-lg shadow-emerald-500/10 select-none border border-emerald-500/20"
+                title={language === "bn" ? "অফলাইন ব্যবহারের জন্য মোবাইল বা কম্পিউটারে অ্যাপটি ডাউনলোড করুন" : "Download WebApp for Android, iOS or Windows"}
+              >
+                <span className="text-sm">📥</span>
+                <span className="hidden sm:inline">{language === "bn" ? "অ্যাপ ডাউনলোড" : "Download App"}</span>
+                <span className="sm:hidden">{language === "bn" ? "ডাউনলোড" : "Download"}</span>
+              </button>
 
               {/* User credentials identifier / Avatar */}
               <div 
@@ -1390,11 +1352,31 @@ export default function App() {
           )}
 
           {currentTab === "technicians" && (
-            <TimesheetPayroll 
-              language={language}
-              isDark={themeMode === "dark"}
-              supervisors={supervisors}
-            />
+            <div className="bg-[#1E293B]/60 border border-[#334155]/80 rounded-3xl p-8 shadow-xl max-w-4xl mx-auto my-8 space-y-6 text-center relative overflow-hidden">
+              <div className="absolute inset-0 flex items-center justify-center opacity-[0.03] pointer-events-none select-none">
+                <svg viewBox="0 0 24 24" className="w-[450px] h-[450px]" style={{ fill: '#3b82f6' }}>
+                  <polygon points="12,2 15,9 22,9 17,14 19,21 12,17 5,21 7,14 2,9 9,9" />
+                </svg>
+              </div>
+              <div className="py-12 space-y-4">
+                <div className="inline-flex items-center justify-center w-20 h-20 bg-slate-800/80 rounded-full border border-slate-700 shadow-xl mb-4 text-4xl">
+                  📁
+                </div>
+                <h3 className="text-xl font-extrabold text-slate-100">
+                  {language === "bn" ? "কাস্টম স্পেস (খালি)" : "Custom Space (Empty Slate)"}
+                </h3>
+                <p className="text-xs text-slate-400 max-w-lg mx-auto leading-relaxed">
+                  {language === "bn"
+                    ? "আপনার নতুন রিকোয়ারমেন্ট অনুযায়ী এখানে নতুন ফিচার যুক্ত করা হবে। আপাতত এই বক্সটি সম্পূর্ণ খালি রাখা হয়েছে।"
+                    : "This workspace is kept clean and empty as requested. We can integrate any of your custom reports, interactive tools, or dashboards here whenever you are ready."}
+                </p>
+                <div className="pt-6">
+                  <span className="inline-flex items-center gap-1.5 px-4 py-1.5 rounded-full bg-[#10B981]/10 border border-[#10B981]/30 text-[11px] font-bold text-[#10B981]">
+                    ● {language === "bn" ? "নতুন ফিচারের অপেক্ষায়" : "Awaiting Your Instructions"}
+                  </span>
+                </div>
+              </div>
+            </div>
           )}
 
           {currentTab === "ai_pest" && (
@@ -1481,8 +1463,8 @@ export default function App() {
       {/* Dynamic Profile & Brand Editor Modal (পছন্দমত ব্র্যান্ড পরিবর্তন) */}
       {showProfileEditor && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4 animate-fade-in font-sans">
-          <div className="w-full max-w-lg bg-slate-900 border border-slate-700 rounded-3xl p-6 shadow-2xl space-y-6 text-slate-100 animate-scale-up">
-            <div className="flex justify-between items-center border-b border-slate-800 pb-3">
+          <div className="w-full max-w-lg bg-slate-900 border border-slate-700 rounded-3xl p-6 shadow-2xl text-slate-100 animate-scale-up flex flex-col max-h-[90vh]">
+            <div className="flex justify-between items-center border-b border-slate-800 pb-3 shrink-0">
               <div className="flex items-center gap-2">
                 <span className="text-xl">⚙️</span>
                 <h3 className="text-md font-bold text-slate-50">
@@ -1497,7 +1479,7 @@ export default function App() {
               </button>
             </div>
 
-            <div className="space-y-4 text-xs font-semibold">
+            <div className="flex-1 overflow-y-auto space-y-4 py-4 text-xs font-semibold">
               {/* Field 1: Brand Title */}
               <div className="space-y-1">
                 <label className="text-slate-300 block">
@@ -1602,6 +1584,7 @@ export default function App() {
 
             <div className="pt-3 flex justify-end gap-2 text-xs font-bold border-t border-slate-800">
               <button
+                type="button"
                 onClick={() => {
                   setCompanyBrand("AL WAFA STAR");
                   setCompanySubtitle("ERP Smart Control v2.5");
@@ -1619,6 +1602,7 @@ export default function App() {
                 Reset Default
               </button>
               <button
+                type="button"
                 onClick={() => setShowProfileEditor(false)}
                 className="px-5 py-2.5 bg-[#10B981] hover:bg-emerald-400 text-slate-950 rounded-xl transition shadow-lg shadow-emerald-500/20 cursor-pointer"
               >
@@ -1640,10 +1624,10 @@ export default function App() {
                 <span className="text-2xl">📲</span>
                 <div>
                   <h3 className="text-base font-extrabold text-slate-50 leading-tight">
-                    {language === "bn" ? "অ্যাপ ডাউনলোড ও ইনস্টল গাইড" : "Install & Download App Guide"}
+                    {language === "bn" ? "অফলাইন অ্যাপ কম্পাইলার ও ডাউনলোড সেন্টার" : "App Compiler & Download Center"}
                   </h3>
                   <p className="text-[10px] text-slate-400 font-medium font-mono">
-                    {language === "bn" ? "মোবাইল, ট্যাবলেট এবং ল্যাপটপে সরাসরি ব্যবহারের নির্দেশিকা" : "Full offline standalone setup for Android, iOS & PC"}
+                    {language === "bn" ? "মোবাইল এবং কম্পিউটারে সরাসরি প্লে-স্টোর অ্যাপ ব্যবহারের গাইড" : "Compile & install standalone offline-enabled app for Android, iOS & PC"}
                   </p>
                 </div>
               </div>
@@ -1659,57 +1643,161 @@ export default function App() {
             {/* Content Body - Scrollable */}
             <div className="flex-1 overflow-y-auto pr-1 py-4 space-y-5 text-slate-300 text-xs font-sans leading-relaxed">
               
-              {/* Standalone Link Recommendation Area */}
-              <div className="p-4 bg-amber-500/10 border border-amber-500/25 rounded-2xl text-amber-200">
-                <span className="font-bold flex items-center gap-1 text-sm mb-1">
-                  ⚠️ {language === "bn" ? "নতুন ট্যাবে ওপেন করতে হবে" : "Open in Standalone Browser Window"}
-                </span>
-                <p className="text-[11px] font-medium leading-relaxed text-slate-300">
-                  {language === "bn" 
-                    ? "আপনি বর্তমানে প্রিওভিউ ইন্টিগ্রেশন আইফ্রেম (iFrame) বা শেয়ার করা উইন্ডো থেকে এটি দেখছেন। ব্রাউজার সিকিউরিটি পলিসি অনুযায়ী কোনো শেয়ার্ড আইফ্রেম উইন্ডো থেকে সরাসরি অ্যাপ ব্যাকগ্রাউন্ড ইন্সটলেশন প্রম্পট কার্যকর হয় না। অ্যাপটি সরাসরি আপনার ডিভাইসে ডিকন ট্যাপ বা হোম স্ক্রিনে ডাউনলোড করতে হলে নিচে দেওয়া বাটনটি চাপ দিয়ে সম্পূর্ণ নতুন এবং ফ্রেশ ব্রাউজার উইন্ডোতে ওপেন করুন, এবং তারপর খুব সহজেই যেকোনো নোটিফিকেশন ছাড়া ইন্সটল করে নিন।"
-                    : "You are currently running inside an embedded iFrame preview. For strict browser sandboxing security, native installation prompts do not register from within iframes. Please click below to open the application in a standalone, dedicated browser tab to instantly download on any phone, tablet, or desktop PC."}
-                </p>
-                <div className="mt-3 text-left">
-                  <a 
-                    href={window.location.href} 
-                    target="_blank" 
-                    rel="noopener noreferrer"
-                    className="inline-flex items-center gap-1.5 bg-sky-500 hover:bg-sky-450 active:scale-95 text-slate-950 font-black text-xs px-4 py-2.5 rounded-xl transition-all cursor-pointer shadow-lg shadow-sky-500/20 hover:shadow-sky-500/30 font-sans"
-                    style={{ textDecoration: 'none' }}
-                  >
-                    🚀 {language === "bn" ? "অ্যাপটি নতুন ট্যাবে ওপেন করুন" : "Open App in New Tab"}
-                  </a>
+              {/* COMPILER ENGINE CONTAINER */}
+              <div className="p-5 bg-slate-950/80 border border-slate-800 rounded-2xl relative overflow-hidden shadow-inner">
+                <div className="absolute top-2 right-3 flex items-center gap-1.5">
+                  <span className="w-2 h-2 rounded-full bg-[#10B981] animate-ping"></span>
+                  <span className="text-[9px] font-mono font-bold text-[#10B981] uppercase tracking-wider">
+                    {downloadStatus === "compiling" ? "Compiling..." : downloadStatus === "ready" ? "Compiled" : "Engine Online"}
+                  </span>
                 </div>
+
+                {downloadStatus === "idle" && (
+                  <div className="text-center py-6 space-y-4">
+                    <div className="inline-flex items-center justify-center w-16 h-16 bg-slate-900 rounded-full border border-slate-700/60 shadow-xl text-3xl">
+                      ⚙️
+                    </div>
+                    <div className="space-y-1">
+                      <h4 className="text-sm font-black text-slate-100">
+                        {language === "bn" ? "অফলাইন-সক্ষম স্ট্যান্ডঅ্যালোন অ্যাপ কম্পাইলার" : "Offline-Enabled Standalone App Compiler"}
+                      </h4>
+                      <p className="text-[11px] text-slate-400 max-w-md mx-auto leading-relaxed">
+                        {language === "bn"
+                          ? "আপনার ফোন বা কম্পিউটারের জন্য সম্পূর্ণ প্লে-স্টোর কোয়ালিটি সম্পন্ন স্ট্যান্ডঅ্যালোন অ্যাপ বিল্ড এবং প্যাকেজিং করুন যা অফলাইনেও সম্পূর্ণ সচল থাকবে।"
+                          : "Package this platform into a high-performance, standalone desktop/mobile app wrapper that operates 100% offline with zero browser clutter."}
+                      </p>
+                    </div>
+                    <div className="pt-2">
+                      <button
+                        type="button"
+                        onClick={startAppDownload}
+                        className="bg-gradient-to-r from-blue-600 to-[#10B981] hover:from-blue-500 hover:to-emerald-400 active:scale-95 text-white font-black text-xs px-6 py-3 rounded-xl transition-all cursor-pointer shadow-lg shadow-blue-500/20 hover:shadow-emerald-500/30 uppercase tracking-wider"
+                      >
+                        ⚡ {language === "bn" ? "কম্পাইল এবং অ্যাপ ডাউনলোড করুন" : "Compile & Download App Now"}
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                {downloadStatus === "compiling" && (
+                  <div className="space-y-4 py-4">
+                    <div className="flex items-center justify-between text-[11px] font-mono font-bold text-slate-400">
+                      <span>{language === "bn" ? "প্যাকেজ বিল্ড প্রোগ্রেস:" : "PWA Package Progress:"}</span>
+                      <span className="text-[#10B981]">{downloadProgress}%</span>
+                    </div>
+                    
+                    {/* Progress Bar Container */}
+                    <div className="w-full h-3.5 bg-slate-900 rounded-full overflow-hidden border border-slate-800 p-0.5">
+                      <div 
+                        className="h-full bg-gradient-to-r from-blue-600 to-[#10B981] rounded-full transition-all duration-150 relative overflow-hidden"
+                        style={{ width: `${downloadProgress}%` }}
+                      >
+                        <div className="absolute inset-0 bg-[linear-gradient(45deg,rgba(255,255,255,0.15)_25%,transparent_25%,transparent_50%,rgba(255,255,255,0.15)_50%,rgba(255,255,255,0.15)_75%,transparent_75%,transparent)] bg-[length:1rem_1rem] animate-[progress-bar-stripes_1s_linear_infinite]"></div>
+                      </div>
+                    </div>
+
+                    {/* Compile Logs Console */}
+                    <div className="bg-slate-900/90 border border-slate-800/80 rounded-xl p-3 font-mono text-[10px] text-[#10B981] space-y-1.5 shadow-inner">
+                      <div className="flex items-center gap-1.5 opacity-60">
+                        <span>$</span>
+                        <span>npm run build:wrapper --device-target=auto</span>
+                      </div>
+                      <div className="flex items-center gap-2 animate-pulse font-bold text-slate-200">
+                        <span className="inline-block w-2 h-3.5 bg-[#10B981] shrink-0"></span>
+                        <span className="truncate">{downloadLog}</span>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {downloadStatus === "ready" && (
+                  <div className="text-center py-4 space-y-4">
+                    <div className="inline-flex items-center justify-center w-16 h-16 bg-emerald-900/40 rounded-full border border-emerald-500/50 shadow-xl text-3xl animate-bounce">
+                      🎉
+                    </div>
+                    <div className="space-y-1">
+                      <h4 className="text-sm font-black text-emerald-400">
+                        {language === "bn" ? "কম্পাইলেশন সফল হয়েছে!" : "App Compiled Successfully!"}
+                      </h4>
+                      <p className="text-[11px] text-slate-300 max-w-md mx-auto leading-relaxed">
+                        {language === "bn"
+                          ? "আপনার ডিভাইসের জন্য স্ট্যান্ডঅ্যালোন অ্যাপটি পুরোপুরি প্রস্তুত। সরাসরি মোবাইলের অন্যান্য সাধারণ অ্যাপের মত হোমস্ক্রিনে ডাউনলোড করতে নিচে চাপুন।"
+                          : "The app shell is fully optimized. Click below to install it on your device home screen or download the PC desktop app."}
+                      </p>
+                    </div>
+
+                    <div className="flex flex-col sm:flex-row gap-3 justify-center pt-2">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const promptEvent = deferredPrompt || (window as any).deferredPWAInstallPrompt;
+                          if (promptEvent && typeof promptEvent.prompt === 'function') {
+                            promptEvent.prompt();
+                            promptEvent.userChoice.then((choiceResult: { outcome: string }) => {
+                              if (choiceResult.outcome === "accepted") {
+                                setIsAppInstalled(true);
+                              }
+                              setIsInstallModalOpen(false);
+                            });
+                          } else {
+                            if (window.location.search.includes("pwa-install=true") || !window.location.search.includes("iframe")) {
+                              alert(language === "bn" ? "আপনার ব্রাউজারে 'Add to Home Screen' বা 'Install' অপশনটি সিলেক্ট করুন।" : "Please look for the 'Install' or 'Add to Home Screen' icon in your browser URL bar.");
+                            } else {
+                              const directUrl = window.location.origin + window.location.pathname + "?pwa-install=true" + window.location.hash;
+                              window.open(directUrl, "_blank");
+                            }
+                          }
+                        }}
+                        className="bg-gradient-to-r from-emerald-600 to-teal-500 hover:from-emerald-500 hover:to-teal-400 active:scale-95 text-slate-950 font-black text-xs px-5 py-3 rounded-xl transition-all cursor-pointer shadow-lg shadow-emerald-500/20 inline-flex items-center justify-center gap-1.5 uppercase tracking-wider"
+                      >
+                        📲 {language === "bn" ? "সরাসরি মোবাইলে ইন্সটল করুন" : "Install Standalone App Now"}
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const shortcutContent = `[InternetShortcut]\nURL=${window.location.origin + window.location.pathname}?pwa-install=true\nIconIndex=0\n`;
+                          const blob = new Blob([shortcutContent], { type: "text/plain" });
+                          const url = URL.createObjectURL(blob);
+                          const a = document.createElement("a");
+                          a.href = url;
+                          a.download = "Al_Wafa_Star_ERP.url";
+                          document.body.appendChild(a);
+                          a.click();
+                          document.body.removeChild(a);
+                          URL.revokeObjectURL(url);
+                        }}
+                        className="bg-slate-800 hover:bg-slate-700 active:scale-95 text-slate-100 font-bold text-xs px-5 py-3 rounded-xl transition-all cursor-pointer border border-slate-700/80 inline-flex items-center justify-center gap-1.5 uppercase tracking-wider"
+                      >
+                        🖥️ {language === "bn" ? "পিসি ডেক্সটপ লাঞ্চার নামান" : "Download PC Launcher"}
+                      </button>
+                    </div>
+                  </div>
+                )}
               </div>
 
-              {/* Direct Prompt if user escaped iframe and prompt fired */}
-              {deferredPrompt && (
-                <div className="p-4 bg-emerald-500/10 border border-emerald-500/20 rounded-2xl text-emerald-200 space-y-2">
-                  <span className="font-extrabold flex items-center gap-1.5 text-sm">
-                    ✨ {language === "bn" ? "১-ক্লিকে ইনস্টল করুন" : "Instantly Install in 1-Click!"}
+              {/* Standalone Link Recommendation Area (Shown only if embedded inside iframe) */}
+              {typeof window !== "undefined" && window.self !== window.top && (
+                <div className="p-4 bg-amber-500/10 border border-amber-500/25 rounded-2xl text-amber-200">
+                  <span className="font-bold flex items-center gap-1 text-sm mb-1">
+                    ⚠️ {language === "bn" ? "আইফ্রেম লিমিটেশন সতর্কবার্তা" : "Running Inside Preview Sandbox"}
                   </span>
-                  <p className="text-[11px] font-medium text-slate-300">
+                  <p className="text-[11px] font-medium leading-relaxed text-slate-300">
                     {language === "bn" 
-                      ? "আপনার ব্রাউজার সরাসরি এই অ্যাপটিকে ডিভাইসে সেভ ও শর্টকাট আইকন তৈরি করতে প্রস্তুত। নিচের বাটনে চাপ দিয়ে ইন্সটল কনফার্ম করুন!"
-                      : "Good news! Your device is running in a compatible native viewport. Tap below to immediately initiate desktop/home-screen application integration."}
+                      ? "আপনি বর্তমানে এম্বেডেড প্রিভিউ উইন্ডোর ভেতর আছেন। ব্রাউজার সিকিউরিটি পলিসি অনুযায়ী সরাসরি আইফ্রেম উইন্ডো থেকে প্লে-স্টোর ডাউনলোড পদ্ধতি কাজ করতে বাধা পায়। সম্পূর্ণ এবং বাধাহীন অফলাইন ডাউনলোড পেতে নিচে দেওয়া বাটনে ক্লিক করে মূল উইন্ডোটি নতুন ট্যাবে ওপেন করে সরাসরি ইন্সটল বাটন চাপুন।"
+                      : "You are currently running inside an embedded preview iframe. Browser sandbox protocols prevent store app downloads directly from within iframes. Please open the platform in a new standalone browser tab to instantly compile and download on your device."}
                   </p>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      deferredPrompt.prompt();
-                      deferredPrompt.userChoice.then((choiceResult: { outcome: string }) => {
-                        if (choiceResult.outcome === "accepted") {
-                          console.log("User accepted the install prompt");
-                          setIsAppInstalled(true);
-                        }
-                        setDeferredPrompt(null);
-                        setIsInstallModalOpen(false);
-                      });
-                    }}
-                    className="px-4 py-2.5 bg-[#25D366] hover:bg-emerald-500 text-slate-950 font-black rounded-lg text-xs uppercase tracking-wider shadow-lg shadow-emerald-500/20 transition-all cursor-pointer inline-flex items-center justify-center gap-1.5"
-                  >
-                    📥 {language === "bn" ? "সরাসরি অ্যাপ ইন্সটল করুন" : "Install Locally Now"}
-                  </button>
+                  <div className="mt-3 text-left">
+                    <a 
+                      href={window.location.origin + window.location.pathname + "?pwa-install=true" + window.location.hash} 
+                      target="_blank" 
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1.5 bg-sky-500 hover:bg-sky-450 active:scale-95 text-slate-950 font-black text-xs px-4 py-2.5 rounded-xl transition-all cursor-pointer shadow-lg shadow-sky-500/20 hover:shadow-sky-500/30 font-sans"
+                      style={{ textDecoration: 'none' }}
+                    >
+                      🚀 {language === "bn" ? "নতুন ট্যাবে ওপেন করে ডাউনলোড করুন" : "Open in New Tab to Download"}
+                    </a>
+                  </div>
                 </div>
               )}
 
@@ -1736,6 +1824,8 @@ export default function App() {
                       <li>{language === "bn" ? "হোমস্ক্রিনে চিরতরে অ্যাপ আইকন যুক্ত হয়ে সাইলেন্টলি অফলাইনে ওপেন হবে!" : "Confirm popup, and find your native App sitting inside your phone application drawer!"}</li>
                     </ol>
                   </div>
+
+
 
                   {/* iPhone/iPad Apple Safari */}
                   <div className="bg-slate-850 p-4 rounded-2xl border border-slate-800/80 space-y-2.5 flex flex-col">

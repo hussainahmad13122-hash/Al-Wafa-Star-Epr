@@ -1,3 +1,18 @@
+import { initializeApp, getApps } from "firebase/app";
+import { getAuth } from "firebase/auth";
+import { 
+  getFirestore, 
+  collection, 
+  doc, 
+  getDocs, 
+  getDoc, 
+  setDoc, 
+  deleteDoc, 
+  onSnapshot, 
+  getDocFromServer
+} from "firebase/firestore";
+import firebaseConfigDefault from "./firebase-applet-config.json";
+
 const STORAGE_PREFIX = "ALW_STANDALONE_DB_";
 
 const DEFAULT_BRANDING = {
@@ -24,8 +39,47 @@ export enum OperationType {
   WRITE = 'write',
 }
 
+export interface FirestoreErrorInfo {
+  error: string;
+  operationType: OperationType;
+  path: string | null;
+  authInfo: {
+    userId?: string | null;
+    email?: string | null;
+    emailVerified?: boolean | null;
+    isAnonymous?: boolean | null;
+    tenantId?: string | null;
+    providerInfo?: {
+      providerId?: string | null;
+      email?: string | null;
+    }[];
+  };
+}
+
 export function handleFirestoreError(error: unknown, operationType: OperationType, path: string | null) {
-  console.warn('Local database operation:', operationType, path, error);
+  let auth;
+  try {
+    auth = getAuth();
+  } catch (e) {}
+
+  const errInfo: FirestoreErrorInfo = {
+    error: error instanceof Error ? error.message : String(error),
+    authInfo: {
+      userId: auth?.currentUser?.uid || null,
+      email: auth?.currentUser?.email || null,
+      emailVerified: auth?.currentUser?.emailVerified || null,
+      isAnonymous: auth?.currentUser?.isAnonymous || null,
+      tenantId: auth?.currentUser?.tenantId || null,
+      providerInfo: auth?.currentUser?.providerData?.map(provider => ({
+        providerId: provider.providerId,
+        email: provider.email,
+      })) || []
+    },
+    operationType,
+    path
+  };
+  console.error('Firestore Error: ', JSON.stringify(errInfo));
+  throw new Error(JSON.stringify(errInfo));
 }
 
 export function sanitizeFirestoreData<T>(data: T): T {
@@ -76,6 +130,154 @@ if (typeof window !== "undefined") {
   });
 }
 
+// Firebase dynamic setup and lifecycle
+let dbInstance: any = null;
+let isFirebaseConnected = false;
+let firebaseError: string | null = null;
+
+export function getActiveFirebaseConfig() {
+  try {
+    const custom = localStorage.getItem("ALW_CUSTOM_FIREBASE_CONFIG");
+    if (custom) {
+      return JSON.parse(custom);
+    }
+  } catch (e) {}
+  return firebaseConfigDefault;
+}
+
+export function isFirebaseActive() {
+  return !!dbInstance;
+}
+
+export function getFirebaseConnectionError() {
+  return firebaseError;
+}
+
+export async function initializeFirebaseClient() {
+  const config = getActiveFirebaseConfig();
+  if (!config || !config.apiKey || config.apiKey.trim() === "" || config.apiKey.includes("YOUR_API_KEY")) {
+    dbInstance = null;
+    isFirebaseConnected = false;
+    firebaseError = "No valid API Key detected. Operating in local-only fallback mode.";
+    return null;
+  }
+
+  try {
+    const apps = getApps();
+    let app;
+    if (apps.length > 0) {
+      app = apps[0];
+    } else {
+      app = initializeApp(config);
+    }
+
+    dbInstance = getFirestore(app, config.firestoreDatabaseId || undefined);
+    
+    // Quick validation read
+    try {
+      await getDocFromServer(doc(dbInstance, "test", "connection"));
+      isFirebaseConnected = true;
+      firebaseError = null;
+    } catch (e: any) {
+      console.warn("Firebase connected, operating with local replication caching:", e.message);
+      isFirebaseConnected = true;
+      firebaseError = null;
+    }
+
+    // Run background sync
+    synchronizeDatabase().catch(err => console.warn("Database sync error:", err));
+
+  } catch (err: any) {
+    console.error("Firebase connection initialization failed:", err);
+    firebaseError = err.message || String(err);
+    dbInstance = null;
+    isFirebaseConnected = false;
+  }
+  return dbInstance;
+}
+
+// Bidirectional Offline-to-Cloud Sync Engine
+export async function synchronizeDatabase() {
+  if (!dbInstance) return;
+  console.log("Starting full cloud database sync...");
+
+  const collectionsToSync = ["serviceReports", "engineeringReports", "chemicalInventory", "locations", "supervisors"];
+  
+  for (const coll of collectionsToSync) {
+    try {
+      const locals = await getLocalDocuments<any>(coll);
+      const snapshot = await getDocs(collection(dbInstance, coll));
+      const remotes: any[] = [];
+      snapshot.forEach(doc => {
+        remotes.push({ ...doc.data(), id: doc.id });
+      });
+
+      if (locals.length > 0 && remotes.length === 0) {
+        // First-time seeding from local to new Firebase project
+        for (const item of locals) {
+          await setDoc(doc(dbInstance, coll, item.id), item);
+        }
+        console.log(`Sync complete: Uploaded ${locals.length} entries to Firebase collection "${coll}".`);
+      } else if (remotes.length > 0) {
+        // Merge records
+        let mergedList = [...remotes];
+        let hasNewUploads = false;
+
+        for (const localItem of locals) {
+          if (!remotes.some(r => r.id === localItem.id)) {
+            await setDoc(doc(dbInstance, coll, localItem.id), localItem);
+            mergedList.push(localItem);
+            hasNewUploads = true;
+          }
+        }
+
+        localStorage.setItem(STORAGE_PREFIX + coll, JSON.stringify(mergedList));
+        notifySubscribers(coll, mergedList);
+        console.log(`Sync complete: Merged "${coll}". Total unified items: ${mergedList.length}.`);
+      }
+    } catch (err) {
+      console.warn(`Collection sync failed for ${coll}:`, err);
+    }
+  }
+
+  // Also sync branding data
+  try {
+    const brandingDoc = await getDoc(doc(dbInstance, "branding", "global"));
+    if (brandingDoc.exists()) {
+      const remoteBranding = brandingDoc.data();
+      localStorage.setItem(STORAGE_PREFIX + "branding", JSON.stringify(remoteBranding));
+      notifySubscribers("branding", remoteBranding);
+    } else {
+      const localBranding = await getBrandingData();
+      await setDoc(doc(dbInstance, "branding", "global"), localBranding);
+    }
+  } catch (e) {}
+
+  // Sync registered users
+  try {
+    const usersSnapshot = await getDocs(collection(dbInstance, "users"));
+    const remoteUsers: any[] = [];
+    usersSnapshot.forEach(uDoc => {
+      remoteUsers.push({ ...uDoc.data(), id: uDoc.id });
+    });
+
+    if (remoteUsers.length > 0) {
+      localStorage.setItem(STORAGE_PREFIX + "users", JSON.stringify(remoteUsers));
+      notifySubscribers("users", remoteUsers);
+    } else {
+      const localUsers = await getRegisteredUsers();
+      for (const u of localUsers) {
+        await setDoc(doc(dbInstance, "users", u.id), u);
+      }
+    }
+  } catch (e) {}
+}
+
+// Auto-boot Firebase client on load
+if (typeof window !== "undefined") {
+  initializeFirebaseClient().catch(console.error);
+}
+
 // Read-only helper for pure LocalStorage documents
 async function getLocalDocuments<T>(collName: string): Promise<T[]> {
   try {
@@ -93,18 +295,23 @@ export async function saveDocument(collName: string, docId: string, data: any): 
     const list = await getLocalDocuments<any>(collName);
     const existingIndex = list.findIndex(r => r.id === docId);
     const recordPayload = { ...cleanData, id: docId };
+    
     if (existingIndex >= 0) {
-      const currentRecordStr = JSON.stringify(list[existingIndex]);
-      const newRecordStr = JSON.stringify(recordPayload);
-      if (currentRecordStr === newRecordStr) {
-        return recordPayload; // No changes, return early
-      }
       list[existingIndex] = recordPayload;
     } else {
       list.push(recordPayload);
     }
+    
     localStorage.setItem(STORAGE_PREFIX + collName, JSON.stringify(list));
     notifySubscribers(collName, list);
+
+    if (dbInstance) {
+      try {
+        await setDoc(doc(dbInstance, collName, docId), cleanData);
+      } catch (err) {
+        handleFirestoreError(err, OperationType.WRITE, `${collName}/${docId}`);
+      }
+    }
   } catch (e) {
     console.warn("Local persistence write error", e);
   }
@@ -120,6 +327,7 @@ export async function saveDocumentsBulk(collName: string, items: any[]): Promise
       if (!cleanData.id) continue;
       const existingIndex = list.findIndex(r => r.id === cleanData.id);
       const recordPayload = { ...cleanData };
+      
       if (existingIndex >= 0) {
         const currentRecordStr = JSON.stringify(list[existingIndex]);
         const newRecordStr = JSON.stringify(recordPayload);
@@ -130,6 +338,14 @@ export async function saveDocumentsBulk(collName: string, items: any[]): Promise
       } else {
         list.push(recordPayload);
         changed = true;
+      }
+
+      if (dbInstance) {
+        try {
+          await setDoc(doc(dbInstance, collName, cleanData.id), cleanData);
+        } catch (err) {
+          console.warn("Bulk individual item sync failure:", err);
+        }
       }
     }
     if (changed) {
@@ -145,11 +361,16 @@ export async function deleteDocument(collName: string, docId: string): Promise<v
   try {
     const list = await getLocalDocuments<any>(collName);
     const filtered = list.filter(r => r.id !== docId);
-    const currentStr = JSON.stringify(list);
-    const filteredStr = JSON.stringify(filtered);
-    if (currentStr === filteredStr) return; // No change
     localStorage.setItem(STORAGE_PREFIX + collName, JSON.stringify(filtered));
     notifySubscribers(collName, filtered);
+
+    if (dbInstance) {
+      try {
+        await deleteDoc(doc(dbInstance, collName, docId));
+      } catch (err) {
+        handleFirestoreError(err, OperationType.DELETE, `${collName}/${docId}`);
+      }
+    }
   } catch (e) {
     console.warn("Local persistence delete error", e);
   }
@@ -173,11 +394,18 @@ export async function saveStoreValue<T>(key: string, value: T): Promise<void> {
   try {
     const rawCurrent = localStorage.getItem(STORAGE_PREFIX + "store_" + key);
     const newStr = JSON.stringify(value);
-    if (rawCurrent === newStr) {
-      return; // No change, prevent notifying
+    if (rawCurrent !== newStr) {
+      localStorage.setItem(STORAGE_PREFIX + "store_" + key, newStr);
+      notifySubscribers("store_" + key, value);
     }
-    localStorage.setItem(STORAGE_PREFIX + "store_" + key, newStr);
-    notifySubscribers("store_" + key, value);
+
+    if (dbInstance) {
+      try {
+        await setDoc(doc(dbInstance, "store", key), { value });
+      } catch (err) {
+        handleFirestoreError(err, OperationType.WRITE, `store/${key}`);
+      }
+    }
   } catch (err) {
     console.warn("Local storage save error", err);
   }
@@ -198,14 +426,16 @@ export async function saveBrandingData(data: any): Promise<void> {
     const current = await getBrandingData();
     const updated = { ...current, ...data };
     
-    const currentStr = JSON.stringify(current);
-    const updatedStr = JSON.stringify(updated);
-    if (currentStr === updatedStr) {
-      return; // Do nothing if identical
-    }
-    
     localStorage.setItem(STORAGE_PREFIX + "branding", JSON.stringify(updated));
     notifySubscribers("branding", updated);
+
+    if (dbInstance) {
+      try {
+        await setDoc(doc(dbInstance, "branding", "global"), updated);
+      } catch (err) {
+        handleFirestoreError(err, OperationType.WRITE, "branding/global");
+      }
+    }
   } catch (e) {}
 }
 
@@ -220,14 +450,18 @@ export async function getRegisteredUsers(): Promise<any[]> {
 
 export async function saveRegisteredUsers(users: any[]): Promise<void> {
   try {
-    const current = await getRegisteredUsers();
-    const currentStr = JSON.stringify(current);
-    const newStr = JSON.stringify(users);
-    if (currentStr === newStr) {
-      return; // No change
-    }
-    localStorage.setItem(STORAGE_PREFIX + "users", newStr);
+    localStorage.setItem(STORAGE_PREFIX + "users", JSON.stringify(users));
     notifySubscribers("users", users);
+
+    if (dbInstance) {
+      try {
+        for (const user of users) {
+          await setDoc(doc(dbInstance, "users", user.id), user);
+        }
+      } catch (err) {
+        handleFirestoreError(err, OperationType.WRITE, "users");
+      }
+    }
   } catch (e) {}
 }
 
@@ -240,10 +474,30 @@ export function subscribeCollection<T>(
   }
   subscribers[collName].add(onUpdate);
   
-  // Immediately invoke with current local data
+  // Immediately serve cache
   getLocalDocuments<T>(collName).then(onUpdate);
 
+  let unsubscribeFirestore = () => {};
+  if (dbInstance) {
+    try {
+      unsubscribeFirestore = onSnapshot(collection(dbInstance, collName), (snapshot) => {
+        const list: any[] = [];
+        snapshot.forEach((doc) => {
+          list.push({ ...doc.data(), id: doc.id });
+        });
+        
+        // Update local cache
+        localStorage.setItem(STORAGE_PREFIX + collName, JSON.stringify(list));
+        // Broaden notify
+        notifySubscribers(collName, list);
+      }, (err) => {
+        console.warn(`Firestore collection subscription failed for ${collName}:`, err);
+      });
+    } catch (e) {}
+  }
+
   return () => {
+    unsubscribeFirestore();
     subscribers[collName]?.delete(onUpdate);
   };
 }
@@ -259,10 +513,26 @@ export function subscribeStoreValue<T>(
   }
   subscribers[subKey].add(onUpdate);
 
-  // Immediately invoke with current local data
+  // Immediately serve cache
   getStoreValue<T>(key, defaultVal).then(onUpdate);
 
+  let unsubscribeFirestore = () => {};
+  if (dbInstance) {
+    try {
+      unsubscribeFirestore = onSnapshot(doc(dbInstance, "store", key), (snapshot) => {
+        if (snapshot.exists()) {
+          const remoteVal = snapshot.data().value;
+          localStorage.setItem(STORAGE_PREFIX + "store_" + key, JSON.stringify(remoteVal));
+          notifySubscribers("store_" + key, remoteVal);
+        }
+      }, (err) => {
+        console.warn(`Firestore document subscription failed for ${key}:`, err);
+      });
+    } catch (e) {}
+  }
+
   return () => {
+    unsubscribeFirestore();
     subscribers[subKey]?.delete(onUpdate);
   };
 }
@@ -276,10 +546,25 @@ export function subscribeBrandingData(
   }
   subscribers[subKey].add(onUpdate);
 
-  // Immediately invoke with current local data
   getBrandingData().then(onUpdate);
 
+  let unsubscribeFirestore = () => {};
+  if (dbInstance) {
+    try {
+      unsubscribeFirestore = onSnapshot(doc(dbInstance, "branding", "global"), (snapshot) => {
+        if (snapshot.exists()) {
+          const remoteVal = snapshot.data();
+          localStorage.setItem(STORAGE_PREFIX + "branding", JSON.stringify(remoteVal));
+          notifySubscribers("branding", remoteVal);
+        }
+      }, (err) => {
+        console.warn("Firestore branding subscription failed:", err);
+      });
+    } catch (e) {}
+  }
+
   return () => {
+    unsubscribeFirestore();
     subscribers[subKey]?.delete(onUpdate);
   };
 }
@@ -293,10 +578,28 @@ export function subscribeRegisteredUsers(
   }
   subscribers[subKey].add(onUpdate);
 
-  // Immediately invoke with current local data
   getRegisteredUsers().then(onUpdate);
 
+  let unsubscribeFirestore = () => {};
+  if (dbInstance) {
+    try {
+      unsubscribeFirestore = onSnapshot(collection(dbInstance, "users"), (snapshot) => {
+        const list: any[] = [];
+        snapshot.forEach((doc) => {
+          list.push({ ...doc.data(), id: doc.id });
+        });
+        if (list.length > 0) {
+          localStorage.setItem(STORAGE_PREFIX + "users", JSON.stringify(list));
+          notifySubscribers("users", list);
+        }
+      }, (err) => {
+        console.warn("Firestore users list subscription failed:", err);
+      });
+    } catch (e) {}
+  }
+
   return () => {
+    unsubscribeFirestore();
     subscribers[subKey]?.delete(onUpdate);
   };
 }

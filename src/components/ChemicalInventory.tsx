@@ -2726,40 +2726,40 @@ export default function ChemicalInventory({ language, themeMode = "dark" }: Chem
             </p>
 
             {/* Custom Table with Faded Watermark Star in its Center Background */}
-            <div className="relative border border-slate-700 overflow-hidden mb-6 bg-white" style={{ minHeight: '130px' }}>
+            <div style={{ position: 'relative', border: '1px solid #111', overflow: 'hidden', marginBottom: '24px', backgroundColor: '#ffffff', minHeight: '130px' }}>
               
               {/* Centered Star Watermark overlay */}
-              <div className="absolute inset-0 flex items-center justify-center opacity-[0.055] pointer-events-none select-none" style={{ zIndex: 0 }}>
-                <svg viewBox="0 0 24 24" className="w-[340px] h-[340px]" style={{ fill: '#dc2626' }}>
+              <div style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', opacity: 0.05, pointerEvents: 'none', userSelect: 'none', zIndex: 0 }}>
+                <svg viewBox="0 0 24 24" style={{ fill: '#dc2626', width: '340px', height: '340px' }}>
                   <polygon points="12,2 15,9 22,9 17,14 19,21 12,17 5,21 7,14 2,9 9,9" />
                 </svg>
               </div>
 
-              <table className="w-full text-left text-xs border-collapse relative" style={{ zIndex: 1, backgroundColor: 'transparent' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '12px', position: 'relative', zIndex: 1, backgroundColor: 'transparent' }}>
                 <thead>
-                  <tr className="bg-[#E2E8F0] border-b border-slate-700 text-slate-900 font-bold" style={{ fontSize: '11.5px' }}>
-                    <th className="py-2 px-3 border-r border-slate-700 text-center w-12 font-bold">No</th>
-                    <th className="py-2 px-3 border-r border-slate-700 font-bold">Name</th>
-                    <th className="py-2 px-3 border-r border-slate-700 font-bold text-center w-36">Batch No</th>
-                    <th className="py-2 px-3 border-r border-slate-700 font-bold text-center w-36">Required Date</th>
-                    <th className="py-2 px-3 font-bold text-center w-32">Quantity</th>
+                  <tr style={{ backgroundColor: '#E2E8F0', borderBottom: '1px solid #111', color: '#0f172a', fontWeight: 'bold', fontSize: '11.5px' }}>
+                    <th style={{ padding: '8px', borderRight: '1px solid #111', borderBottom: '1px solid #111', textAlign: 'center', width: '48px', fontWeight: 'bold' }}>No</th>
+                    <th style={{ padding: '8px', borderRight: '1px solid #111', borderBottom: '1px solid #111', fontWeight: 'bold' }}>Name</th>
+                    <th style={{ padding: '8px', borderRight: '1px solid #111', borderBottom: '1px solid #111', fontWeight: 'bold', textAlign: 'center', width: '144px' }}>Batch No</th>
+                    <th style={{ padding: '8px', borderRight: '1px solid #111', borderBottom: '1px solid #111', fontWeight: 'bold', textAlign: 'center', width: '144px' }}>Required Date</th>
+                    <th style={{ padding: '8px', borderBottom: '1px solid #111', fontWeight: 'bold', textAlign: 'center', width: '128px' }}>Quantity</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-slate-700">
+                <tbody style={{ divideY: '1px solid #111' }}>
                   {activePrintData.items.length === 0 ? (
                     <tr>
-                      <td colSpan={5} className="py-8 text-center text-slate-500 italic">
+                      <td colSpan={5} style={{ padding: '32px', textAlign: 'center', color: '#64748b', fontStyle: 'italic' }}>
                         No requested chemicals or tools.
                       </td>
                     </tr>
                   ) : (
                     activePrintData.items.map((item: any, idx: number) => (
-                      <tr key={item.id} className="text-slate-900 border-b border-slate-700">
-                        <td className="py-2 px-3 border-r border-slate-700 text-center font-semibold">{idx + 1}</td>
-                        <td className="py-2 px-3 border-r border-slate-700 font-semibold">{item.name}</td>
-                        <td className="py-2 px-3 border-r border-slate-700 text-center font-semibold font-mono">{item.batch || "N/A"}</td>
-                        <td className="py-2 px-3 border-r border-slate-700 text-center font-semibold font-mono text-slate-600">{item.purpose}</td>
-                        <td className="py-2 px-3 text-center font-bold">
+                      <tr key={item.id} style={{ color: '#000000', borderBottom: '1px solid #111' }}>
+                        <td style={{ padding: '8px', borderRight: '1px solid #111', borderBottom: '1px solid #111', textAlign: 'center', fontWeight: '600' }}>{idx + 1}</td>
+                        <td style={{ padding: '8px', borderRight: '1px solid #111', borderBottom: '1px solid #111', fontWeight: '600' }}>{item.name}</td>
+                        <td style={{ padding: '8px', borderRight: '1px solid #111', borderBottom: '1px solid #111', textAlign: 'center', fontWeight: '600', fontFamily: 'monospace' }}>{item.batch || "N/A"}</td>
+                        <td style={{ padding: '8px', borderRight: '1px solid #111', borderBottom: '1px solid #111', textAlign: 'center', fontWeight: '600', fontFamily: 'monospace', color: '#475569' }}>{item.purpose}</td>
+                        <td style={{ padding: '8px', borderBottom: '1px solid #111', textAlign: 'center', fontWeight: 'bold' }}>
                           {item.qty} {item.unit !== "Pcs" ? item.unit : ""}
                         </td>
                       </tr>

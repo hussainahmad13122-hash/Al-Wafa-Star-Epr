@@ -82,7 +82,7 @@ export default function Sidebar({
     { id: "engineering_report", label: language === "ar" ? "التقرير الهندسي" : language === "bn" ? "ইঞ্জিনিয়ারিং রিপোর্ট" : "Engineering Report", icon: FileText },
     { id: "master_form", label: language === "ar" ? "اضافة تقرير معالجة" : language === "bn" ? "সার্ভিস রিপোর্ট ফর্ম" : "Service Report", icon: ClipboardList },
     { id: "inventory", label: language === "ar" ? "مخزون المواد الكيميائية" : language === "bn" ? "কেমিক্যাল ইনভেন্টরি" : "Chemical Inventory", icon: FlaskConical },
-    { id: "technicians", label: language === "ar" ? "جدول كشوف المرتبات والحضور" : language === "bn" ? "টাইমশিট ও স্যালারি" : "Time & Attendance (Payroll)", icon: Users },
+    { id: "technicians", label: language === "ar" ? "مساحة مخصصة" : language === "bn" ? "কাস্টম স্পেস (খালি)" : "Custom Space (Empty)", icon: Layers },
     { id: "ai_pest", label: language === "ar" ? "فحص الآفات بالذكاء الاصطناعي" : language === "bn" ? "AI পেস্ট এক্সপার্ট" : "AI Pest Expert (Gemini)", icon: Sparkles, highlight: true },
     { id: "client_portal", label: language === "ar" ? "خدمة مكافحة الآفات" : language === "bn" ? "Pest Control Service" : "Pest Control Service", icon: Smartphone },
     { id: "custom_option_1", label: language === "ar" ? "المشاريع والجدولة مخصصة" : language === "bn" ? "প্রজেক্ট ও শিডিউলার" : "Projects & Scheduler", icon: Briefcase },

@@ -30,7 +30,7 @@ import {
   CheckCircle
 } from "lucide-react";
 import { ReportItem, AppUser, UserRole } from "../types";
-import { getRegisteredUsers, saveRegisteredUsers, getDocuments } from "../localDatabase";
+import { getRegisteredUsers, saveRegisteredUsers, getDocuments, getActiveFirebaseConfig, initializeFirebaseClient, isFirebaseActive, getFirebaseConnectionError, synchronizeDatabase } from "../localDatabase";
 
 interface AdminSettingsProps {
   language: "en" | "ar" | "bn";
@@ -122,6 +122,69 @@ export default function AdminSettings({
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
   const [showRoleMenu, setShowRoleMenu] = useState(false);
   const [activeTab, setActiveTab] = useState<"appearance" | "profile" | "security" | "password_security" | "database">("appearance");
+
+  // Firebase Live Sync State controllers
+  const [fbConfigStr, setFbConfigStr] = useState(() => {
+    const cfg = getActiveFirebaseConfig();
+    return JSON.stringify(cfg, null, 2);
+  });
+  const [fbActive, setFbActive] = useState(isFirebaseActive());
+  const [fbErrorMsg, setFbErrorMsg] = useState<string | null>(getFirebaseConnectionError());
+  const [fbSaveSuccess, setFbSaveSuccess] = useState(false);
+  const [fbSyncing, setFbSyncing] = useState(false);
+
+  // Monitor connection status changes
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setFbActive(isFirebaseActive());
+      setFbErrorMsg(getFirebaseConnectionError());
+    }, 2000);
+    return () => clearInterval(timer);
+  }, []);
+
+  const handleSaveFirebaseConfig = async () => {
+    try {
+      const parsed = JSON.parse(fbConfigStr);
+      if (!parsed.apiKey || parsed.apiKey.trim() === "") {
+        throw new Error("API Key is missing or invalid.");
+      }
+      
+      localStorage.setItem("ALW_CUSTOM_FIREBASE_CONFIG", JSON.stringify(parsed));
+      setFbSaveSuccess(true);
+      setTimeout(() => setFbSaveSuccess(false), 3000);
+
+      // Reinitialize Firebase Client
+      await initializeFirebaseClient();
+      setFbActive(isFirebaseActive());
+      setFbErrorMsg(getFirebaseConnectionError());
+    } catch (err: any) {
+      alert(language === "bn" ? "ভুল ফরম্যাট! দয়া করে সঠিক Firebase JSON কনফিগারেশন পেস্ট করুন।" : "Invalid JSON format! Please supply a valid Firebase configuration object.");
+      setFbErrorMsg(err.message || String(err));
+    }
+  };
+
+  const handleResetFirebaseConfig = async () => {
+    if (confirm(language === "bn" ? "আপনি কি ফায়ারবেস ক্লাউড কানেকশন রিসেট করে লোকাল মোডে ফেরত যেতে চান?" : "Are you sure you want to reset and disconnect active Firebase cloud syncing?")) {
+      localStorage.removeItem("ALW_CUSTOM_FIREBASE_CONFIG");
+      const defaultCfg = getActiveFirebaseConfig();
+      setFbConfigStr(JSON.stringify(defaultCfg, null, 2));
+      await initializeFirebaseClient();
+      setFbActive(isFirebaseActive());
+      setFbErrorMsg(getFirebaseConnectionError());
+    }
+  };
+
+  const handleSyncNow = async () => {
+    setFbSyncing(true);
+    try {
+      await synchronizeDatabase();
+      alert(language === "bn" ? "ক্লাউড সিঙ্ক্রোনাইজেশন সফলভাবে সম্পন্ন হয়েছে!" : "Dynamic bidirectional cloud ledger sync completed successfully!");
+    } catch (e: any) {
+      alert("Sync failed: " + e.message);
+    } finally {
+      setFbSyncing(false);
+    }
+  };
 
   // Load registered users directly from localStorage in AdminSettings
   const [usersList, setUsersList] = useState<AppUser[]>(() => {
@@ -2387,13 +2450,97 @@ export default function AdminSettings({
           </label>
         </div>
 
-        <div className="bg-slate-950/30 p-4 rounded-2xl border border-slate-850/60 leading-normal text-slate-400">
-          <span className="block text-[10px] font-bold text-slate-300 mb-1">💡 {language === "bn" ? "ভবিষ্যতে ফায়ারবেস (Firebase Cloud Storage) যুক্ত করার সুবিধা:" : "Future Firebase Integrations Enabled:"}</span>
-          <p className="text-[10px]">
-            {language === "bn" 
-              ? "এই প্রজেক্টটি এমনভাবে আর্কিটেক্ট করা হয়েছে যাতে পরবর্তীতে আপনি সরাসরি আপনার VS Code থেকে Firebase কনফিগারেশন বসিয়ে এক ক্লিকে রিয়েল-টাইম ক্লাউড স্টোরেজ লাইভ করতে পারবেন। এর আগ পর্যন্ত আপনার লোকাল ডিভাইস স্টোরেজই শতভাগ নিরাপদ মেমোরি ব্যাকআপ হিসেবে কাজ করবে।"
-              : "This build includes full local synchronization triggers so you can drop in your Firebase configs anytime in VS Code to scale instantly without rebuilding any views."}
-          </p>
+        {/* INTERACTIVE FIREBASE CLOUD CONTROLLER */}
+        <div className="bg-[#1E293B]/60 border border-[#334155] rounded-3xl p-5 space-y-4">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-[#334155]/50 pb-3">
+            <div className="space-y-1">
+              <h4 className="text-xs font-black text-slate-100 uppercase tracking-wider flex items-center gap-2">
+                <span className="text-base animate-pulse">🔥</span>
+                <span>{language === "bn" ? "ফায়ারবেস রিয়েল-টাইম ক্লাউড ডেটাবেস কন্ট্রোলার" : "Firebase Real-time Cloud Sync Controller"}</span>
+              </h4>
+              <p className="text-[10px] text-slate-400">
+                {language === "bn" ? "যেকোনো ফায়ারবেস কনফিগারেশন বসিয়ে সরাসরি ক্লাউড ডাটাবেস লাইভ করুন।" : "Paste and initialize any Firebase client key to establish an instant serverless backplane."}
+              </p>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-bold font-mono border ${
+                fbActive 
+                  ? "bg-emerald-950/30 text-emerald-400 border-emerald-500/20" 
+                  : "bg-amber-950/30 text-amber-500 border-amber-500/20"
+              }`}>
+                <span className={`w-2 h-2 rounded-full ${fbActive ? "bg-emerald-500 animate-ping" : "bg-amber-500"}`} />
+                <span>{fbActive ? (language === "bn" ? "সংযুক্ত / ক্লাউড সক্রিয়" : "Active / Live Cloud") : (language === "bn" ? "অফলাইন ক্যাশে মোড" : "Offline Replicated Cache")}</span>
+              </span>
+            </div>
+          </div>
+
+          {fbErrorMsg && (
+            <div className="p-3 bg-red-950/20 border border-red-500/10 rounded-xl text-red-400 text-[10px] font-mono leading-relaxed">
+              <strong>Error:</strong> {fbErrorMsg}
+            </div>
+          )}
+
+          {fbSaveSuccess && (
+            <div className="p-3 bg-emerald-950/20 border border-emerald-500/20 rounded-xl text-emerald-400 text-[10px] font-bold flex items-center gap-2">
+              <Sparkles className="w-4 h-4 text-emerald-400 animate-spin-slow" />
+              <span>{language === "bn" ? "ফায়ারবেস কনফিগারেশন সফলভাবে সেভ ও লাইভ করা হয়েছে!" : "Firebase credential registered and cloud environment mounted successfully!"}</span>
+            </div>
+          )}
+
+          <div className="space-y-2">
+            <label className="block text-[10px] font-extrabold text-slate-300 font-mono uppercase tracking-wider">
+              {language === "bn" ? "ফায়ারবেস কনফিগারেশন JSON:" : "Paste Firebase SDK Configuration Object (JSON):"}
+            </label>
+            <textarea
+              value={fbConfigStr}
+              onChange={(e) => setFbConfigStr(e.target.value)}
+              placeholder={`{
+  "apiKey": "YOUR-API-KEY",
+  "authDomain": "...",
+  "projectId": "...",
+  "storageBucket": "...",
+  "messagingSenderId": "...",
+  "appId": "..."
+}`}
+              rows={6}
+              className="w-full bg-slate-950 text-slate-250 border border-slate-800 hover:border-slate-700 focus:border-amber-500 rounded-2xl p-4 font-mono text-[10px] outline-none transition leading-relaxed resize-none shadow-inner"
+            />
+          </div>
+
+          <div className="flex flex-wrap items-center justify-between gap-4 pt-1">
+            <div className="flex flex-wrap items-center gap-2">
+              <button
+                type="button"
+                onClick={handleSaveFirebaseConfig}
+                className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-slate-50 font-extrabold text-[11px] rounded-xl transition flex items-center gap-1.5 cursor-pointer shadow-lg active:scale-95"
+              >
+                <Check className="w-3.5 h-3.5" />
+                <span>{language === "bn" ? "কানেক্ট ও সিঙ্ক করুন" : "Save & Sync Cloud"}</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={handleResetFirebaseConfig}
+                className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white font-bold text-[11px] rounded-xl transition flex items-center gap-1.5 cursor-pointer border border-slate-700 active:scale-95"
+              >
+                <RotateCcw className="w-3.5 h-3.5" />
+                <span>{language === "bn" ? "লোকাল মোডে ফিরুন" : "Reset to Local Mode"}</span>
+              </button>
+            </div>
+
+            {fbActive && (
+              <button
+                type="button"
+                onClick={handleSyncNow}
+                disabled={fbSyncing}
+                className={`px-4 py-2 bg-indigo-600 hover:bg-indigo-500 disabled:bg-indigo-900 text-white font-extrabold text-[11px] rounded-xl transition flex items-center gap-1.5 cursor-pointer shadow-lg active:scale-95 ${fbSyncing ? "opacity-50 cursor-not-allowed" : ""}`}
+              >
+                <RefreshCw className={`w-3.5 h-3.5 ${fbSyncing ? "animate-spin" : ""}`} />
+                <span>{fbSyncing ? (language === "bn" ? "সিঙ্ক হচ্ছে..." : "Syncing Ledger...") : (language === "bn" ? "এখনই ক্লাউড সিঙ্ক করুন" : "Sync Now")}</span>
+              </button>
+            )}
+          </div>
         </div>
       </div>
 
