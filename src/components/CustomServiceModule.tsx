@@ -49,19 +49,9 @@ export default function CustomServiceModule({ language, isDark, reports = [], on
 
   useEffect(() => {
     const unsubscribe = subscribeCollection<any>("engineeringReports", (list) => {
-      if (list && list.length > 0) {
+      if (list) {
         setEngineeringReports(list);
         localStorage.setItem("ALW_ENGINEERING_REPORTS", JSON.stringify(list));
-      } else {
-        const saved = localStorage.getItem("ALW_ENGINEERING_REPORTS");
-        if (saved) {
-          try {
-            const parsed = JSON.parse(saved);
-            if (Array.isArray(parsed) && parsed.length > 0) {
-              setEngineeringReports(parsed);
-            }
-          } catch (e) {}
-        }
       }
     });
     return () => unsubscribe();

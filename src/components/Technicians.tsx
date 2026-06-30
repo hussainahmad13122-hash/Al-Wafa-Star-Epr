@@ -33,7 +33,7 @@ import {
   ReportItem,
   EMIRATE_MAPPING_FACILITIES,
 } from "../types";
-import { getStoreValue, saveStoreValue } from "../localDatabase";
+import { getStoreValue, saveStoreValue, subscribeStoreValue } from "../localDatabase";
 
 export interface FieldPlanItem {
   id: string;
@@ -203,33 +203,40 @@ export default function Technicians({
 
   // Load initial plans and timeline feed from Firestore to support multi-device viewing
   useEffect(() => {
-    getStoreValue<any[]>("field_plans", [])
-      .then((val) => {
-        if (val && val.length > 0) {
-          setPlans(val);
-          localStorage.setItem("ALW_FIELD_PLANS_V2", JSON.stringify(val));
-        }
-        setTimeout(() => {
-          serverLoadedRef.current.plans = true;
-        }, 500);
-      })
-      .catch(() => {
+    const unsubPlans = subscribeStoreValue<any[]>("field_plans", [], (val) => {
+      if (val) {
+        setPlans((curr) => {
+          if (JSON.stringify(curr) !== JSON.stringify(val)) {
+            localStorage.setItem("ALW_FIELD_PLANS_V2", JSON.stringify(val));
+            return val;
+          }
+          return curr;
+        });
+      }
+      setTimeout(() => {
         serverLoadedRef.current.plans = true;
-      });
+      }, 500);
+    });
 
-    getStoreValue<any[]>("timeline_feed", [])
-      .then((val) => {
-        if (val && val.length > 0) {
-          setTimelineFeed(val);
-          localStorage.setItem("ALW_TIMELINE_FEED_V2", JSON.stringify(val));
-        }
-        setTimeout(() => {
-          serverLoadedRef.current.feed = true;
-        }, 500);
-      })
-      .catch(() => {
+    const unsubFeed = subscribeStoreValue<any[]>("timeline_feed", [], (val) => {
+      if (val) {
+        setTimelineFeed((curr) => {
+          if (JSON.stringify(curr) !== JSON.stringify(val)) {
+            localStorage.setItem("ALW_TIMELINE_FEED_V2", JSON.stringify(val));
+            return val;
+          }
+          return curr;
+        });
+      }
+      setTimeout(() => {
         serverLoadedRef.current.feed = true;
-      });
+      }, 500);
+    });
+
+    return () => {
+      unsubPlans();
+      unsubFeed();
+    };
   }, []);
 
   // State Persistence effects

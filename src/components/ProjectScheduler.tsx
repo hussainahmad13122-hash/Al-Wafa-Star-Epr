@@ -29,7 +29,7 @@ import {
   ChevronDown
 } from "lucide-react";
 import { AppLanguage } from "../types";
-import { getStoreValue, saveStoreValue } from "../localDatabase";
+import { getStoreValue, saveStoreValue, subscribeStoreValue } from "../localDatabase";
 
 export interface HospitalProject {
   id: string;
@@ -155,21 +155,26 @@ export default function ProjectScheduler({ language, isDark }: ProjectSchedulerP
       localStorage.setItem("ALW_MONTHLY_GROUPS_LIST_v2", JSON.stringify(initialGroups));
     }
 
-    // Remote sync
-    getStoreValue<HospitalProject[]>("monthly_projects_db", []).then((projectsVal) => {
-      if (projectsVal && projectsVal.length > 0) {
+    // Remote sync via subscriptions
+    const unsubProjects = subscribeStoreValue<HospitalProject[]>("monthly_projects_db", [], (projectsVal) => {
+      if (projectsVal) {
         setProjectsList(projectsVal);
         localStorage.setItem("ALW_MONTHLY_PROJECTS_DB", JSON.stringify(projectsVal));
         currentProjects = projectsVal;
       }
+    });
 
-      getStoreValue<DutyGroup[]>("monthly_groups_list", []).then((groupsVal) => {
-        if (groupsVal && groupsVal.length > 0) {
-          setGroupsList(groupsVal);
-          localStorage.setItem("ALW_MONTHLY_GROUPS_LIST_v2", JSON.stringify(groupsVal));
-        }
-      }).catch((err) => console.log("Firestore groups fetch failed", err));
-    }).catch((err) => console.log("Firestore sync failed:", err));
+    const unsubGroups = subscribeStoreValue<DutyGroup[]>("monthly_groups_list", [], (groupsVal) => {
+      if (groupsVal) {
+        setGroupsList(groupsVal);
+        localStorage.setItem("ALW_MONTHLY_GROUPS_LIST_v2", JSON.stringify(groupsVal));
+      }
+    });
+
+    return () => {
+      unsubProjects();
+      unsubGroups();
+    };
   }, []);
 
   // Save utilities

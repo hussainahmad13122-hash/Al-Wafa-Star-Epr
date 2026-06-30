@@ -1869,7 +1869,7 @@ export default function EngineeringReport({
     const unsubscribe = subscribeCollection<SavedEngineeringReport>(
       "engineeringReports",
       (list) => {
-        if (list && list.length > 0) {
+        if (list) {
           setSavedReports(list);
           localStorage.setItem("ALW_ENGINEERING_REPORTS", JSON.stringify(list));
         }

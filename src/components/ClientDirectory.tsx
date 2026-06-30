@@ -35,6 +35,7 @@ import {
   getStoreValue,
   saveStoreValue,
   deleteDocument,
+  subscribeStoreValue,
 } from "../localDatabase";
 
 const formatFacilityType = (type: string, lang: "en" | "ar" | "bn") => {
@@ -1546,17 +1547,21 @@ export default function ClientDirectory({
 
   // Sync custom facilities with Firestore on load
   useEffect(() => {
-    getStoreValue<Record<string, string[]>>("custom_emirate_facilities", {})
-      .then((val) => {
-        if (val && Object.keys(val).length > 0) {
-          setCustomFacilities(val);
-          localStorage.setItem(
-            "ALW_CUSTOM_EMIRATE_FACILITIES",
-            JSON.stringify(val),
-          );
-        }
-      })
-      .catch((err) => console.log("Failed to sync custom facilities:", err));
+    const unsub = subscribeStoreValue<Record<string, string[]>>("custom_emirate_facilities", {}, (val) => {
+      if (val) {
+        setCustomFacilities(curr => {
+          if (JSON.stringify(curr) !== JSON.stringify(val)) {
+            localStorage.setItem(
+              "ALW_CUSTOM_EMIRATE_FACILITIES",
+              JSON.stringify(val),
+            );
+            return val;
+          }
+          return curr;
+        });
+      }
+    });
+    return () => unsub();
   }, []);
 
   // Track which input row has its dropdown suggestions visible

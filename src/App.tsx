@@ -780,7 +780,7 @@ export default function App() {
     const unsubscribeReports = subscribeCollection<ReportItem>(
       "serviceReports",
       (list) => {
-        if (list && list.length > 0) {
+        if (list) {
           setReports((curr) => {
             if (JSON.stringify(curr) !== JSON.stringify(list)) {
               localStorage.setItem(
@@ -799,7 +799,7 @@ export default function App() {
     const unsubscribeLocations = subscribeCollection<LocationRegistryItem>(
       "locations",
       (list) => {
-        if (list && list.length > 0) {
+        if (list) {
           setLocations((curr) => {
             if (JSON.stringify(curr) !== JSON.stringify(list)) {
               localStorage.setItem(
@@ -818,7 +818,7 @@ export default function App() {
     const unsubscribeSupervisors = subscribeCollection<SupervisorRegistryItem>(
       "supervisors",
       (list) => {
-        if (list && list.length > 0) {
+        if (list) {
           setSupervisors((curr) => {
             if (JSON.stringify(curr) !== JSON.stringify(list)) {
               localStorage.setItem(

@@ -185,16 +185,18 @@ export default function ChemicalInventory({ language, themeMode = "dark" }: Chem
 
   // Pull shared requisitions on load from Firestore
   useEffect(() => {
-    getStoreValue<any[]>("chemicalRequisitions", [])
-      .then(data => {
-        if (data && data.length > 0) {
-          setSavedRequisitions(data);
-          localStorage.setItem("ALW_STAR_SAVED_REQUISITIONS", JSON.stringify(data));
-        }
-      })
-      .catch((error) => {
-        console.warn("Firestore error reading chemicalRequisitions (running offline):", error);
-      });
+    const unsub = subscribeStoreValue<any[]>("chemicalRequisitions", [], (data) => {
+      if (data) {
+        setSavedRequisitions(curr => {
+          if (JSON.stringify(curr) !== JSON.stringify(data)) {
+            localStorage.setItem("ALW_STAR_SAVED_REQUISITIONS", JSON.stringify(data));
+            return data;
+          }
+          return curr;
+        });
+      }
+    });
+    return () => unsub();
   }, []);
 
   const updateSavedRequisitions = (newList: any[]) => {
@@ -695,7 +697,7 @@ export default function ChemicalInventory({ language, themeMode = "dark" }: Chem
   useEffect(() => {
     // 1. Subscribe to Chemical Inventory from Firestore in real-time
     const unsubscribeChemicals = subscribeCollection<ChemicalRef>("chemicalInventory", (data) => {
-      if (data && data.length > 0) {
+      if (data) {
         setChemicals(data);
         localStorage.setItem("ALW_CHEMICAL_INVENTORY", JSON.stringify(data));
       }
@@ -712,7 +714,7 @@ export default function ChemicalInventory({ language, themeMode = "dark" }: Chem
 
     // 3. Subscribe to Service Reports for consumption logs in real-time
     const unsubscribeReports = subscribeCollection<any>("serviceReports", (data) => {
-      if (data && data.length > 0) {
+      if (data) {
         setReports(data);
       }
     });
