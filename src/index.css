@@ -163,23 +163,16 @@ body.pdf-download-active #mobile-hamburger-nav {
     display: block !important;
   }
 
+
+  /* Fix printable document sheet behavior without breaking its natural position */
   #printable-document-sheet {
-    position: absolute !important;
-    left: 0 !important;
-    top: 0 !important;
-    width: 100% !important;
-    max-width: 100% !important;
-    margin: 0 !important;
-    padding: 8mm !important; /* Elegant spacious padding for PDF report sheets */
-    background-color: #ffffff !important;
-    background: #ffffff !important;
-    color: #0d1527 !important;
-    border: none !important;
-    border-radius: 0 !important;
-    box-shadow: none !important;
-    box-sizing: border-box !important;
+    position: relative !important;
     overflow: visible !important;
     height: auto !important;
+    min-height: auto !important;
+    background-color: #ffffff !important;
+    background: #ffffff !important;
+    box-shadow: none !important;
     display: block !important;
   }
 

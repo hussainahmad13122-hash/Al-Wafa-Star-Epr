@@ -2265,33 +2265,15 @@ export default function EngineeringReport({
     const report = reportParam || selectedReport;
     if (!report) return;
 
-    const defaultName = `AlWafaStar-Engineering-${report.reportNo || report.id}`;
-    const customFileName = defaultName;
-
-    setIsGeneratingPDF(true);
-
-    try {
-      const contentHtml = generateEngineeringHTML(report, language);
-
-      const printWindow = window.open("", "_blank");
-      if (printWindow) {
-        printWindow.document.open();
-        printWindow.document.write(contentHtml);
-        printWindow.document.close();
-        printWindow.document.title = customFileName;
-
-        printWindow.setTimeout(() => {
-          printWindow.focus();
-          printWindow.print();
-        }, 500);
-      } else {
-        alert("Please allow pop-ups to print the PDF report.");
-      }
-      setIsGeneratingPDF(false);
-    } catch (e) {
-      console.error(e);
-      setIsGeneratingPDF(false);
-    }
+    // User requested that the downloaded PDF looks exactly like the on-screen preview.
+    // So we switch to the preview mode and trigger the exact same print layout.
+    setSelectedReport(report);
+    setActiveSegment("preview");
+    
+    // Wait for the DOM to render the preview segment before triggering the print
+    setTimeout(() => {
+      handlePrintTrigger();
+    }, 400);
   };
 
   const handleExportJSON = () => {
