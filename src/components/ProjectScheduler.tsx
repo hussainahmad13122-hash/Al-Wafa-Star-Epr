@@ -63,6 +63,15 @@ interface ProjectSchedulerProps {
 }
 
 export default function ProjectScheduler({ language, isDark }: ProjectSchedulerProps) {
+  const loggedInUserStrRaw = localStorage.getItem("ALW_STAR_LOGGED_IN_USER") || sessionStorage.getItem("ALW_STAR_LOGGED_IN_USER") || localStorage.getItem("ALW_LOGGED_IN_USER_V2");
+  let loggedInUser = null;
+  if (loggedInUserStrRaw) {
+    try {
+      loggedInUser = JSON.parse(loggedInUserStrRaw);
+    } catch(err) {}
+  }
+  const isVisitor = loggedInUser?.role === "Visitor";
+
   // Navigation tabs: 'diary' (New Diary sketch layout), 'calendar' (Traditional calendar), or 'projects' (List of hospitals)
   const [activeTab, setActiveTab] = useState<'diary' | 'calendar' | 'projects'>('diary');
 
@@ -165,12 +174,14 @@ export default function ProjectScheduler({ language, isDark }: ProjectSchedulerP
 
   // Save utilities
   const saveProjects = (list: HospitalProject[]) => {
+    if (isVisitor) { triggerToast(language === "bn" ? "ভিজিটর মোডে এই কাজ করার অনুমতি নেই!" : "Read-only mode"); return; }
     setProjectsList(list);
     localStorage.setItem("ALW_MONTHLY_PROJECTS_DB", JSON.stringify(list));
     saveStoreValue("monthly_projects_db", list).catch((err) => console.log("Sync projects error", err));
   };
 
   const saveGroups = (list: DutyGroup[]) => {
+    if (isVisitor) { triggerToast(language === "bn" ? "ভিজিটর মোডে এই কাজ করার অনুমতি নেই!" : "Read-only mode"); return; }
     setGroupsList(list);
     localStorage.setItem("ALW_MONTHLY_GROUPS_LIST_v2", JSON.stringify(list));
     saveStoreValue("monthly_groups_list", list).catch((err) => console.log("Sync groups error", err));

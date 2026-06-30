@@ -67,6 +67,20 @@ export default function SupervisorsRegistry({
   supervisors,
   setSupervisors,
 }: SupervisorsRegistryProps) {
+  const loggedInUserStrRaw = localStorage.getItem("ALW_STAR_LOGGED_IN_USER") || sessionStorage.getItem("ALW_STAR_LOGGED_IN_USER") || localStorage.getItem("ALW_LOGGED_IN_USER_V2");
+  let loggedInUser = null;
+  if (loggedInUserStrRaw) {
+    try {
+      loggedInUser = JSON.parse(loggedInUserStrRaw);
+    } catch(err) {}
+  }
+  const isVisitor = loggedInUser?.role === "Visitor";
+
+  const triggerToast = (msg: string) => {
+    setSaveStatus(msg);
+    setTimeout(() => setSaveStatus(null), 3000);
+  };
+
   const [selectedEmirate, setSelectedEmirate] = useState<string>("ALL");
   const [searchQuery, setSearchQuery] = useState("");
   const [editingAvatarId, setEditingAvatarId] = useState<string | null>(null);
@@ -84,6 +98,7 @@ export default function SupervisorsRegistry({
     field: keyof SupervisorRegistryItem,
     value: string,
   ) => {
+    if (isVisitor) { triggerToast(language === "bn" ? "ভিজিটর মোডে এই কাজ করার অনুমতি নেই!" : "Read-only mode"); return; }
     setSupervisors((prev) => {
       const next = [...prev];
       const index = next.findIndex((s) => s.id === id);
@@ -139,6 +154,7 @@ export default function SupervisorsRegistry({
 
   // Add a new handwritten-style supervisor card
   const handleAddNewSupervisor = (emirate: string) => {
+    if (isVisitor) { triggerToast(language === "bn" ? "ভিজিটর মোডে এই কাজ করার অনুমতি নেই!" : "Read-only mode"); return; }
     const targetState = emirate === "ALL" ? "Dubai" : emirate;
     const code = targetState.substring(0, 3).toUpperCase();
     const newId = `SUP-${code}-${Math.floor(100 + Math.random() * 900)}`;
@@ -173,6 +189,7 @@ export default function SupervisorsRegistry({
 
   // Delete a supervisor profile card
   const handleDeleteSupervisor = (id: string) => {
+    if (isVisitor) { triggerToast(language === "bn" ? "ভিজিটর মোডে এই কাজ করার অনুমতি নেই!" : "Read-only mode"); return; }
     setSupervisors((prev) => prev.filter((s) => s.id !== id));
     deleteDocument("supervisors", id).catch(console.warn);
     setSaveStatus(

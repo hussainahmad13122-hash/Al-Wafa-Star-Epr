@@ -1505,6 +1505,15 @@ export default function ClientDirectory({
   reports,
   onUpdateReports,
 }: ClientDirectoryProps) {
+  const loggedInUserStrRaw = localStorage.getItem("ALW_STAR_LOGGED_IN_USER") || sessionStorage.getItem("ALW_STAR_LOGGED_IN_USER") || localStorage.getItem("ALW_LOGGED_IN_USER_V2");
+  let loggedInUser = null;
+  if (loggedInUserStrRaw) {
+    try {
+      loggedInUser = JSON.parse(loggedInUserStrRaw);
+    } catch(err) {}
+  }
+  const isVisitor = loggedInUser?.role === "Visitor";
+
   const [search, setSearch] = useState("");
   const [selectedEmirate, setSelectedEmirate] = useState<string>("ALL");
   const [showCopiedAlert, setShowCopiedAlert] = useState<string | null>(null);
@@ -1977,6 +1986,7 @@ export default function ClientDirectory({
     field: string,
     value: any,
   ) => {
+    if (isVisitor) { alert(language === "bn" ? "ভিজিটর মোডে এই কাজ করার অনুমতি নেই!" : "Read-only mode"); return; }
     if (!onUpdateReports) return;
     const updated = reports.map((r) => {
       if (r.id === reportId) {
@@ -2012,11 +2022,13 @@ export default function ClientDirectory({
 
   // Excel delete Row using custom safe modal state instead of default blocked confirm dialogs
   const handleExcelDeleteRow = (reportId: string) => {
+    if (isVisitor) { alert(language === "bn" ? "ভিজিটর মোডে এই কাজ করার অনুমতি নেই!" : "Read-only mode"); return; }
     setDeleteId(reportId);
   };
 
   // Excel Add Row (Appended to Very Bottom!)
   const handleExcelAddRow = (emirateName: string) => {
+    if (isVisitor) { alert(language === "bn" ? "ভিজিটর মোডে এই কাজ করার অনুমতি নেই!" : "Read-only mode"); return; }
     const newId = `ALW-CLI-${Math.floor(1000 + Math.random() * 9000)}`;
     const todayStr = new Date().toISOString().split("T")[0];
     const nextMonthStr = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)

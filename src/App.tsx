@@ -372,12 +372,12 @@ export default function App() {
   });
   const [profileUser, setProfileUser] = useState<string>(() => {
     return (
-      localStorage.getItem("ALW_STAR_PROFILE_USER") || "Superintendent Hamdy"
+      localStorage.getItem("ALW_STAR_PROFILE_USER") || "Al Wafa Star Pest Control"
     );
   });
   const [profileEmail, setProfileEmail] = useState<string>(() => {
     return (
-      localStorage.getItem("ALW_STAR_PROFILE_EMAIL") || "allitokmal@gmail.com"
+      localStorage.getItem("ALW_STAR_PROFILE_EMAIL") || "hussainahmad13122@gmail.com"
     );
   });
   const [profileAvatarUrl, setProfileAvatarUrl] = useState<string>(() => {
@@ -398,6 +398,33 @@ export default function App() {
     }
     return [];
   });
+
+  // Run a one-time migration to replace hardcoded Hamdy with Al Wafa Star Pest Control and email
+  useEffect(() => {
+    let changed = false;
+    if (profileUser === "Superintendent Hamdy") {
+      setProfileUser("Al Wafa Star Pest Control");
+      localStorage.setItem("ALW_STAR_PROFILE_USER", "Al Wafa Star Pest Control");
+      changed = true;
+    }
+    if (profileEmail === "allitokmal@gmail.com") {
+      setProfileEmail("hussainahmad13122@gmail.com");
+      localStorage.setItem("ALW_STAR_PROFILE_EMAIL", "hussainahmad13122@gmail.com");
+      changed = true;
+    }
+    if (changed) {
+      setTimeout(() => {
+        saveBrandingData({
+          companyBrand,
+          companySubtitle,
+          profileUser: "Al Wafa Star Pest Control",
+          profileEmail: "hussainahmad13122@gmail.com",
+          profileAvatarUrl,
+          appPassword
+        }).catch(console.warn);
+      }, 1000);
+    }
+  }, [profileUser, profileEmail, companyBrand, companySubtitle, profileAvatarUrl, appPassword]);
 
   // Dynamic Locations list state synced to localStorage and shared across Dashboard & LocationsRegistry
   const [locations, setLocations] = useState<LocationRegistryItem[]>(() => {
@@ -764,23 +791,6 @@ export default function App() {
             }
             return curr;
           });
-        } else {
-          // Fallback: seed from local storage if standard list is empty
-          const saved = localStorage.getItem("ALW_STARE_ERP_REPORTS");
-          if (saved) {
-            try {
-              const parsed = JSON.parse(saved);
-              if (Array.isArray(parsed) && parsed.length > 0) {
-                setReports((curr) => {
-                  if (JSON.stringify(curr) !== JSON.stringify(parsed)) {
-                    saveDocumentsBulk("serviceReports", parsed);
-                    return parsed;
-                  }
-                  return curr;
-                });
-              }
-            } catch (e) {}
-          }
         }
       },
     );
@@ -800,32 +810,6 @@ export default function App() {
             }
             return curr;
           });
-        } else {
-          // Fallback: seed from local storage if standard list is empty
-          const saved = localStorage.getItem("ALW_LOCATIONS_REGISTRY");
-          if (saved) {
-            try {
-              const parsed = JSON.parse(saved);
-              if (Array.isArray(parsed) && parsed.length > 0) {
-                setLocations((curr) => {
-                  if (JSON.stringify(curr) !== JSON.stringify(parsed)) {
-                    saveDocumentsBulk("locations", parsed);
-                    return parsed;
-                  }
-                  return curr;
-                });
-              } else {
-                saveDocumentsBulk("locations", INITIAL_LOCATIONS_REGISTRY);
-                setLocations(INITIAL_LOCATIONS_REGISTRY);
-              }
-            } catch (e) {
-              saveDocumentsBulk("locations", INITIAL_LOCATIONS_REGISTRY);
-              setLocations(INITIAL_LOCATIONS_REGISTRY);
-            }
-          } else {
-            saveDocumentsBulk("locations", INITIAL_LOCATIONS_REGISTRY);
-            setLocations(INITIAL_LOCATIONS_REGISTRY);
-          }
         }
       },
     );
@@ -845,32 +829,6 @@ export default function App() {
             }
             return curr;
           });
-        } else {
-          // Fallback: seed from local storage if standard list is empty
-          const saved = localStorage.getItem("ALW_SUPERVISORS_REGISTRY");
-          if (saved) {
-            try {
-              const parsed = JSON.parse(saved);
-              if (Array.isArray(parsed) && parsed.length > 0) {
-                setSupervisors((curr) => {
-                  if (JSON.stringify(curr) !== JSON.stringify(parsed)) {
-                    saveDocumentsBulk("supervisors", parsed);
-                    return parsed;
-                  }
-                  return curr;
-                });
-              } else {
-                saveDocumentsBulk("supervisors", INITIAL_SUPERVISORS_REGISTRY);
-                setSupervisors(INITIAL_SUPERVISORS_REGISTRY);
-              }
-            } catch (e) {
-              saveDocumentsBulk("supervisors", INITIAL_SUPERVISORS_REGISTRY);
-              setSupervisors(INITIAL_SUPERVISORS_REGISTRY);
-            }
-          } else {
-            saveDocumentsBulk("supervisors", INITIAL_SUPERVISORS_REGISTRY);
-            setSupervisors(INITIAL_SUPERVISORS_REGISTRY);
-          }
         }
       },
     );
@@ -900,9 +858,6 @@ export default function App() {
       }
       if (b.profileUser) {
         setProfileUser((curr) => {
-          if (localStorage.getItem("ALW_STAR_PROFILE_CUSTOMIZED") === "true") {
-            return curr;
-          }
           if (curr !== b.profileUser) {
             localStorage.setItem("ALW_STAR_PROFILE_USER", b.profileUser);
             return b.profileUser;
@@ -912,9 +867,6 @@ export default function App() {
       }
       if (b.profileEmail) {
         setProfileEmail((curr) => {
-          if (localStorage.getItem("ALW_STAR_PROFILE_CUSTOMIZED") === "true") {
-            return curr;
-          }
           if (curr !== b.profileEmail) {
             localStorage.setItem("ALW_STAR_PROFILE_EMAIL", b.profileEmail);
             return b.profileEmail;
@@ -924,9 +876,6 @@ export default function App() {
       }
       if (b.profileAvatarUrl !== undefined) {
         setProfileAvatarUrl((curr) => {
-          if (localStorage.getItem("ALW_STAR_PROFILE_CUSTOMIZED") === "true") {
-            return curr;
-          }
           if (curr !== b.profileAvatarUrl) {
             localStorage.setItem(
               "ALW_STAR_PROFILE_AVATAR",
@@ -956,80 +905,56 @@ export default function App() {
     };
   }, []);
 
-  const isInitialMount = useRef(true);
-
-  // Keep Firestore branding parameters updated
-  useEffect(() => {
-    if (isInitialMount.current) {
-      isInitialMount.current = false;
-      return;
-    }
-    const isCustomized = localStorage.getItem("ALW_STAR_PROFILE_CUSTOMIZED") === "true";
-    const localPayload = {
-      companyBrand,
-      companySubtitle,
-      profileUser,
-      profileEmail,
-      profileAvatarUrl,
-      appPassword,
-    };
-
-    if (isCustomized) {
-      // Save locally only (do NOT push customized profile fields to Firestore)
-      saveBrandingData(localPayload, false).catch((e) => console.warn(e));
-      
-      // Still push company brand/subtitle/password to Firestore (merging with existing global profile from Firestore)
-      Promise.all([
-        import("firebase/firestore"),
-        import("./localDatabase")
-      ]).then(([{ getDoc, doc, setDoc }, { dbInstance }]) => {
-        if (dbInstance) {
-          getDoc(doc(dbInstance, "branding", "global")).then((snap: any) => {
-            if (snap.exists()) {
-              const remote = snap.data();
-              const merged = {
-                ...remote,
-                companyBrand,
-                companySubtitle,
-                appPassword,
-                updatedAt: Date.now()
-              };
-              setDoc(doc(dbInstance, "branding", "global"), merged);
-            } else {
-              setDoc(doc(dbInstance, "branding", "global"), {
-                companyBrand,
-                companySubtitle,
-                appPassword,
-                profileUser: "Superintendent Hamdy", // default fallback
-                profileEmail: "allitokmal@gmail.com",
-                profileAvatarUrl: "",
-                updatedAt: Date.now()
-              });
-            }
-          }).catch((err: any) => console.warn(err));
-        }
-      });
-    } else {
-      // Not customized - update both locally and push everything to Firestore
-      saveBrandingData(localPayload, true).catch((e) => console.warn(e));
-    }
-  }, [
-    companyBrand,
-    companySubtitle,
-    profileUser,
-    profileEmail,
-    profileAvatarUrl,
-    appPassword,
-  ]);
-
   // Update localStorage and server reports in the background
   const saveReports = (newReports: ReportItem[]) => {
-    // We only update local state here; Firestore listener (onSnapshot) syncs changes globally.
-    setReports(newReports);
-    localStorage.setItem("ALW_STARE_ERP_REPORTS", JSON.stringify(newReports));
+    if (currentUser?.role === "Visitor") {
+      alert("ভিজিটর মোডে এই কাজ করার অনুমতি নেই!");
+      return;
+    }
+    setReports((prev) => {
+      // Find diff and sync to Firestore
+      const newMap = new Map(newReports.map((r) => [r.id, r]));
+      
+      const addsAndUpdates: ReportItem[] = [];
+      const deletes: string[] = [];
+
+      for (const old of prev) {
+        if (!newMap.has(old.id)) {
+          deletes.push(old.id);
+        }
+      }
+
+      const oldMap = new Map(prev.map((r) => [r.id, r]));
+      for (const curr of newReports) {
+        const old = oldMap.get(curr.id);
+        if (!old || JSON.stringify(old) !== JSON.stringify(curr)) {
+          addsAndUpdates.push(curr);
+        }
+      }
+
+      setTimeout(async () => {
+         try {
+           for (const r of addsAndUpdates) {
+             if (r.id) await saveDocument("serviceReports", r.id, r);
+           }
+           for (const id of deletes) {
+             await deleteDocument("serviceReports", id);
+           }
+         } catch(e) {
+           console.warn("Firestore sync error:", e);
+         }
+      }, 50);
+
+      localStorage.setItem("ALW_STARE_ERP_REPORTS", JSON.stringify(newReports));
+      return newReports;
+    });
   };
 
   const handleAddReport = async (newReport: ReportItem) => {
+    if (currentUser?.role === "Visitor") {
+      alert("ভিজিটর মোডে এই কাজ করার অনুমতি নেই!");
+      return;
+    }
     // Offline-First: update local state instantly so user never loses entry using functional updates to prevent loss of past records
     setReports((prev) => {
       const exists = prev.some((r) => r.id === newReport.id);
@@ -1053,6 +978,10 @@ export default function App() {
   };
 
   const handleUpdateReport = async (updatedReport: ReportItem) => {
+    if (currentUser?.role === "Visitor") {
+      alert("ভিজিটর মোডে এই কাজ করার অনুমতি নেই!");
+      return;
+    }
     // Offline-First: update local state instantly using functional updates
     setReports((prev) => {
       const updated = prev.map((r) =>
@@ -1073,6 +1002,10 @@ export default function App() {
   };
 
   const handleDeleteReport = async (id: string) => {
+    if (currentUser?.role === "Visitor") {
+      alert("ভিজিটর মোডে এই কাজ করার অনুমতি নেই!");
+      return;
+    }
     // Offline-First: update local state instantly using functional updates
     setReports((prev) => {
       const updated = prev.filter((r) => r.id !== id);
@@ -1853,7 +1786,6 @@ export default function App() {
                       "ALW_STAR_PROFILE_USER",
                       e.target.value,
                     );
-                    localStorage.setItem("ALW_STAR_PROFILE_CUSTOMIZED", "true");
                   }}
                   className="w-full bg-slate-950 border border-slate-700 text-slate-100 rounded-xl py-2.5 px-3 text-xs outline-none focus:border-[#10B981] focus:ring-1 focus:ring-[#10B981]"
                 />
@@ -1875,7 +1807,6 @@ export default function App() {
                       "ALW_STAR_PROFILE_EMAIL",
                       e.target.value,
                     );
-                    localStorage.setItem("ALW_STAR_PROFILE_CUSTOMIZED", "true");
                   }}
                   className="w-full bg-slate-950 border border-slate-700 text-slate-100 rounded-xl py-2.5 px-3 text-xs outline-none focus:border-[#10B981] focus:ring-1 focus:ring-[#10B981]"
                 />
@@ -1912,7 +1843,6 @@ export default function App() {
                               "ALW_STAR_PROFILE_AVATAR",
                               reader.result as string,
                             );
-                            localStorage.setItem("ALW_STAR_PROFILE_CUSTOMIZED", "true");
                           };
                           reader.readAsDataURL(file);
                         }
@@ -1931,16 +1861,27 @@ export default function App() {
               <button
                 type="button"
                 onClick={() => {
-                  setCompanyBrand("AL WAFA STAR");
-                  setCompanySubtitle("ERP Smart Control v2.5");
-                  setProfileUser("Superintendent Hamdy");
-                  setProfileEmail("allitokmal@gmail.com");
-                  setProfileAvatarUrl("");
-                  localStorage.removeItem("ALW_STAR_COMPANY_BRAND");
-                  localStorage.removeItem("ALW_STAR_COMPANY_SUBTITLE");
-                  localStorage.removeItem("ALW_STAR_PROFILE_USER");
-                  localStorage.removeItem("ALW_STAR_PROFILE_EMAIL");
-                  localStorage.removeItem("ALW_STAR_PROFILE_AVATAR");
+                  const resetPayload = {
+                    companyBrand: "AL WAFA STAR",
+                    companySubtitle: "ERP Smart Control v2.5",
+                    profileUser: "Al Wafa Star Pest Control",
+                    profileEmail: "hussainahmad13122@gmail.com",
+                    profileAvatarUrl: "",
+                    appPassword: appPassword || "123456",
+                  };
+                  setCompanyBrand(resetPayload.companyBrand);
+                  setCompanySubtitle(resetPayload.companySubtitle);
+                  setProfileUser(resetPayload.profileUser);
+                  setProfileEmail(resetPayload.profileEmail);
+                  setProfileAvatarUrl(resetPayload.profileAvatarUrl);
+
+                  localStorage.setItem("ALW_STAR_COMPANY_BRAND", resetPayload.companyBrand);
+                  localStorage.setItem("ALW_STAR_COMPANY_SUBTITLE", resetPayload.companySubtitle);
+                  localStorage.setItem("ALW_STAR_PROFILE_USER", resetPayload.profileUser);
+                  localStorage.setItem("ALW_STAR_PROFILE_EMAIL", resetPayload.profileEmail);
+                  localStorage.setItem("ALW_STAR_PROFILE_AVATAR", resetPayload.profileAvatarUrl);
+
+                  saveBrandingData(resetPayload, true).catch((e) => console.warn(e));
                 }}
                 className="px-4 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl transition cursor-pointer"
               >
@@ -1948,7 +1889,18 @@ export default function App() {
               </button>
               <button
                 type="button"
-                onClick={() => setShowProfileEditor(false)}
+                onClick={() => {
+                  const localPayload = {
+                    companyBrand,
+                    companySubtitle,
+                    profileUser,
+                    profileEmail,
+                    profileAvatarUrl,
+                    appPassword,
+                  };
+                  saveBrandingData(localPayload, true).catch((e) => console.warn(e));
+                  setShowProfileEditor(false);
+                }}
                 className="px-5 py-2.5 bg-[#10B981] hover:bg-emerald-400 text-slate-950 rounded-xl transition shadow-lg shadow-emerald-500/20 cursor-pointer"
               >
                 Save Settings

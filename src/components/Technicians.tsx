@@ -91,6 +91,15 @@ export default function Technicians({
   onUpdateReports,
   onSelectClientToPrefill,
 }: TechniciansProps) {
+  const loggedInUserStrRaw = localStorage.getItem("ALW_STAR_LOGGED_IN_USER") || sessionStorage.getItem("ALW_STAR_LOGGED_IN_USER") || localStorage.getItem("ALW_LOGGED_IN_USER_V2");
+  let loggedInUser = null;
+  if (loggedInUserStrRaw) {
+    try {
+      loggedInUser = JSON.parse(loggedInUserStrRaw);
+    } catch(err) {}
+  }
+  const isVisitor = loggedInUser?.role === "Visitor";
+  
   const isBengali = language === "bn";
 
   // 1. Core Plans Database State synced to localStorage
@@ -326,6 +335,7 @@ export default function Technicians({
   }, [dutyContacts]);
 
   const handleAddContact = () => {
+    if (isVisitor) { setToastMessage(language === "bn" ? "ভিজিটর মোডে এই কাজ করার অনুমতি নেই!" : "Read-only mode"); return; }
     if (newContactName && newContactPhone) {
       setDutyContacts([
         ...dutyContacts,
@@ -342,6 +352,7 @@ export default function Technicians({
   };
 
   const handleRemoveContact = (id: string) => {
+    if (isVisitor) { setToastMessage(language === "bn" ? "ভিজিটর মোডে এই কাজ করার অনুমতি নেই!" : "Read-only mode"); return; }
     setDutyContacts(dutyContacts.filter((c) => c.id !== id));
   };
 
@@ -371,6 +382,7 @@ export default function Technicians({
   // 4. Save New Field Plan handler (Supervisor feature)
   const handleCreateNewFieldPlan = (e: React.FormEvent) => {
     e.preventDefault();
+    if (isVisitor) { setToastMessage(language === "bn" ? "ভিজিটর মোডে এই কাজ করার অনুমতি নেই!" : "Read-only mode"); return; }
     if (!targetFacility) {
       triggerToast(
         isBengali
@@ -438,6 +450,7 @@ export default function Technicians({
 
   // Delete plan handler
   const handleDeletePlan = (planId: string, facilityName: string) => {
+    if (isVisitor) { setToastMessage(language === "bn" ? "ভিজিটর মোডে এই কাজ করার অনুমতি নেই!" : "Read-only mode"); return; }
     setPlans((prev) => prev.filter((p) => p.id !== planId));
     triggerToast(
       isBengali
@@ -448,6 +461,7 @@ export default function Technicians({
 
   // Delete timeline feed item handler
   const handleDeleteTimelineEntry = (feedId: string) => {
+    if (isVisitor) { setToastMessage(language === "bn" ? "ভিজিটর মোডে এই কাজ করার অনুমতি নেই!" : "Read-only mode"); return; }
     setTimelineFeed((prev) => prev.filter((f) => f.id !== feedId));
     triggerToast(
       isBengali
@@ -520,12 +534,13 @@ export default function Technicians({
 
   // Submit progress and post to timeline stream (Replicates video's dynamic post logic)
   const handleSubmitProgress = (isPartial: boolean) => {
+    if (isVisitor) { setToastMessage(language === "bn" ? "ভিজিটর মোডে এই কাজ করার অনুমতি নেই!" : "Read-only mode"); return; }
     if (!updatingPlan) return;
 
     const loggedInUserStr =
       localStorage.getItem("ALW_STAR_LOGGED_IN_USER") ||
       sessionStorage.getItem("ALW_STAR_LOGGED_IN_USER");
-    let loggedInName = "Supervisor Hamdy Hussin";
+    let loggedInName = "Al Wafa Star Pest Control";
     if (loggedInUserStr) {
       try {
         const u = JSON.parse(loggedInUserStr);

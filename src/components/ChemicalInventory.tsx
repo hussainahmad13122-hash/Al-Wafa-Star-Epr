@@ -444,14 +444,14 @@ export default function ChemicalInventory({ language, themeMode = "dark" }: Chem
   const [scannedResult, setScannedResult] = useState<string | null>(null);
 
   // Authenticated user constraints
-  const loggedInUserStr = localStorage.getItem("ALW_STAR_LOGGED_IN_USER") || sessionStorage.getItem("ALW_STAR_LOGGED_IN_USER");
+  const loggedInUserStrRaw = localStorage.getItem("ALW_STAR_LOGGED_IN_USER") || sessionStorage.getItem("ALW_STAR_LOGGED_IN_USER") || localStorage.getItem("ALW_LOGGED_IN_USER_V2");
   let loggedInUser = null;
-  if (loggedInUserStr) {
+  if (loggedInUserStrRaw) {
     try {
-      loggedInUser = JSON.parse(loggedInUserStr);
+      loggedInUser = JSON.parse(loggedInUserStrRaw);
     } catch(e) {}
   }
-  const isVisitor = false; // Bypass visitor restriction to allow full testing privileges in sandbox/demo
+  const isVisitor = loggedInUser?.role === "Visitor";
 
   // Helper to get formatted month/year (bilingual)
   const getMonthYearString = (dateStr: string) => {

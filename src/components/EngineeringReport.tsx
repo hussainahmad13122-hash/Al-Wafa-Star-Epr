@@ -1872,20 +1872,6 @@ export default function EngineeringReport({
         if (list && list.length > 0) {
           setSavedReports(list);
           localStorage.setItem("ALW_ENGINEERING_REPORTS", JSON.stringify(list));
-        } else {
-          // Fallback: seed from local storage if standard list is empty
-          const saved = localStorage.getItem("ALW_ENGINEERING_REPORTS");
-          if (saved) {
-            try {
-              const parsed = JSON.parse(saved);
-              if (Array.isArray(parsed) && parsed.length > 0) {
-                setSavedReports(parsed);
-                saveDocumentsBulk("engineeringReports", parsed).catch((e) =>
-                  console.warn(e),
-                );
-              }
-            } catch (e) {}
-          }
         }
       },
     );

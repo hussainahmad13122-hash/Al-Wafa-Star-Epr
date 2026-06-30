@@ -306,6 +306,14 @@ export default function Dashboard({
   isFullscreenLayout,
   onSetFullscreenLayout,
 }: DashboardProps) {
+  const loggedInUserStrRaw = localStorage.getItem("ALW_STAR_LOGGED_IN_USER") || sessionStorage.getItem("ALW_STAR_LOGGED_IN_USER") || localStorage.getItem("ALW_LOGGED_IN_USER_V2");
+  let loggedInUser = null;
+  if (loggedInUserStrRaw) {
+    try {
+      loggedInUser = JSON.parse(loggedInUserStrRaw);
+    } catch(err) {}
+  }
+  const isVisitor = loggedInUser?.role === "Visitor";
   // Local UI States for search and filtering
   const [completedSearch, setCompletedSearch] = useState("");
   const [emirateFilter, setEmirateFilter] = useState("All");
@@ -550,6 +558,7 @@ export default function Dashboard({
 
   // Custom Operations: Update inline partial report notes
   const handleSavePartialNotes = () => {
+    if (isVisitor) { alert(language === "bn" ? "ভিজিটর মোডে এই কাজ করার অনুমতি নেই!" : "Read-only mode"); return; }
     if (editingPartialReportId && onUpdateReports) {
       const updated = reports.map(r => 
         r.id === editingPartialReportId 
@@ -563,6 +572,7 @@ export default function Dashboard({
 
   // Settle or upgrade partial report to fully completed
   const handleMarkAsFullyCompleted = (reportId: string) => {
+    if (isVisitor) { alert(language === "bn" ? "ভিজিটর মোডে এই কাজ করার অনুমতি নেই!" : "Read-only mode"); return; }
     if (onUpdateReports) {
       const updated = reports.map(r => 
         r.id === reportId 
@@ -580,6 +590,7 @@ export default function Dashboard({
     locationArea: "Inside" | "Outside" | "Both Inside & Outside" | "";
     notesText: string;
   }) => {
+    if (isVisitor) { alert(language === "bn" ? "ভিজিটর মোডে এই কাজ করার অনুমতি নেই!" : "Read-only mode"); return; }
     if (creatingPartialCenterName && onUpdateReports) {
       const targetState = creatingPartialCenterName.toLowerCase().includes("dubai") ? "Dubai" : 
                           creatingPartialCenterName.toLowerCase().includes("sharjah") ? "Sharjah" : "Ajman";
@@ -668,6 +679,7 @@ export default function Dashboard({
 
   // Switch to report creation with designated prefilled facility
   const handleQuickDispatch = (facilityName: string) => {
+    if (isVisitor) { alert(language === "bn" ? "ভিজিটর মোডে এই কাজ করার অনুমতি নেই!" : "Read-only mode"); return; }
     const matchingClient = reports.find(r => r.facilityName === facilityName) || {
       facilityName: facilityName,
       emirate: facilityName.toLowerCase().includes("dubai") ? "Dubai" : 

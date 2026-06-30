@@ -463,6 +463,28 @@ export default function LocationsRegistry({
   locations,
   setLocations,
 }: LocationsRegistryProps) {
+  const loggedInUserStrRaw = localStorage.getItem("ALW_STAR_LOGGED_IN_USER") || sessionStorage.getItem("ALW_STAR_LOGGED_IN_USER") || localStorage.getItem("ALW_LOGGED_IN_USER_V2");
+  let loggedInUser = null;
+  if (loggedInUserStrRaw) {
+    try {
+      loggedInUser = JSON.parse(loggedInUserStrRaw);
+    } catch(err) {}
+  }
+  const isVisitor = loggedInUser?.role === "Visitor";
+
+  const triggerToast = (msg: string) => {
+    setSaveStatus(msg);
+    setTimeout(() => setSaveStatus(null), 3000);
+  };
+
+  const handleAction = (action: () => void) => {
+    if (isVisitor) {
+      triggerToast(language === "bn" ? "ভিজিটর মোডে এই কাজ করার অনুমতি নেই!" : "Action not permitted in Visitor mode!");
+      return;
+    }
+    action();
+  };
+
   const [searchTerm, setSearchTerm] = useState("");
   const [emirateFilter, setEmirateFilter] = useState("ALL");
   const [saveStatus, setSaveStatus] = useState<string | null>(null);
@@ -484,6 +506,7 @@ export default function LocationsRegistry({
     field: "name" | "mapUrl" | "emirate",
     value: string,
   ) => {
+    if (isVisitor) { triggerToast(language === "bn" ? "ভিজিটর মোডে এই কাজ করার অনুমতি নেই!" : "Read-only mode"); return; }
     setLocations((prev) =>
       prev.map((loc) => {
         if (loc.id === id) {
@@ -496,6 +519,7 @@ export default function LocationsRegistry({
 
   // Add new row inside a specific emirate / state
   const handleAddRow = (emirate: string) => {
+    if (isVisitor) { triggerToast(language === "bn" ? "ভিজিটর মোডে এই কাজ করার অনুমতি নেই!" : "Read-only mode"); return; }
     const code = emirate.substring(0, 3).toUpperCase();
     const newId = `LOC-${code}-${Math.floor(100 + Math.random() * 900)}`;
     const newRow: LocationRegistryItem = {
@@ -517,6 +541,7 @@ export default function LocationsRegistry({
 
   // Delete row
   const handleDeleteRow = (id: string) => {
+    if (isVisitor) { triggerToast(language === "bn" ? "ভিজিটর মোডে এই কাজ করার অনুমতি নেই!" : "Read-only mode"); return; }
     setLocations((prev) => prev.filter((loc) => loc.id !== id));
     deleteDocument("locations", id);
     setSaveStatus(
@@ -529,6 +554,7 @@ export default function LocationsRegistry({
 
   // Reset to original factory sheet
   const handleResetToFactory = () => {
+    if (isVisitor) { triggerToast(language === "bn" ? "ভিজিটর মোডে এই কাজ করার অনুমতি নেই!" : "Read-only mode"); return; }
     setLocations(INITIAL_LOCATIONS_REGISTRY);
     saveDocumentsBulk("locations", INITIAL_LOCATIONS_REGISTRY).catch(
       console.warn,

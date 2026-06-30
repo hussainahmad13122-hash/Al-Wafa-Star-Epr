@@ -30,7 +30,7 @@ import {
   CheckCircle
 } from "lucide-react";
 import { ReportItem, AppUser, UserRole } from "../types";
-import { getRegisteredUsers, saveRegisteredUsers, getDocuments, getActiveFirebaseConfig, initializeFirebaseClient, isFirebaseActive, getFirebaseConnectionError, synchronizeDatabase } from "../localDatabase";
+import { getRegisteredUsers, saveRegisteredUsers, getDocuments, getActiveFirebaseConfig, initializeFirebaseClient, isFirebaseActive, getFirebaseConnectionError, synchronizeDatabase, saveBrandingData } from "../localDatabase";
 
 interface AdminSettingsProps {
   language: "en" | "ar" | "bn";
@@ -724,15 +724,20 @@ export default function AdminSettings({
     localStorage.setItem("ALW_STAR_PROFILE_AVATAR", localAvatar);
     localStorage.setItem("ALW_STAR_APP_PASSWORD", localPassword || "123456");
 
-    // Manage customized status based on toggle and user role
-    const isAdmin = loggedInUser?.role === "Admin";
-    if (isAdmin && saveAsGlobal) {
-      localStorage.setItem("ALW_STAR_PROFILE_CUSTOMIZED", "false");
-      setIsCustomProfile(false);
-    } else {
-      localStorage.setItem("ALW_STAR_PROFILE_CUSTOMIZED", "true");
-      setIsCustomProfile(true);
-    }
+    // Always save to Firestore explicitly so all devices sync in real-time
+    const localPayload = {
+      companyBrand: localBrand,
+      companySubtitle: localSubtitle,
+      profileUser: localUser,
+      profileEmail: localEmail,
+      profileAvatarUrl: localAvatar,
+      appPassword: localPassword || "123456",
+    };
+    saveBrandingData(localPayload, true).catch((e) => console.warn("Firestore branding save failed:", e));
+
+    // Always clear the customized status to ensure it saves globally and syncs on other devices
+    localStorage.removeItem("ALW_STAR_PROFILE_CUSTOMIZED");
+    setIsCustomProfile(false);
 
     setSuccessMsg(t.successSaved);
     setTimeout(() => setSuccessMsg(null), 3000);
@@ -1549,48 +1554,11 @@ Reloading portal to apply updates...`;
               
               {/* Profile Scope Options */}
               <div className="pt-3 border-t border-slate-800 space-y-3">
-                {loggedInUser?.role === "Admin" && (
-                  <label className="flex items-start gap-3 bg-slate-900/50 p-3 rounded-xl border border-slate-850 cursor-pointer hover:bg-slate-900 transition">
-                    <input 
-                      type="checkbox"
-                      checked={saveAsGlobal}
-                      onChange={(e) => setSaveAsGlobal(e.target.checked)}
-                      className="mt-1 accent-[#10B981] w-4 h-4"
-                    />
-                    <div>
-                      <span className="text-xs font-bold text-slate-200 block">
-                        {language === "bn" 
-                          ? "সকল ব্যবহারকারীর জন্য এটি গ্লোবাল ডিফল্ট প্রোফাইল হিসেবে সেট করুন" 
-                          : "Save as Global Default Profile for all users"}
-                      </span>
-                      <span className="text-[10px] text-slate-400 block mt-0.5">
-                        {language === "bn"
-                          ? "এটি চেক করা থাকলে, সমস্ত ইউজারের কাছে এই প্রোফাইলটি ডিফল্ট হিসেবে সেট হবে।"
-                          : "If checked, this profile will become the default template for all devices."}
-                      </span>
-                    </div>
-                  </label>
-                )}
-
-                {(!saveAsGlobal || loggedInUser?.role !== "Admin") && (
-                  <div className="text-[10px] text-slate-400 bg-slate-900/30 p-2.5 rounded-xl border border-slate-850/50">
-                    ℹ️ {language === "bn"
-                      ? "আপনার এই পরিবর্তনটি শুধুমাত্র এই ডিভাইসের জন্যই সংরক্ষিত হবে। গ্লোবাল ডিফল্ট প্রোফাইলটি অপরিবर्तিত থাকবে।"
-                      : "This profile change is saved locally for this device/session only and will not affect other users."}
-                  </div>
-                )}
-
-                {isCustomProfile && (
-                  <button
-                    type="button"
-                    onClick={handleResetToGlobalDefault}
-                    className="w-full bg-red-500/10 hover:bg-red-500/20 border border-red-500/30 hover:border-red-500/50 text-red-400 hover:text-red-300 py-2 px-3 rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 cursor-pointer"
-                  >
-                    🔄 {language === "bn" 
-                      ? "অ্যাডমিন নির্মিত গ্লোবাল ডিফল্ট প্রোফাইলে রিসেট করুন" 
-                      : "Reset to Admin's Global Default Profile"}
-                  </button>
-                )}
+                <div className="text-[10px] text-[#10B981] bg-[#10B981]/5 p-2.5 rounded-xl border border-[#10B981]/20">
+                  ✨ {language === "bn"
+                    ? "এই পরিবর্তনটি রিয়েল-টাইমে গ্লোবালি সমস্ত ডিভাইসে সিনক্রোনাইজ হবে।"
+                    : "This change will be synchronized globally in real-time to all devices."}
+                </div>
               </div>
             </div>
           </div>

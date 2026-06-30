@@ -1168,6 +1168,20 @@ export default function MasterForm({
   const handleSubmitForm = async (e: React.FormEvent) => {
     e.preventDefault();
 
+    const loggedInUserStrRaw = localStorage.getItem("ALW_STAR_LOGGED_IN_USER") || sessionStorage.getItem("ALW_STAR_LOGGED_IN_USER") || localStorage.getItem("ALW_LOGGED_IN_USER_V2");
+    let loggedInUser = null;
+    if (loggedInUserStrRaw) {
+      try {
+        loggedInUser = JSON.parse(loggedInUserStrRaw);
+      } catch(err) {}
+    }
+    const isVisitor = loggedInUser?.role === "Visitor";
+
+    if (isVisitor) {
+      triggerToast(language === "bn" ? "ভিজিটর মোডে রিপোর্ট যুক্ত/এডিট করার অনুমতি নেই!" : "Adding/editing reports is disabled in Visitor mode!", "error");
+      return;
+    }
+
     const errors: Record<string, boolean> = {};
     if (!slNo.trim()) errors.slNo = true;
     if (!facilityName.trim()) errors.facilityName = true;
