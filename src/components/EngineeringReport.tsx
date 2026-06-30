@@ -4535,7 +4535,7 @@ export default function EngineeringReport({
 
                       {/* Meta Fields Block */}
                       <div className="space-y-4 text-[13px] sm:text-[14px] md:text-[14.5px] leading-relaxed text-slate-800 font-sans pl-2 py-2 select-text">
-                        <div className="flex flex-col sm:flex-row sm:items-start gap-1">
+                        <div className="flex items-start gap-1">
                           <span className="font-extrabold text-black uppercase w-32 shrink-0">
                             {t("FROM:", "প্রেরক (FROM):", "من:")}
                           </span>
@@ -4548,7 +4548,7 @@ export default function EngineeringReport({
                           </span>
                         </div>
 
-                        <div className="flex flex-col sm:flex-row sm:items-start gap-1 pt-2 sm:pt-1">
+                        <div className="flex items-start gap-1 pt-2 sm:pt-1">
                           <span className="font-extrabold text-black uppercase w-32 shrink-0">
                             {t(
                               "PREPARED BY:",
@@ -4562,7 +4562,7 @@ export default function EngineeringReport({
                           </span>
                         </div>
 
-                        <div className="flex flex-col sm:flex-row sm:items-start gap-1 pt-2 sm:pt-1">
+                        <div className="flex items-start gap-1 pt-2 sm:pt-1">
                           <span className="font-extrabold text-black uppercase w-32 shrink-0">
                             {t("To:", "প্রাপক (To):", "إلى:")}
                           </span>
@@ -4571,7 +4571,7 @@ export default function EngineeringReport({
                           </span>
                         </div>
 
-                        <div className="flex flex-col sm:flex-row sm:items-start gap-1 pt-2 sm:pt-1">
+                        <div className="flex items-start gap-1 pt-2 sm:pt-1">
                           <span className="font-extrabold text-black uppercase w-32 shrink-0">
                             {t(
                               "STATE NAME:",
@@ -4586,7 +4586,7 @@ export default function EngineeringReport({
                           </span>
                         </div>
 
-                        <div className="flex flex-col sm:flex-row sm:items-start gap-1 pt-2 sm:pt-1">
+                        <div className="flex items-start gap-1 pt-2 sm:pt-1">
                           <span className="font-extrabold text-slate-900 uppercase w-32 shrink-0">
                             {t(
                               "Date of Visit:",
@@ -4599,7 +4599,7 @@ export default function EngineeringReport({
                           </span>
                         </div>
 
-                        <div className="flex flex-col sm:flex-row sm:items-start gap-1 pt-2 sm:pt-1">
+                        <div className="flex items-start gap-1 pt-2 sm:pt-1">
                           <span className="font-extrabold text-slate-900 uppercase w-32 shrink-0">
                             {t(
                               "Location:",
@@ -4617,7 +4617,7 @@ export default function EngineeringReport({
                           </span>
                         </div>
 
-                        <div className="flex flex-col sm:flex-row sm:items-start gap-1 pt-2 sm:pt-1">
+                        <div className="flex items-start gap-1 pt-2 sm:pt-1">
                           <span className="font-extrabold text-slate-900 uppercase w-32 shrink-0">
                             {t(
                               "Type of Visit:",
