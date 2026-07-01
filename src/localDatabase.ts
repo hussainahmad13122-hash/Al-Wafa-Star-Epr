@@ -207,7 +207,19 @@ export function getFirebaseConnectionError() {
   return firebaseError;
 }
 
+let isInitialized = false;
+let initPromise: Promise<any> | null = null;
+
+export async function ensureFirebaseInitialized() {
+  if (isInitialized) return dbInstance;
+  if (!initPromise) {
+    initPromise = initializeFirebaseClient();
+  }
+  return initPromise;
+}
+
 export async function initializeFirebaseClient() {
+  isInitialized = true;
   // Check if running specifically inside the AI Studio Editor iframe
   if (typeof window !== "undefined" && window.self !== window.top) {
     let isAIStudio = false;
@@ -585,10 +597,40 @@ export async function deleteDocument(
 }
 
 export async function getDocuments<T>(collName: string): Promise<T[]> {
+  if (dbInstance) {
+    try {
+      const q = collection(dbInstance, collName);
+      const snapshot = await getDocs(q);
+      const list: any[] = [];
+      snapshot.forEach((d) => {
+        list.push({ ...d.data(), id: d.id });
+      });
+      // update local cache
+      localStorage.setItem(STORAGE_PREFIX + collName, JSON.stringify(list));
+      notifySubscribers(collName, list);
+      return list;
+    } catch (err) {
+      console.warn("Firestore fetch failed, falling back to local storage", err);
+      handleFirestoreError(err, OperationType.LIST, collName);
+    }
+  }
   return getLocalDocuments<T>(collName);
 }
 
 export async function getStoreValue<T>(key: string, defaultVal: T): Promise<T> {
+  if (dbInstance) {
+    try {
+      const docSnap = await getDoc(doc(dbInstance, "store", key));
+      if (docSnap.exists() && docSnap.data().value !== undefined) {
+        const val = docSnap.data().value;
+        localStorage.setItem(STORAGE_PREFIX + "store_" + key, JSON.stringify(val));
+        return val;
+      }
+    } catch (err) {
+      console.warn("Firestore fetch failed, falling back to local storage", err);
+      handleFirestoreError(err, OperationType.READ, `store/${key}`);
+    }
+  }
   try {
     const raw = localStorage.getItem(STORAGE_PREFIX + "store_" + key);
     if (raw) {
@@ -620,6 +662,19 @@ export async function saveStoreValue<T>(key: string, value: T): Promise<void> {
 }
 
 export async function getBrandingData(): Promise<typeof DEFAULT_BRANDING> {
+  if (dbInstance) {
+    try {
+      const docSnap = await getDoc(doc(dbInstance, "branding", "global"));
+      if (docSnap.exists()) {
+        const data = docSnap.data();
+        const updated = { ...DEFAULT_BRANDING, ...data };
+        localStorage.setItem(STORAGE_PREFIX + "branding", JSON.stringify(updated));
+        return updated;
+      }
+    } catch (err) {
+      console.warn("Firestore fetch failed for branding", err);
+    }
+  }
   try {
     const raw = localStorage.getItem(STORAGE_PREFIX + "branding");
     if (raw) {
@@ -649,6 +704,23 @@ export async function saveBrandingData(data: any, uploadToFirestore: boolean = t
 }
 
 export async function getRegisteredUsers(): Promise<any[]> {
+  if (dbInstance) {
+    try {
+      const q = collection(dbInstance, "users");
+      const snapshot = await getDocs(q);
+      const list: any[] = [];
+      snapshot.forEach((d) => {
+        list.push({ ...d.data(), id: d.id });
+      });
+      if (list.length > 0) {
+        localStorage.setItem(STORAGE_PREFIX + "users", JSON.stringify(list));
+        return list;
+      }
+    } catch (err) {
+      console.warn("Firestore fetch failed for users, falling back to local storage", err);
+    }
+  }
+
   const localUsers = await getLocalDocuments<any>("users");
   if (localUsers.length === 0) {
     localStorage.setItem(
@@ -702,31 +774,33 @@ export function subscribeCollection<T>(
   // Immediately serve cache
   getLocalDocuments<T>(collName).then(onUpdate);
 
-  if (dbInstance && !firestoreSubscriptions[collName]) {
-    try {
-      firestoreSubscriptions[collName] = onSnapshot(
-        collection(dbInstance, collName),
-        (snapshot) => {
-          const list: any[] = [];
-          snapshot.forEach((doc) => {
-            list.push({ ...doc.data(), id: doc.id });
-          });
+  ensureFirebaseInitialized().then(() => {
+    if (dbInstance && !firestoreSubscriptions[collName]) {
+      try {
+        firestoreSubscriptions[collName] = onSnapshot(
+          collection(dbInstance, collName),
+          (snapshot) => {
+            const list: any[] = [];
+            snapshot.forEach((doc) => {
+              list.push({ ...doc.data(), id: doc.id });
+            });
 
-          // Update local cache
-          localStorage.setItem(STORAGE_PREFIX + collName, JSON.stringify(list));
-          // Broaden notify
-          notifySubscribers(collName, list);
-        },
-        (err) => {
-          console.warn(
-            `Firestore collection subscription failed for ${collName}:`,
-            err,
-          );
-          handleFirestoreError(err, OperationType.LIST, collName);
-        },
-      );
-    } catch (e) {}
-  }
+            // Update local cache
+            localStorage.setItem(STORAGE_PREFIX + collName, JSON.stringify(list));
+            // Broaden notify
+            notifySubscribers(collName, list);
+          },
+          (err) => {
+            console.warn(
+              `Firestore collection subscription failed for ${collName}:`,
+              err,
+            );
+            handleFirestoreError(err, OperationType.LIST, collName);
+          },
+        );
+      } catch (e) {}
+    }
+  });
 
   return () => {
     subscribers[collName]?.delete(onUpdate);
@@ -753,30 +827,32 @@ export function subscribeStoreValue<T>(
   // Immediately serve cache
   getStoreValue<T>(key, defaultVal).then(onUpdate);
 
-  if (dbInstance && !firestoreSubscriptions[subKey]) {
-    try {
-      firestoreSubscriptions[subKey] = onSnapshot(
-        doc(dbInstance, "store", key),
-        (snapshot) => {
-          if (snapshot.exists()) {
-            const remoteVal = snapshot.data().value;
-            localStorage.setItem(
-              STORAGE_PREFIX + "store_" + key,
-              JSON.stringify(remoteVal),
+  ensureFirebaseInitialized().then(() => {
+    if (dbInstance && !firestoreSubscriptions[subKey]) {
+      try {
+        firestoreSubscriptions[subKey] = onSnapshot(
+          doc(dbInstance, "store", key),
+          (snapshot) => {
+            if (snapshot.exists()) {
+              const remoteVal = snapshot.data().value;
+              localStorage.setItem(
+                STORAGE_PREFIX + "store_" + key,
+                JSON.stringify(remoteVal),
+              );
+              notifySubscribers("store_" + key, remoteVal);
+            }
+          },
+          (err) => {
+            console.warn(
+              `Firestore document subscription failed for ${key}:`,
+              err,
             );
-            notifySubscribers("store_" + key, remoteVal);
-          }
-        },
-        (err) => {
-          console.warn(
-            `Firestore document subscription failed for ${key}:`,
-            err,
-          );
-          handleFirestoreError(err, OperationType.GET, `store/${key}`);
-        },
-      );
-    } catch (e) {}
-  }
+            handleFirestoreError(err, OperationType.GET, `store/${key}`);
+          },
+        );
+      } catch (e) {}
+    }
+  });
 
   return () => {
     subscribers[subKey]?.delete(onUpdate);
