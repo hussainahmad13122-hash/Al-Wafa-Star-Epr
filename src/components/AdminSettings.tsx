@@ -181,7 +181,7 @@ export default function AdminSettings({
       setTimeout(() => setFbSaveSuccess(false), 3000);
 
       // Reinitialize Firebase Client
-      await initializeFirebaseClient();
+      await initializeFirebaseClient(true);
       setFbActive(isFirebaseActive());
       setFbErrorMsg(getFirebaseConnectionError());
     } catch (err: any) {
@@ -195,7 +195,7 @@ export default function AdminSettings({
       localStorage.removeItem("ALW_CUSTOM_FIREBASE_CONFIG");
       const defaultCfg = getActiveFirebaseConfig();
       setFbConfigStr(JSON.stringify(defaultCfg, null, 2));
-      await initializeFirebaseClient();
+      await initializeFirebaseClient(true);
       setFbActive(isFirebaseActive());
       setFbErrorMsg(getFirebaseConnectionError());
     }
