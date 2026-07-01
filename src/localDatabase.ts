@@ -208,13 +208,31 @@ export function getFirebaseConnectionError() {
 }
 
 export async function initializeFirebaseClient() {
-  // Check if running inside an iframe (like the AI Studio editor preview)
+  // Check if running specifically inside the AI Studio Editor iframe
   if (typeof window !== "undefined" && window.self !== window.top) {
-    console.warn("AI Studio iframe detected. Running in local-only fallback mode to protect real data.");
-    dbInstance = null;
-    isFirebaseConnected = false;
-    firebaseError = "Preview mode: Real database connection disabled in Editor Preview.";
-    return null;
+    let isAIStudio = false;
+    try {
+      if (document.referrer && document.referrer.includes("ai.studio")) {
+        isAIStudio = true;
+      }
+      if (window.location.ancestorOrigins) {
+        for (let i = 0; i < window.location.ancestorOrigins.length; i++) {
+          if (window.location.ancestorOrigins[i].includes("ai.studio")) {
+            isAIStudio = true;
+          }
+        }
+      }
+    } catch (e) {
+      // Ignore cross-origin errors
+    }
+
+    if (isAIStudio) {
+      console.warn("AI Studio Editor detected. Running in local-only fallback mode to protect real data.");
+      dbInstance = null;
+      isFirebaseConnected = false;
+      firebaseError = "Preview mode: Real database connection disabled in Editor Preview.";
+      return null;
+    }
   }
 
   const config = getActiveFirebaseConfig();
