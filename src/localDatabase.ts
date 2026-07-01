@@ -208,11 +208,12 @@ export function getFirebaseConnectionError() {
 }
 
 export async function initializeFirebaseClient() {
-  if (typeof window !== "undefined" && window.location.hostname.includes('run.app')) {
-    console.warn("AI Studio environment detected. Running in local-only fallback mode to prevent modifying production database.");
+  // Check if running inside the AI Studio editor iframe
+  if (typeof window !== "undefined" && window.self !== window.top) {
+    console.warn("AI Studio iframe detected. Running in local-only fallback mode.");
     dbInstance = null;
     isFirebaseConnected = false;
-    firebaseError = "AI Studio preview detected. Real database disabled to protect production data.";
+    firebaseError = "Preview mode: Real database disabled.";
     return null;
   }
 
