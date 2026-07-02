@@ -1,0 +1,18 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Note: The application uses a custom passcode-based authentication system
+    // where credentials are verified on the client. Because Firebase Auth is not
+    // utilized, `request.auth` is null. Therefore, we cannot strictly secure 
+    // collections by user role in Firestore Rules.
+    
+    match /store/rolePermissions {
+      allow read: if true;
+      allow write: if true; // In a production app with Firebase Auth, this would be: if request.auth.token.role == 'Admin'
+    }
+
+    match /{document=**} {
+      allow read, write: if true;
+    }
+  }
+}
