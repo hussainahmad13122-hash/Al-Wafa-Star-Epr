@@ -30,7 +30,7 @@ import {
   CheckCircle
 } from "lucide-react";
 import { ReportItem, AppUser, UserRole } from "../types";
-import { getRegisteredUsers, saveRegisteredUsers, getDocuments, getActiveFirebaseConfig, initializeFirebaseClient, isFirebaseActive, getFirebaseConnectionError, synchronizeDatabase, saveBrandingData } from "../localDatabase";
+import { getRegisteredUsers, saveRegisteredUsers, getDocuments, getActiveFirebaseConfig, initializeFirebaseClient, isFirebaseActive, getFirebaseConnectionError, synchronizeDatabase, saveBrandingData, saveStoreValue } from "../localDatabase";
 
 interface AdminSettingsProps {
   language: "en" | "ar" | "bn";
@@ -58,6 +58,8 @@ interface AdminSettingsProps {
   role?: UserRole;
   setRole?: (role: UserRole) => void;
   loggedInUser?: AppUser | null;
+  rolePermissions?: Record<string, any>;
+  setRolePermissions?: (perms: Record<string, any>) => void;
 }
 
 export default function AdminSettings({
@@ -85,7 +87,9 @@ export default function AdminSettings({
   onLogout,
   role,
   setRole,
-  loggedInUser
+  loggedInUser,
+  rolePermissions,
+  setRolePermissions
 }: AdminSettingsProps) {
   
   const [localBrand, setLocalBrand] = useState(companyBrand);
@@ -121,7 +125,39 @@ export default function AdminSettings({
   
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
   const [showRoleMenu, setShowRoleMenu] = useState(false);
-  const [activeTab, setActiveTab] = useState<"appearance" | "profile" | "security" | "password_security" | "database">("appearance");
+  const [activeTab, setActiveTab] = useState<"appearance" | "profile" | "security" | "password_security" | "database" | "role_permissions" | "active_devices">("appearance");
+  const [activeSessionsList, setActiveSessionsList] = useState<any[]>([]);
+
+  useEffect(() => {
+    const fetchSessions = () => {
+      const stored = localStorage.getItem("ALW_LOGIN_SESSIONS");
+      if (stored) {
+        try {
+          setActiveSessionsList(JSON.parse(stored));
+        } catch (e) {}
+      } else {
+        setActiveSessionsList([]);
+      }
+    };
+
+    if (activeTab === "active_devices") {
+      fetchSessions();
+      
+      const handleStorage = (e: StorageEvent) => {
+        if (e.key === "ALW_LOGIN_SESSIONS") {
+          fetchSessions();
+        }
+      };
+      window.addEventListener("storage", handleStorage);
+      
+      const interval = setInterval(fetchSessions, 5000);
+      
+      return () => {
+        window.removeEventListener("storage", handleStorage);
+        clearInterval(interval);
+      };
+    }
+  }, [activeTab]);
 
   const [saveAsGlobal, setSaveAsGlobal] = useState(false);
   const [isCustomProfile, setIsCustomProfile] = useState(() => {
@@ -181,7 +217,7 @@ export default function AdminSettings({
       setTimeout(() => setFbSaveSuccess(false), 3000);
 
       // Reinitialize Firebase Client
-      await initializeFirebaseClient();
+      await initializeFirebaseClient(true);
       setFbActive(isFirebaseActive());
       setFbErrorMsg(getFirebaseConnectionError());
     } catch (err: any) {
@@ -195,7 +231,7 @@ export default function AdminSettings({
       localStorage.removeItem("ALW_CUSTOM_FIREBASE_CONFIG");
       const defaultCfg = getActiveFirebaseConfig();
       setFbConfigStr(JSON.stringify(defaultCfg, null, 2));
-      await initializeFirebaseClient();
+      await initializeFirebaseClient(true);
       setFbActive(isFirebaseActive());
       setFbErrorMsg(getFirebaseConnectionError());
     }
@@ -1175,6 +1211,22 @@ Reloading portal to apply updates...`;
                 icon: <Lock className="w-4 h-4" />,
                 color: "text-red-400 bg-red-400/5",
                 activeColor: "border-red-500 text-red-300"
+              },
+              { 
+                id: "role_permissions", 
+                label: language === "bn" ? "রোল পারমিশন" : "Role Permissions", 
+                sub: language === "bn" ? "মডারেটর ও ভিজিটর অ্যাক্সেস" : "Moderator & Visitor Access Control",
+                icon: <ShieldAlert className="w-4 h-4" />,
+                color: "text-indigo-400 bg-indigo-400/5",
+                activeColor: "border-indigo-500 text-indigo-300"
+              },
+              { 
+                id: "active_devices", 
+                label: language === "bn" ? "লগইন সেশন" : "Active Sessions", 
+                sub: language === "bn" ? "লগইন করা ডিভাইসের তালিকা" : "List of logged-in devices",
+                icon: <Smartphone className="w-4 h-4" />,
+                color: "text-cyan-400 bg-cyan-400/5",
+                activeColor: "border-cyan-500 text-cyan-300"
               },
               { 
                 id: "database", 
@@ -2574,6 +2626,173 @@ Reloading portal to apply updates...`;
         </div>
 
       </div> {/* End Password & Security Tab */}
+
+      {/* ===================== TAB: ROLE PERMISSIONS ===================== */}
+      <div className={activeTab === "role_permissions" ? "space-y-6 block animate-fade-in" : "hidden"}>
+        <div className="bg-[#1E293B]/40 border border-[#334155] rounded-3xl p-6 shadow-sm space-y-6">
+          <div className="space-y-2">
+            <h3 className="text-sm font-extrabold text-slate-100 flex items-center gap-2">
+              <ShieldAlert className="w-5 h-5 text-indigo-400" />
+              <span>{language === "bn" ? "রোল পারমিশন সেটিং" : "Role Permissions Settings"}</span>
+            </h3>
+            <p className="text-xs text-slate-400">
+              {language === "bn" ? "মডারেটর এবং ভিজিটর রোলের জন্য ড্যাশবোর্ড অ্যাক্সেস এবং ফিচার পারমিশন সেট করুন।" : "Configure access rights and feature permissions for Moderator and Visitor roles."}
+            </p>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+            {["Moderator", "Visitor"].map((targetRole) => (
+              <div key={targetRole} className="bg-slate-900 border border-slate-750 rounded-2xl p-5 space-y-4">
+                <h4 className="text-sm font-black text-slate-200 border-b border-slate-800 pb-3 mb-4">
+                  {targetRole} {language === "bn" ? "পারমিশন" : "Permissions"}
+                </h4>
+                
+                {rolePermissions && Object.entries(rolePermissions[targetRole] || {}).map(([key, value]) => {
+                  const labelMap: Record<string, string> = {
+                    canCreateReport: language === "bn" ? "সার্ভিস রিপোর্ট তৈরি করা" : "Create Service Reports",
+                    canEditReport: language === "bn" ? "রিপোর্ট এডিট করা" : "Edit Reports",
+                    canDeleteReport: language === "bn" ? "রিপোর্ট ডিলিট করা" : "Delete Reports",
+                    canManageLocations: language === "bn" ? "লোকেশন পরিচালনা" : "Manage Locations",
+                    canManageSupervisors: language === "bn" ? "সুপারভাইজার পরিচালনা" : "Manage Supervisors",
+                    canManageInventory: language === "bn" ? "ইনভেন্টরি পরিবর্তন করা" : "Manage Inventory",
+                    canManageTechnicians: language === "bn" ? "টেকনিশিয়ান পরিচালনা" : "Manage Technicians",
+                    canManageScheduler: language === "bn" ? "শিডিউলার পরিচালনা" : "Manage Scheduler",
+                    canManageEngineeringReport: language === "bn" ? "ইঞ্জিনিয়ারিং রিপোর্ট পরিচালনা" : "Manage Engineering Reports",
+                    canViewDashboard: language === "bn" ? "ড্যাশবোর্ড দেখা" : "View Dashboard",
+                    canViewCompletedRegistry: language === "bn" ? "রিপোর্ট হিস্ট্রি দেখা" : "View Report History",
+                    canViewLocations: language === "bn" ? "লোকেশন ডিরেক্টরি দেখা" : "View Location Directory",
+                    canViewSupervisors: language === "bn" ? "সুপারভাইজার তালিকা দেখা" : "View Supervisor List",
+                    canViewDirectory: language === "bn" ? "ক্লায়েন্ট ডিরেক্টরি দেখা" : "View Client Directory",
+                    canViewEngineeringReport: language === "bn" ? "ইঞ্জিনিয়ারিং রিপোর্ট দেখা" : "View Engineering Reports",
+                    canViewMasterForm: language === "bn" ? "মাস্টার ফর্ম দেখা" : "View Master Form",
+                    canViewInventory: language === "bn" ? "ইনভেন্টরি দেখা" : "View Inventory",
+                    canViewTechnicians: language === "bn" ? "টেকনিশিয়ান প্যানেল দেখা" : "View Technicians Panel",
+                    canViewAIPest: language === "bn" ? "এআই পেস্ট ডিটেকশন দেখা" : "View AI Pest Detection",
+                    canViewClientPortal: language === "bn" ? "ক্লায়েন্ট পোর্টাল দেখা" : "View Client Portal",
+                    canViewScheduler: language === "bn" ? "শিডিউলার দেখা" : "View Scheduler",
+                  };
+                  return (
+                    <label key={key} className="flex items-center justify-between group cursor-pointer">
+                      <span className="text-xs font-semibold text-slate-300 group-hover:text-slate-100 transition-colors">
+                        {labelMap[key] || key}
+                      </span>
+                      <div className="relative inline-block w-10 h-5">
+                        <input 
+                          type="checkbox"
+                          className="peer sr-only"
+                          checked={value as boolean}
+                          onChange={(e) => {
+                            if (setRolePermissions && rolePermissions) {
+                              const updated = {
+                                ...rolePermissions,
+                                [targetRole]: {
+                                  ...rolePermissions[targetRole],
+                                  [key]: e.target.checked
+                                }
+                              };
+                              setRolePermissions(updated);
+                              saveStoreValue("rolePermissions", updated);
+                            }
+                          }}
+                          disabled={loggedInUser?.role !== "Admin"}
+                        />
+                        <div className="block bg-slate-800 border border-slate-600 w-full h-full rounded-full peer-checked:bg-emerald-500 peer-checked:border-emerald-500 transition-all"></div>
+                        <div className="absolute left-[2px] top-[2px] bg-slate-300 w-4 h-4 rounded-full transition-all peer-checked:translate-x-full peer-checked:bg-white"></div>
+                      </div>
+                    </label>
+                  );
+                })}
+                {loggedInUser?.role !== "Admin" && (
+                  <p className="text-[10px] text-red-400 mt-2 italic">
+                    {language === "bn" ? "* শুধুমাত্র এডমিন পারমিশন পরিবর্তন করতে পারবেন।" : "* Only Admin can change permissions."}
+                  </p>
+                )}
+              </div>
+            ))}
+          </div>
+
+        </div>
+      </div>
+
+      {/* ===================== TAB: ACTIVE DEVICES ===================== */}
+      <div className={activeTab === "active_devices" ? "space-y-6 block animate-fade-in" : "hidden"}>
+        <div className="bg-[#1E293B]/40 border border-[#334155] rounded-3xl p-6 shadow-sm space-y-6">
+          <div className="space-y-2">
+            <h3 className="text-sm font-extrabold text-slate-100 flex items-center gap-2">
+              <Smartphone className="w-5 h-5 text-cyan-400" />
+              <span>{language === "bn" ? "অ্যাক্টিভ লগইন সেশন" : "Active Login Sessions"}</span>
+            </h3>
+            <p className="text-xs text-slate-400">
+              {language === "bn" ? "কোন কোন ডিভাইস থেকে ওয়েবসাইটে লগইন করা আছে তার তালিকা দেখুন।" : "View and manage devices currently logged into the system."}
+            </p>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {activeSessionsList.length === 0 ? (
+              <div className="col-span-full py-8 text-center text-slate-500">
+                {language === "bn" ? "কোনো অ্যাক্টিভ সেশন পাওয়া যায়নি।" : "No active sessions found."}
+              </div>
+            ) : (
+              activeSessionsList.map((session) => (
+                <div key={session.id} className="bg-slate-900 border border-slate-750 rounded-2xl p-4 flex flex-col gap-3 relative overflow-hidden group">
+                  <div className="flex items-start justify-between">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-full bg-cyan-500/20 border border-cyan-500/30 flex items-center justify-center shrink-0">
+                        <Smartphone className="w-5 h-5 text-cyan-400" />
+                      </div>
+                      <div>
+                        <h4 className="text-sm font-bold text-slate-100 flex items-center gap-2">
+                          {session.username}
+                          <span className="px-2 py-0.5 rounded text-[10px] bg-slate-800 text-slate-300">
+                            {session.role}
+                          </span>
+                          {localStorage.getItem("ALW_DEVICE_ID") === session.id && (
+                            <span className="px-2 py-0.5 rounded text-[10px] bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
+                              {language === "bn" ? "এই ডিভাইস" : "Current Device"}
+                            </span>
+                          )}
+                        </h4>
+                        <p className="text-xs text-slate-400 mt-0.5">{session.deviceInfo}</p>
+                      </div>
+                    </div>
+                  </div>
+                  
+                  <div className="bg-slate-950/50 rounded-xl p-3 text-[11px] text-slate-400 flex flex-col gap-1.5 border border-slate-800/50">
+                    <div className="flex justify-between items-center">
+                      <span>{language === "bn" ? "লগইন সময়:" : "Login Time:"}</span>
+                      <span className="text-slate-300 font-medium">
+                        {new Date(session.loginTime).toLocaleString(language === "bn" ? "bn-BD" : "en-US")}
+                      </span>
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <span>{language === "bn" ? "শেষ অ্যাক্টিভিটি:" : "Last Active:"}</span>
+                      <span className="text-cyan-400 font-medium">
+                        {new Date(session.lastActive).toLocaleString(language === "bn" ? "bn-BD" : "en-US")}
+                      </span>
+                    </div>
+                  </div>
+                  
+                  {localStorage.getItem("ALW_DEVICE_ID") !== session.id && (
+                    <button 
+                      onClick={() => {
+                        if (window.confirm(language === "bn" ? "আপনি কি নিশ্চিত এই ডিভাইসটি লগআউট করতে চান?" : "Are you sure you want to log out this device?")) {
+                          const updated = activeSessionsList.filter(s => s.id !== session.id);
+                          setActiveSessionsList(updated);
+                          localStorage.setItem("ALW_LOGIN_SESSIONS", JSON.stringify(updated));
+                        }
+                      }}
+                      className="absolute top-4 right-4 text-red-400 hover:text-red-300 opacity-0 group-hover:opacity-100 transition-opacity bg-red-400/10 hover:bg-red-400/20 p-2 rounded-lg"
+                      title="Force Logout"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  )}
+                </div>
+              ))
+            )}
+          </div>
+        </div>
+      </div>
 
       {/* ===================== TAB: DATABASE ===================== */}
       <div className={activeTab === "database" ? "space-y-6 block animate-fade-in" : "hidden"}>

@@ -95,6 +95,13 @@ export default function CustomSpaceNotes({ language }: CustomSpaceNotesProps) {
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedCategory, setSelectedCategory] = useState<string>("All");
 
+  // State for handling custom category delete / rename modals securely within sandbox
+  const [catAction, setCatAction] = useState<{
+    type: "delete" | "rename" | null;
+    catName: string;
+    inputValue?: string;
+  }>({ type: null, catName: "" });
+
   // Custom categories list that are persistent
   const [customCategories, setCustomCategories] = useState<string[]>(() => {
     const saved = localStorage.getItem("ALW_CUSTOM_NOTE_CATEGORIES");
@@ -153,25 +160,61 @@ export default function CustomSpaceNotes({ language }: CustomSpaceNotesProps) {
     setNewCategoryName("");
   };
 
-  const handleDeleteCategory = (catName: string) => {
-    if (
-      window.confirm(
-        `Are you sure you want to delete the category "${catName}"? Any notes under this category will be re-assigned to "Custom".`,
-      )
-    ) {
-      // Re-assign notes of this category to Custom
-      setNotes((prev) =>
-        prev.map((n) =>
-          n.category === catName ? { ...n, category: "Custom" } : n,
-        ),
-      );
-      // Remove from customCategories
-      setCustomCategories((prev) => prev.filter((c) => c !== catName));
-      // Select All or Custom
-      if (selectedCategory === catName) {
-        setSelectedCategory("All");
-      }
+  const executeDeleteCategory = (catName: string) => {
+    // Determine the best fallback category to assign notes to, avoiding the one being deleted
+    const remainingCustom = customCategories.filter(c => c !== catName);
+    const fallbackCategory = remainingCustom.includes("Custom") ? "Custom" : (remainingCustom[0] || "Custom");
+
+    // Re-assign notes of this category to fallbackCategory
+    setNotes((prev) =>
+      prev.map((n) =>
+        n.category === catName ? { ...n, category: fallbackCategory } : n,
+      ),
+    );
+    // Remove from customCategories
+    setCustomCategories((prev) => prev.filter((c) => c !== catName));
+    // Select All or fallback
+    if (selectedCategory === catName) {
+      setSelectedCategory("All");
     }
+    setCatAction({ type: null, catName: "" });
+  };
+
+  const executeRenameCategory = (oldCatName: string, newName: string) => {
+    const trimmed = newName.trim();
+    if (!trimmed) return;
+
+    if (trimmed === oldCatName) {
+      setCatAction({ type: null, catName: "" });
+      return;
+    }
+
+    // Check if new name already exists
+    const normalizedNew = trimmed.toLowerCase();
+    const exists = ["all", "ants", "drain flies", "rats", "rodents", "custom", ...customCategories.map(c => c.toLowerCase())]
+      .filter(c => c !== oldCatName.toLowerCase())
+      .includes(normalizedNew);
+
+    if (exists) return;
+
+    // Rename notes of this category to the new name
+    setNotes((prev) =>
+      prev.map((n) =>
+        n.category === oldCatName ? { ...n, category: trimmed } : n,
+      ),
+    );
+
+    // Update in customCategories list
+    setCustomCategories((prev) =>
+      prev.map((c) => (c === oldCatName ? trimmed : c)),
+    );
+
+    // If active category was this one, update selectedCategory to the new one
+    if (selectedCategory === oldCatName) {
+      setSelectedCategory(trimmed);
+    }
+
+    setCatAction({ type: null, catName: "" });
   };
 
   // Note Form Modal State
@@ -397,7 +440,7 @@ export default function CustomSpaceNotes({ language }: CustomSpaceNotesProps) {
             .map((cat) => (
               <div
                 key={cat.id}
-                className="group flex items-center bg-slate-800/40 rounded-xl p-0.5 border border-slate-800/40 hover:border-slate-700/60 transition-all"
+                className="group flex items-center bg-slate-800/40 rounded-xl p-1 border border-slate-800/40 hover:border-slate-700/60 transition-all gap-1"
               >
                 <button
                   onClick={() => setSelectedCategory(cat.id)}
@@ -410,21 +453,42 @@ export default function CustomSpaceNotes({ language }: CustomSpaceNotesProps) {
                   {cat.label}
                 </button>
 
-                {/* Optional inline deletion of custom category tabs */}
-                {!["All", "Ants", "Drain Flies", "Rats", "Custom"].includes(
-                  cat.id,
-                ) && (
-                  <button
-                    type="button"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      handleDeleteCategory(cat.id);
-                    }}
-                    className="w-0 h-4 opacity-0 scale-75 group-hover:w-4 group-hover:opacity-100 group-hover:scale-100 group-hover:ml-1 group-hover:mr-1 transition-all duration-200 ease-out flex items-center justify-center bg-rose-600/30 hover:bg-rose-600 text-rose-400 hover:text-white text-[9px] font-bold rounded-md active:scale-75 cursor-pointer overflow-hidden"
-                    title="Remove category"
-                  >
-                    &times;
-                  </button>
+                {/* Optional inline edit and deletion of custom category tabs */}
+                {!["All", "Ants", "Drain Flies", "Rats"].includes(cat.id) && (
+                  <div className="hidden group-hover:flex items-center gap-0.5 pr-0.5 shrink-0">
+                    {/* Edit button */}
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setCatAction({
+                          type: "rename",
+                          catName: cat.id,
+                          inputValue: cat.id
+                        });
+                      }}
+                      className="w-5 h-5 flex items-center justify-center rounded-md bg-indigo-500/10 hover:bg-indigo-600 hover:text-white text-indigo-400 transition-all cursor-pointer shrink-0"
+                      title={language === "bn" ? "নাম পরিবর্তন করুন" : "Rename category"}
+                    >
+                      <Edit2 className="w-2.5 h-2.5" />
+                    </button>
+
+                    {/* Delete button */}
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setCatAction({
+                          type: "delete",
+                          catName: cat.id
+                        });
+                      }}
+                      className="w-5 h-5 flex items-center justify-center rounded-md bg-rose-500/10 hover:bg-rose-500 hover:text-white text-rose-400 transition-all cursor-pointer shrink-0"
+                      title={language === "bn" ? "ডিলিট করুন" : "Delete category"}
+                    >
+                      <Trash2 className="w-2.5 h-2.5" />
+                    </button>
+                  </div>
                 )}
               </div>
             ))}
@@ -779,6 +843,112 @@ export default function CustomSpaceNotes({ language }: CustomSpaceNotesProps) {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Category Action Modal (Delete / Rename) */}
+      {catAction.type !== null && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-md animate-fade-in">
+          <div className="w-full max-w-md bg-slate-900 border border-slate-800 rounded-3xl p-6 shadow-2xl space-y-4">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-850">
+              <h3 className="text-sm font-black text-slate-200 uppercase tracking-wider flex items-center gap-2">
+                {catAction.type === "rename" ? (
+                  <>
+                    <Edit2 className="w-4 h-4 text-indigo-400" />
+                    <span>{language === "bn" ? "ক্যাটাগরি সম্পাদনা" : "Rename Category"}</span>
+                  </>
+                ) : (
+                  <>
+                    <Trash2 className="w-4 h-4 text-rose-500" />
+                    <span>{language === "bn" ? "ক্যাটাগরি ডিলিট" : "Delete Category"}</span>
+                  </>
+                )}
+              </h3>
+              <button
+                type="button"
+                onClick={() => setCatAction({ type: null, catName: "" })}
+                className="p-1.5 rounded-xl bg-slate-850/60 text-slate-400 hover:text-slate-200 hover:bg-slate-800 transition-all cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {catAction.type === "rename" ? (
+              <div className="space-y-4">
+                <p className="text-xs text-slate-400">
+                  {language === "bn"
+                    ? `"${catAction.catName}" ক্যাটাগরির জন্য একটি নতুন নাম লিখুন:`
+                    : `Enter a new name for the category "${catAction.catName}":`}
+                </p>
+                <input
+                  type="text"
+                  value={catAction.inputValue || ""}
+                  onChange={(e) =>
+                    setCatAction((prev) => ({ ...prev, inputValue: e.target.value }))
+                  }
+                  className="w-full bg-slate-950 border border-slate-850 rounded-xl px-4 py-2.5 text-xs text-slate-200 outline-none focus:border-indigo-500 font-sans"
+                  placeholder={language === "bn" ? "যেমন: বেড বাগস" : "e.g. Bed Bugs"}
+                  autoFocus
+                />
+                
+                {/* Check if exists error */}
+                {catAction.inputValue && 
+                 catAction.inputValue.trim().toLowerCase() !== catAction.catName.toLowerCase() &&
+                 ["all", "ants", "drain flies", "rats", "rodents", "custom", ...customCategories.map(c => c.toLowerCase())].includes(catAction.inputValue.trim().toLowerCase()) && (
+                  <p className="text-xs text-rose-500 font-medium">
+                    {language === "bn" ? "এই ক্যাটাগরি ইতিমধ্যে বিদ্যমান!" : "This category already exists!"}
+                  </p>
+                )}
+
+                <div className="flex justify-end gap-2 pt-2">
+                  <button
+                    type="button"
+                    onClick={() => setCatAction({ type: null, catName: "" })}
+                    className="px-4 py-2 bg-slate-800 hover:bg-slate-750 text-slate-300 text-xs font-bold rounded-xl border border-slate-700/80 transition-all cursor-pointer"
+                  >
+                    {language === "bn" ? "বাতিল" : "Cancel"}
+                  </button>
+                  <button
+                    type="button"
+                    disabled={
+                      !catAction.inputValue?.trim() ||
+                      (catAction.inputValue.trim().toLowerCase() !== catAction.catName.toLowerCase() &&
+                       ["all", "ants", "drain flies", "rats", "rodents", "custom", ...customCategories.map(c => c.toLowerCase())].includes(catAction.inputValue.trim().toLowerCase()))
+                    }
+                    onClick={() => executeRenameCategory(catAction.catName, catAction.inputValue || "")}
+                    className="px-5 py-2 bg-gradient-to-r from-indigo-600 to-blue-600 hover:from-indigo-500 hover:to-blue-500 disabled:opacity-50 disabled:cursor-not-allowed text-white text-xs font-black uppercase rounded-xl transition-all cursor-pointer shadow-lg shadow-indigo-500/20"
+                  >
+                    {language === "bn" ? "সংরক্ষণ" : "Save Changes"}
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                <p className="text-xs text-slate-400 leading-relaxed">
+                  {language === "bn"
+                    ? `আপনি কি নিশ্চিত যে আপনি "${catAction.catName}" ক্যাটাগরি ডিলিট করতে চান? এই ক্যাটাগরির সকল নোট "Custom" ক্যাটাগরিতে স্থানান্তরিত হবে।`
+                    : `Are you sure you want to delete the category "${catAction.catName}"? Any notes under this category will be re-assigned to "Custom".`}
+                </p>
+
+                <div className="flex justify-end gap-2 pt-2">
+                  <button
+                    type="button"
+                    onClick={() => setCatAction({ type: null, catName: "" })}
+                    className="px-4 py-2 bg-slate-800 hover:bg-slate-750 text-slate-300 text-xs font-bold rounded-xl border border-slate-700/80 transition-all cursor-pointer"
+                  >
+                    {language === "bn" ? "বাতিল" : "Cancel"}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => executeDeleteCategory(catAction.catName)}
+                    className="px-5 py-2 bg-rose-600 hover:bg-rose-500 text-white text-xs font-black uppercase rounded-xl transition-all cursor-pointer shadow-lg shadow-rose-500/20"
+                  >
+                    {language === "bn" ? "ডিলিট করুন" : "Delete Category"}
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       )}

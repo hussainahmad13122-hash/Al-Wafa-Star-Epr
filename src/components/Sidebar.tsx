@@ -23,7 +23,7 @@ import {
   Layers,
   Activity
 } from "lucide-react";
-import { AppLanguage, UserRole } from "../types";
+import { AppLanguage, UserRole, getCurrentUserPermissions } from "../types";
 import AlWafaLogo from "./AlWafaLogo";
 
 interface SidebarProps {
@@ -94,23 +94,25 @@ export default function Sidebar({
   // Restrict tabs based on roles
   const filteredMenuItems = menuItems.filter(item => {
     const userRole = loggedInUser?.role || "Admin";
-    if (userRole === "Visitor") {
-      // Visitor: can NOT edit anything, cannot open master form, AI Expert (expensive Gemini calls), Team management, or admin settings
-      return item.id !== "admin_settings" && item.id !== "master_form" && item.id !== "technicians" && item.id !== "ai_pest";
-    }
-    if (userRole === "Moderator") {
-      // Moderator has access to view/edit but NOT configure settings
-      return item.id !== "admin_settings";
-    }
+    if (item.id === "admin_settings") return userRole === "Admin";
+    
+    if (userRole === "Admin") return true;
 
-    if (role === "Guest Admin") {
-      // Guest can preview dashboard, locations, directory, inventory
-      return item.id !== "master_form" && item.id !== "technicians" && item.id !== "ai_pest" && item.id !== "admin_settings";
-    }
-    if (role === "Client Portal") {
-      // Client only views their dashboard analytics & history & locations
-      return item.id === "dashboard" || item.id === "client_portal" || item.id === "directory" || item.id === "locations" || item.id === "completed_registry" || item.id === "supervisors_directory" || item.id === "engineering_report";
-    }
+    const perms = getCurrentUserPermissions();
+    if (item.id === "dashboard") return perms.canViewDashboard;
+    if (item.id === "completed_registry") return perms.canViewCompletedRegistry;
+    if (item.id === "locations") return perms.canViewLocations;
+    if (item.id === "supervisors_directory") return perms.canViewSupervisors;
+    if (item.id === "directory") return perms.canViewDirectory;
+    if (item.id === "engineering_report") return perms.canViewEngineeringReport;
+    if (item.id === "master_form") return perms.canViewMasterForm;
+    if (item.id === "inventory") return perms.canViewInventory;
+    if (item.id === "technicians") return perms.canViewTechnicians;
+    if (item.id === "ai_pest") return perms.canViewAIPest;
+    if (item.id === "client_portal") return perms.canViewClientPortal;
+    if (item.id === "custom_option_1") return perms.canViewScheduler;
+    if (item.id === "custom_option_2" || item.id === "custom_option_3") return userRole === "Admin";
+
     return true;
   });
 

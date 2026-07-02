@@ -106,6 +106,129 @@ export interface AppUser {
   role: "Admin" | "Moderator" | "Visitor";
 }
 
+export interface LoginSession {
+  id: string; // Unique device/session ID
+  userId: string;
+  username: string;
+  role: string;
+  deviceInfo: string;
+  loginTime: string;
+  lastActive: string;
+}
+
+export interface RolePermissions {
+  canCreateReport: boolean;
+  canEditReport: boolean;
+  canDeleteReport: boolean;
+  canManageLocations: boolean;
+  canManageSupervisors: boolean;
+  canManageInventory: boolean;
+  canManageTechnicians: boolean;
+  canManageScheduler: boolean;
+  canManageEngineeringReport: boolean;
+  canViewDashboard: boolean;
+  canViewCompletedRegistry: boolean;
+  canViewLocations: boolean;
+  canViewSupervisors: boolean;
+  canViewDirectory: boolean;
+  canViewEngineeringReport: boolean;
+  canViewMasterForm: boolean;
+  canViewInventory: boolean;
+  canViewTechnicians: boolean;
+  canViewAIPest: boolean;
+  canViewClientPortal: boolean;
+  canViewScheduler: boolean;
+}
+
+export const DEFAULT_ROLE_PERMISSIONS: Record<string, RolePermissions> = {
+  Admin: {
+    canCreateReport: true,
+    canEditReport: true,
+    canDeleteReport: true,
+    canManageLocations: true,
+    canManageSupervisors: true,
+    canManageInventory: true,
+    canManageTechnicians: true,
+    canManageScheduler: true,
+    canManageEngineeringReport: true,
+    canViewDashboard: true,
+    canViewCompletedRegistry: true,
+    canViewLocations: true,
+    canViewSupervisors: true,
+    canViewDirectory: true,
+    canViewEngineeringReport: true,
+    canViewMasterForm: true,
+    canViewInventory: true,
+    canViewTechnicians: true,
+    canViewAIPest: true,
+    canViewClientPortal: true,
+    canViewScheduler: true,
+  },
+  Moderator: {
+    canCreateReport: true,
+    canEditReport: true,
+    canDeleteReport: false,
+    canManageLocations: false,
+    canManageSupervisors: false,
+    canManageInventory: true,
+    canManageTechnicians: true,
+    canManageScheduler: true,
+    canManageEngineeringReport: true,
+    canViewDashboard: true,
+    canViewCompletedRegistry: true,
+    canViewLocations: true,
+    canViewSupervisors: true,
+    canViewDirectory: true,
+    canViewEngineeringReport: true,
+    canViewMasterForm: true,
+    canViewInventory: true,
+    canViewTechnicians: true,
+    canViewAIPest: true,
+    canViewClientPortal: true,
+    canViewScheduler: true,
+  },
+  Visitor: {
+    canCreateReport: false,
+    canEditReport: false,
+    canDeleteReport: false,
+    canManageLocations: false,
+    canManageSupervisors: false,
+    canManageInventory: false,
+    canManageTechnicians: false,
+    canManageScheduler: false,
+    canManageEngineeringReport: false,
+    canViewDashboard: true,
+    canViewCompletedRegistry: true,
+    canViewLocations: true,
+    canViewSupervisors: true,
+    canViewDirectory: true,
+    canViewEngineeringReport: true,
+    canViewMasterForm: true,
+    canViewInventory: true,
+    canViewTechnicians: true,
+    canViewAIPest: true,
+    canViewClientPortal: true,
+    canViewScheduler: true,
+  }
+};
+
+export function getCurrentUserPermissions(): RolePermissions {
+  const loggedInUserStrRaw = localStorage.getItem("ALW_STAR_LOGGED_IN_USER") || sessionStorage.getItem("ALW_STAR_LOGGED_IN_USER") || localStorage.getItem("ALW_LOGGED_IN_USER_V2");
+  let loggedInUser = null;
+  if (loggedInUserStrRaw) {
+    try { loggedInUser = JSON.parse(loggedInUserStrRaw); } catch (e) {}
+  }
+  
+  const storedPermsRaw = localStorage.getItem("ALW_ROLE_PERMISSIONS");
+  let rolePermissions = DEFAULT_ROLE_PERMISSIONS;
+  if (storedPermsRaw) {
+    try { rolePermissions = JSON.parse(storedPermsRaw); } catch (e) {}
+  }
+  
+  const role = loggedInUser?.role || "Visitor";
+  return rolePermissions[role] || DEFAULT_ROLE_PERMISSIONS[role] || DEFAULT_ROLE_PERMISSIONS.Visitor;
+}
+
 export type UserRole = "Super Admin" | "Admin / Manager" | "Guest Admin" | "Client Portal" | "Moderator" | "Visitor" | "Admin";
 
 export const DICTIONARY: Record<AppLanguage, Record<string, string>> = {

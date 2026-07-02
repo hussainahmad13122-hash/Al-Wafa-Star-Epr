@@ -30,6 +30,7 @@ import {
   ReportItem,
   STANDARD_FACILITIES,
   EMIRATE_MAPPING_FACILITIES,
+  getCurrentUserPermissions
 } from "../types";
 import {
   getStoreValue,
@@ -1513,7 +1514,7 @@ export default function ClientDirectory({
       loggedInUser = JSON.parse(loggedInUserStrRaw);
     } catch(err) {}
   }
-  const isVisitor = loggedInUser?.role === "Visitor";
+  const isVisitor = !getCurrentUserPermissions().canEditReport;
 
   const [search, setSearch] = useState("");
   const [selectedEmirate, setSelectedEmirate] = useState<string>("ALL");

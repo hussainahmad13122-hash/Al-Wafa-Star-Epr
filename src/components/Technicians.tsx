@@ -32,6 +32,7 @@ import {
   SupervisorRegistryItem,
   ReportItem,
   EMIRATE_MAPPING_FACILITIES,
+  getCurrentUserPermissions,
 } from "../types";
 import { getStoreValue, saveStoreValue, subscribeStoreValue } from "../localDatabase";
 
@@ -98,7 +99,7 @@ export default function Technicians({
       loggedInUser = JSON.parse(loggedInUserStrRaw);
     } catch(err) {}
   }
-  const isVisitor = loggedInUser?.role === "Visitor";
+  const isVisitor = !getCurrentUserPermissions().canManageTechnicians;
   
   const isBengali = language === "bn";
 

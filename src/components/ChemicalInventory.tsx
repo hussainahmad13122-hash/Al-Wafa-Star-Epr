@@ -27,7 +27,7 @@ import {
   Save,
   FolderOpen
 } from "lucide-react";
-import { ChemicalRef } from "../types";
+import { ChemicalRef, getCurrentUserPermissions } from "../types";
 import { getDocuments, saveDocument, deleteDocument, getStoreValue, saveStoreValue, subscribeCollection, subscribeStoreValue } from "../localDatabase";
 import { printHTMLContent } from "./ClientDirectory";
 
@@ -453,7 +453,7 @@ export default function ChemicalInventory({ language, themeMode = "dark" }: Chem
       loggedInUser = JSON.parse(loggedInUserStrRaw);
     } catch(e) {}
   }
-  const isVisitor = loggedInUser?.role === "Visitor";
+  const isVisitor = !getCurrentUserPermissions().canManageInventory;
 
   // Helper to get formatted month/year (bilingual)
   const getMonthYearString = (dateStr: string) => {

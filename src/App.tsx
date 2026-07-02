@@ -44,7 +44,11 @@ import {
   AppUser,
   LocationRegistryItem,
   SupervisorRegistryItem,
+  RolePermissions,
+  DEFAULT_ROLE_PERMISSIONS,
+  getCurrentUserPermissions,
 } from "./types";
+import { registerSession, updateSessionActivity, removeCurrentSession } from "./sessionTracker";
 import { INITIAL_SUPERVISORS_REGISTRY } from "./initialSupervisors";
 import {
   getDocuments,
@@ -55,6 +59,7 @@ import {
   saveBrandingData,
   subscribeCollection,
   subscribeBrandingData,
+  subscribeStoreValue,
 } from "./localDatabase";
 
 export default function App() {
@@ -329,11 +334,64 @@ export default function App() {
     return null;
   });
 
+  const [rolePermissions, setRolePermissions] = useState<Record<string, RolePermissions>>(() => {
+    const stored = localStorage.getItem("ALW_ROLE_PERMISSIONS");
+    if (stored) {
+      try {
+        return JSON.parse(stored);
+      } catch (e) {}
+    }
+    return DEFAULT_ROLE_PERMISSIONS;
+  });
+
+  useEffect(() => {
+    const unsubscribe = subscribeStoreValue<Record<string, RolePermissions>>("rolePermissions", DEFAULT_ROLE_PERMISSIONS, (perms) => {
+      setRolePermissions(perms);
+      localStorage.setItem("ALW_ROLE_PERMISSIONS", JSON.stringify(perms));
+    });
+    return () => unsubscribe();
+  }, []);
+
   const isAuthenticated = currentUser !== null;
+  const currentUserPermissions = currentUser ? rolePermissions[currentUser.role] || DEFAULT_ROLE_PERMISSIONS[currentUser.role] || DEFAULT_ROLE_PERMISSIONS.Visitor : DEFAULT_ROLE_PERMISSIONS.Visitor;
 
   // Navigation & Shell variables
   const [currentTab, rawSetTab] = useState<string>("dashboard");
   const [editingReport, setEditingReport] = useState<ReportItem | null>(null);
+
+  useEffect(() => {
+    if (!isAuthenticated) return;
+    
+    // Auto-fallback if tab is not permitted
+    const perms = getCurrentUserPermissions();
+    let isAllowed = true;
+    switch (currentTab) {
+      case "dashboard": isAllowed = perms.canViewDashboard; break;
+      case "completed_registry": isAllowed = perms.canViewCompletedRegistry; break;
+      case "locations": isAllowed = perms.canViewLocations; break;
+      case "supervisors_directory": isAllowed = perms.canViewSupervisors; break;
+      case "directory": isAllowed = perms.canViewDirectory; break;
+      case "engineering_report": isAllowed = perms.canViewEngineeringReport; break;
+      case "master_form": isAllowed = perms.canViewMasterForm; break;
+      case "inventory": isAllowed = perms.canViewInventory; break;
+      case "technicians": isAllowed = perms.canViewTechnicians; break;
+      case "ai_pest": isAllowed = perms.canViewAIPest; break;
+      case "client_portal": isAllowed = perms.canViewClientPortal; break;
+      case "custom_option_1": isAllowed = perms.canViewScheduler; break;
+      case "custom_option_2":
+      case "custom_option_3": 
+      case "admin_settings":
+        isAllowed = currentUser?.role === "Admin";
+        break;
+      default: isAllowed = true;
+    }
+
+    if (!isAllowed) {
+      if (perms.canViewDashboard) rawSetTab("dashboard");
+      else if (perms.canViewCompletedRegistry) rawSetTab("completed_registry");
+      else rawSetTab("locations"); // fallback
+    }
+  }, [currentTab, isAuthenticated, currentUser, rolePermissions]);
 
   const setTab = (tab: string) => {
     if (tab !== "master_form") {
@@ -597,6 +655,8 @@ export default function App() {
       document.removeEventListener("mousedown", handleOutsideClick);
     };
   }, []);
+
+
 
   // Display mode full screen layout state
   const [isFullscreenLayout, setIsFullscreenLayout] = useState<boolean>(() => {
@@ -907,7 +967,7 @@ export default function App() {
 
   // Update localStorage and server reports in the background
   const saveReports = (newReports: ReportItem[]) => {
-    if (currentUser?.role === "Visitor") {
+    if (!getCurrentUserPermissions().canEditReport) {
       alert("ভিজিটর মোডে এই কাজ করার অনুমতি নেই!");
       return;
     }
@@ -951,7 +1011,7 @@ export default function App() {
   };
 
   const handleAddReport = async (newReport: ReportItem) => {
-    if (currentUser?.role === "Visitor") {
+    if (!getCurrentUserPermissions().canCreateReport) {
       alert("ভিজিটর মোডে এই কাজ করার অনুমতি নেই!");
       return;
     }
@@ -978,7 +1038,7 @@ export default function App() {
   };
 
   const handleUpdateReport = async (updatedReport: ReportItem) => {
-    if (currentUser?.role === "Visitor") {
+    if (!getCurrentUserPermissions().canEditReport) {
       alert("ভিজিটর মোডে এই কাজ করার অনুমতি নেই!");
       return;
     }
@@ -1002,7 +1062,7 @@ export default function App() {
   };
 
   const handleDeleteReport = async (id: string) => {
-    if (currentUser?.role === "Visitor") {
+    if (!getCurrentUserPermissions().canDeleteReport) {
       alert("ভিজিটর মোডে এই কাজ করার অনুমতি নেই!");
       return;
     }
@@ -1049,12 +1109,44 @@ export default function App() {
   };
 
   const handleLogout = () => {
+    removeCurrentSession();
     setCurrentUser(null);
     localStorage.removeItem("ALW_STAR_LOGGED_IN_USER");
     sessionStorage.removeItem("ALW_STAR_LOGGED_IN_USER");
     localStorage.removeItem("ALW_STAR_AUTH_SESSION");
     sessionStorage.removeItem("ALW_STAR_AUTH_SESSION");
   };
+
+  useEffect(() => {
+    if (currentUser) {
+      registerSession(currentUser);
+      
+      const checkAndLogout = () => {
+        const isValid = updateSessionActivity();
+        if (!isValid) {
+          handleLogout();
+        }
+      };
+
+      const interval = setInterval(checkAndLogout, 30000); // update every 30s
+      
+      let lastActivityCheck = Date.now();
+      const activityHandler = () => {
+        if (Date.now() - lastActivityCheck > 10000) { // Throttle active updates
+          lastActivityCheck = Date.now();
+          checkAndLogout();
+        }
+      };
+      window.addEventListener("mousemove", activityHandler, { passive: true });
+      window.addEventListener("keydown", activityHandler, { passive: true });
+      
+      return () => {
+        clearInterval(interval);
+        window.removeEventListener("mousemove", activityHandler);
+        window.removeEventListener("keydown", activityHandler);
+      };
+    }
+  }, [currentUser]);
 
   // Translation helpers
   const translations = DICTIONARY[language];
@@ -1350,6 +1442,7 @@ export default function App() {
             sessionStorage.setItem("ALW_STAR_LOGGED_IN_USER", userStr);
             sessionStorage.setItem("ALW_STAR_AUTH_SESSION", "true");
           }
+          registerSession(user);
         }}
         companyBrand={companyBrand}
         companySubtitle={companySubtitle}
@@ -1693,6 +1786,8 @@ export default function App() {
               role={role}
               setRole={setRole}
               loggedInUser={currentUser}
+              rolePermissions={rolePermissions}
+              setRolePermissions={setRolePermissions}
             />
           )}
         </main>

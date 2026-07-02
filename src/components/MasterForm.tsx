@@ -24,7 +24,7 @@ import {
   Droplet,
   ChevronDown
 } from "lucide-react";
-import { ReportItem, LocationRegistryItem, STANDARD_FACILITIES, EMIRATE_MAPPING_FACILITIES } from "../types";
+import { ReportItem, LocationRegistryItem, STANDARD_FACILITIES, EMIRATE_MAPPING_FACILITIES, getCurrentUserPermissions } from "../types";
 import { saveDocument } from "../localDatabase";
 import { generateReportHTML, printHTMLContent } from "./ClientDirectory";
 
@@ -1175,9 +1175,9 @@ export default function MasterForm({
         loggedInUser = JSON.parse(loggedInUserStrRaw);
       } catch(err) {}
     }
-    const isVisitor = loggedInUser?.role === "Visitor";
+    const hasPermission = !!editingReport ? getCurrentUserPermissions().canEditReport : getCurrentUserPermissions().canCreateReport;
 
-    if (isVisitor) {
+    if (!hasPermission) {
       triggerToast(language === "bn" ? "ভিজিটর মোডে রিপোর্ট যুক্ত/এডিট করার অনুমতি নেই!" : "Adding/editing reports is disabled in Visitor mode!", "error");
       return;
     }

@@ -26,7 +26,7 @@ import {
   Star,
   Sparkles,
 } from "lucide-react";
-import { LocationRegistryItem, SupervisorRegistryItem } from "../types";
+import { LocationRegistryItem, SupervisorRegistryItem, getCurrentUserPermissions } from "../types";
 import { saveDocument, deleteDocument } from "../localDatabase";
 
 interface SupervisorsRegistryProps {
@@ -74,7 +74,7 @@ export default function SupervisorsRegistry({
       loggedInUser = JSON.parse(loggedInUserStrRaw);
     } catch(err) {}
   }
-  const isVisitor = loggedInUser?.role === "Visitor";
+  const isVisitor = !getCurrentUserPermissions().canManageSupervisors;
 
   const triggerToast = (msg: string) => {
     setSaveStatus(msg);

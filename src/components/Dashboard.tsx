@@ -1,8 +1,8 @@
 import { useState } from "react";
 import { AlWafaBannerLogo } from "./AlWafaBannerLogo";
 import AlWafaLogo from "./AlWafaLogo";
-import { ReportItem, LocationRegistryItem, STANDARD_FACILITIES, SupervisorRegistryItem, EMIRATE_MAPPING_FACILITIES } from "../types";
-import { saveStoreValue } from "../localDatabase";
+import { ReportItem, LocationRegistryItem, STANDARD_FACILITIES, SupervisorRegistryItem, EMIRATE_MAPPING_FACILITIES, getCurrentUserPermissions } from "../types";
+import { saveStoreValue, deleteDocument } from "../localDatabase";
 import firebaseConfig from "../firebase-applet-config.json";
 import { 
   FileCheck2, 
@@ -34,7 +34,8 @@ import {
   Maximize,
   Minimize,
   Moon,
-  Sun
+  Sun,
+  Trash2
 } from "lucide-react";
 import { generateReportHTML, generateEngineeringHTML, printHTMLContent } from "./ClientDirectory";
 
@@ -313,21 +314,19 @@ export default function Dashboard({
       loggedInUser = JSON.parse(loggedInUserStrRaw);
     } catch(err) {}
   }
-  const isVisitor = loggedInUser?.role === "Visitor";
+  const isVisitor = !getCurrentUserPermissions().canEditReport;
   // Local UI States for search and filtering
   const [completedSearch, setCompletedSearch] = useState("");
   const [emirateFilter, setEmirateFilter] = useState("All");
   const [activeReportDetails, setActiveReportDetails] = useState<ReportItem | null>(null);
   const [simulatedPrint, setSimulatedPrint] = useState(false);
   const [activeFolder, setActiveFolder] = useState<"completed" | "partial" | "unstarted">("completed");
+  const [deletedCenters, setDeletedCenters] = useState<Set<string>>(new Set());
 
   // 1. Identify unique centers from the dynamic locations list in the Location Map
   const allCentersList = Array.from(new Set([
-    ...(locations || []).map(l => l.name),
-    ...STANDARD_FACILITIES,
-    ...Object.values(EMIRATE_MAPPING_FACILITIES).flat(),
-    ...reports.map(r => r.facilityName)
-  ])).filter(Boolean).sort();
+    ...(locations || []).map(l => l.name)
+  ])).filter(name => Boolean(name) && !deletedCenters.has(name)).sort();
 
   const totalCentersCount = allCentersList.length;
 
@@ -450,6 +449,9 @@ export default function Dashboard({
   // 2. Completed checks (Only show current running month's reports to archive past months):
   // A facility is completed if we have at least one successfully submitted report with Completed status
   const completedReports = reports.filter(r => {
+    // Only count centers that are actually present in the valid locations list
+    if (!allCentersList.includes(r.facilityName)) return false;
+
     const isCompleted = r.workStatus === "Completed" || !r.workStatus;
     if (!isCompleted) return false;
 
@@ -476,11 +478,32 @@ export default function Dashboard({
 
   // Partially Completed checks:
   // A facility is partially completed if its work status shows progress or is designated Partial
-  const partiallyCompletedReports = reports.filter(r => 
-    r.workStatus === "Partially Completed" || 
-    r.workStatus === "In Progress" || 
-    r.workStatus === "Follow-Up Required"
-  );
+  const partiallyCompletedReports = reports.filter(r => {
+    // Only count centers that are actually present in the valid locations list
+    if (!allCentersList.includes(r.facilityName)) return false;
+
+    const isPartialStatus = r.workStatus === "Partially Completed" || 
+                            r.workStatus === "In Progress" || 
+                            r.workStatus === "Follow-Up Required";
+    
+    if (!isPartialStatus) return false;
+
+    if (!r.dateOfOperation) return true;
+    try {
+      const match = r.dateOfOperation.trim().match(/^(\d{4})-(\d{2})-\d{2}/);
+      const now = new Date();
+      if (match) {
+        const year = parseInt(match[1], 10);
+        const month = parseInt(match[2], 10) - 1; // 0-indexed
+        return year === now.getFullYear() && month === now.getMonth();
+      }
+      const parsedDate = new Date(r.dateOfOperation);
+      if (isNaN(parsedDate.getTime())) return true;
+      return parsedDate.getFullYear() === now.getFullYear() && parsedDate.getMonth() === now.getMonth();
+    } catch (e) {
+      return true;
+    }
+  });
   
   // Filter out any that actually have a "Completed" status in another report (to avoid duplicates)
   const filteredPartiallyCompletedReports = partiallyCompletedReports.filter(r => 
@@ -567,6 +590,18 @@ export default function Dashboard({
       );
       onUpdateReports(updated);
       setEditingPartialReportId(null);
+    }
+  };
+
+  const handleDeleteCenter = async (facilityName: string) => {
+    if (isVisitor) { alert(language === "bn" ? "ভিজিটর মোডে এই কাজ করার অনুমতি নেই!" : "Read-only mode"); return; }
+    
+    if (window.confirm(language === "bn" ? "আপনি কি নিশ্চিত যে এই লোকেশনটি মুছে ফেলতে চান?" : "Are you sure you want to delete this location?")) {
+      const loc = locations?.find(l => l.name === facilityName);
+      if (loc) {
+        await deleteDocument("locations", loc.id);
+      }
+      setDeletedCenters(prev => new Set(prev).add(facilityName));
     }
   };
 
@@ -788,6 +823,7 @@ export default function Dashboard({
 
   return (
     <div className="space-y-6">
+
       {/* Top Control Bar & Action */}
       <div className="flex flex-col sm:flex-row justify-between w-full animate-fadeIn items-center gap-4 bg-[#1e293b]/50 p-3 rounded-2xl border border-slate-700/50 backdrop-blur-md shadow-lg">
         
@@ -1309,6 +1345,14 @@ export default function Dashboard({
                             className="px-3 py-1.5 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black rounded-lg text-[10.5px] inline-flex items-center gap-1.5 cursor-pointer transition active:scale-95 shadow-xs"
                           >
                             ⚡ <span>{language === "bn" ? "সম্পূর্ণ করুন" : "Complete"}</span>
+                          </button>
+
+                          <button
+                            onClick={() => handleDeleteCenter(facilityName)}
+                            className="px-3 py-1.5 bg-red-50 hover:bg-red-100 text-red-600 font-extrabold rounded-lg text-[10.5px] inline-flex items-center gap-1 border border-red-200 cursor-pointer transition active:scale-95 shadow-xs"
+                            title={language === "bn" ? "ডিলিট করুন" : "Delete Center"}
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
                           </button>
                         </div>
                       </td>
