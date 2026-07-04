@@ -446,30 +446,14 @@ export default function Dashboard({
     }
   };
 
-  // 2. Completed checks (Only show current running month's reports to archive past months):
+  // 2. Completed checks (Show all completed reports chronologically to avoid auto-deletion/filtering):
   // A facility is completed if we have at least one successfully submitted report with Completed status
   const completedReports = reports.filter(r => {
     // Only count centers that are actually present in the valid locations list
     if (!allCentersList.includes(r.facilityName)) return false;
 
     const isCompleted = r.workStatus === "Completed" || !r.workStatus;
-    if (!isCompleted) return false;
-
-    if (!r.dateOfOperation) return true;
-    try {
-      const match = r.dateOfOperation.trim().match(/^(\d{4})-(\d{2})-\d{2}/);
-      const now = new Date();
-      if (match) {
-        const year = parseInt(match[1], 10);
-        const month = parseInt(match[2], 10) - 1; // 0-indexed
-        return year === now.getFullYear() && month === now.getMonth();
-      }
-      const parsedDate = new Date(r.dateOfOperation);
-      if (isNaN(parsedDate.getTime())) return true;
-      return parsedDate.getFullYear() === now.getFullYear() && parsedDate.getMonth() === now.getMonth();
-    } catch (e) {
-      return true;
-    }
+    return isCompleted;
   });
   const completedCount = completedReports.length;
 
@@ -486,23 +470,7 @@ export default function Dashboard({
                             r.workStatus === "In Progress" || 
                             r.workStatus === "Follow-Up Required";
     
-    if (!isPartialStatus) return false;
-
-    if (!r.dateOfOperation) return true;
-    try {
-      const match = r.dateOfOperation.trim().match(/^(\d{4})-(\d{2})-\d{2}/);
-      const now = new Date();
-      if (match) {
-        const year = parseInt(match[1], 10);
-        const month = parseInt(match[2], 10) - 1; // 0-indexed
-        return year === now.getFullYear() && month === now.getMonth();
-      }
-      const parsedDate = new Date(r.dateOfOperation);
-      if (isNaN(parsedDate.getTime())) return true;
-      return parsedDate.getFullYear() === now.getFullYear() && parsedDate.getMonth() === now.getMonth();
-    } catch (e) {
-      return true;
-    }
+    return isPartialStatus;
   });
   
   // Filter out any that actually have a "Completed" status in another report (to avoid duplicates)
@@ -811,14 +779,20 @@ export default function Dashboard({
     }, 500);
   };
 
-  // Filter completed items
-  const filteredCompletedReports = completedReports.filter(r => {
-    const matchesSearch = r.facilityName?.toLowerCase().includes(completedSearch.toLowerCase()) || 
-                          r.ticketNo?.toLowerCase().includes(completedSearch.toLowerCase()) ||
-                          r.id?.toLowerCase().includes(completedSearch.toLowerCase());
-    const matchesEmirate = emirateFilter === "All" || r.emirate === emirateFilter;
-    return matchesSearch && matchesEmirate;
-  });
+  // Filter completed items and sort chronologically ascending
+  const filteredCompletedReports = completedReports
+    .filter(r => {
+      const matchesSearch = r.facilityName?.toLowerCase().includes(completedSearch.toLowerCase()) || 
+                            r.ticketNo?.toLowerCase().includes(completedSearch.toLowerCase()) ||
+                            r.id?.toLowerCase().includes(completedSearch.toLowerCase());
+      const matchesEmirate = emirateFilter === "All" || r.emirate === emirateFilter;
+      return matchesSearch && matchesEmirate;
+    })
+    .sort((a, b) => {
+      const dateA = a.dateOfOperation || "";
+      const dateB = b.dateOfOperation || "";
+      return dateA.localeCompare(dateB);
+    });
 
 
   return (
@@ -1086,8 +1060,8 @@ export default function Dashboard({
                           <td className={`py-3 px-4 font-mono text-[10.5px] font-bold ${themeMode === "dark" ? "text-slate-400" : "text-slate-550"}`}>
                             {report.id}
                           </td>
-                          <td className={`py-3 px-4 ${themeMode === "dark" ? "text-slate-100" : "text-slate-900"}`}>
-                            <span className="font-extrabold text-[12px] block">{report.facilityName}</span>
+                          <td className="py-3 px-4">
+                            <span className={`font-black text-[13.5px] block ${themeMode === "dark" ? "text-white font-extrabold" : "text-slate-850"}`}>{report.facilityName}</span>
                             <span className={`text-[10px] block ${themeMode === "dark" ? "text-slate-400" : "text-slate-400"}`}>{report.emirate} • {formatFacilityType(report.facilityType, language)}</span>
                           </td>
                           <td className="py-3 px-4">
@@ -1103,7 +1077,7 @@ export default function Dashboard({
                               </span>
                             ) : (
                               <div className="space-y-0.5">
-                                <span className={`font-extrabold text-[11px] px-2 py-0.5 rounded border inline-block font-mono ${themeMode === "dark" ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/20" : "bg-emerald-50 text-emerald-700 border-emerald-100"}`}>
+                                <span className={`font-extrabold text-[11px] px-2 py-0.5 rounded border inline-block font-mono ${themeMode === "dark" ? "bg-emerald-550/10 text-emerald-400 border-emerald-500/20" : "bg-emerald-50 text-emerald-700 border-emerald-100"}`}>
                                   {report.billing?.amount} AED
                                 </span>
                                 <span className={`text-[9px] block font-bold uppercase pl-1 ${themeMode === "dark" ? "text-slate-500" : "text-slate-400"}`}>
@@ -1133,13 +1107,17 @@ export default function Dashboard({
         {/* ================= SLOT 2: PARTIALLY COMPLETED SERVICES (অর্ধেক সম্পন্ন কাজ) ================= */}
         {activeFolder === "partial" && (
           <div id="partially-completed-slot-card" className="animate-fadeIn">
-            <div className="p-5 md:p-6 bg-gradient-to-r from-amber-500/10 via-amber-200/5 to-transparent border-b border-amber-100 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+            <div className={`p-5 md:p-6 border-b flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 ${
+              themeMode === "dark"
+                ? "bg-slate-800/80 border-slate-700"
+                : "bg-gradient-to-r from-amber-500/10 via-amber-200/5 to-transparent border-amber-100"
+            }`}>
               <div>
-                <h2 className="text-base font-black text-slate-900 flex items-center gap-2">
+                <h2 className={`text-base font-black flex items-center gap-2 ${themeMode === "dark" ? "text-slate-100" : "text-slate-900"}`}>
                   <Clock className="w-5 h-5 text-amber-500" />
                   <span>{language === "bn" ? "কিছুটা বাদ আছে" : "Partially Completed Services & Remaining Logs"}</span>
                 </h2>
-                <p className="text-[11px] text-slate-500 font-medium">
+                <p className={`text-[11px] font-medium ${themeMode === "dark" ? "text-slate-400" : "text-slate-500"}`}>
                   {language === "bn" ? "যেসব সেন্টারের কাজ আংশিক সম্পন্ন হয়েছে এবং কিছু কাজ এখনও বাকি আছে। যেকোনো কার্ডে ট্যাপ করে নিজের ইচ্ছা মত পরিবর্তন করুন।" : "Listed facilities where service was partially done with pending tasks. Tap directly on any item to write or edit completed/leftover notes."}
                 </p>
               </div>
@@ -1150,7 +1128,7 @@ export default function Dashboard({
               {filteredPartiallyCompletedReports.length === 0 ? (
                 <div className={`p-12 text-center text-slate-400 space-y-2 border border-dashed rounded-xl ${themeMode === "dark" ? "border-slate-700 bg-slate-800/80" : "border-slate-200 bg-white"}`}>
                   <span className="text-3xl block">📋</span>
-                  <p className="text-xs font-bold text-slate-500">
+                  <p className={`text-xs font-bold ${themeMode === "dark" ? "text-slate-300" : "text-slate-500"}`}>
                     {language === "bn" ? "বর্তমানে কোনো আংশিক সম্পন্ন হওয়া কাজের রেকর্ড নেই!" : "No partially completed service records logged currently."}
                   </p>
                   <p className="text-[10px] text-slate-400">
@@ -1160,7 +1138,11 @@ export default function Dashboard({
               ) : (
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   {filteredPartiallyCompletedReports.map((report, idx) => {
-                    const defaultNotes = `✓ কি কি কাজ সম্পন্ন করা হয়েছে:\n- কাজ শুরু করা হয়েছে।\n\n⚠ কি কি কাজ বাকি রয়েছে:\n- কিছু নির্দিষ্ট স্থান ও বাথরুম প্রুফিং বাকি রয়ে গেছে।`;
+                    const defaultNotes = `✓ কি কি কাজ সম্পন্ন করা হয়েছে:
+- কাজ শুরু করা হয়েছে।
+
+⚠ কি কি কাজ বাকি রয়েছে:
+- কিছু নির্দিষ্ট স্থান ও বাথরুম প্রুফিং বাকি রয়ে গেছে।`;
                     const notesToDisplay = report.partialNotes || defaultNotes;
                     return (
                       <div 
@@ -1180,9 +1162,9 @@ export default function Dashboard({
 
                         <div className="space-y-3">
                           <div>
-                            <h3 className={`text-xs font-sans font-extrabold group-hover:text-amber-500 transition-colors flex items-center gap-1.5 ${themeMode === "dark" ? "text-slate-100" : "text-[#1E293B]"}`}>
+                            <h3 className="text-xs font-sans font-extrabold transition-colors flex items-center gap-1.5">
                               <Building className="w-4 h-4 text-amber-500" />
-                              <span>{report.facilityName}</span>
+                              <span className={`font-black text-[13.5px] ${themeMode === "dark" ? "text-white" : "text-slate-850"}`}>{report.facilityName}</span>
                             </h3>
                             <p className="text-[10px] text-slate-400 font-mono font-bold mt-0.5">
                               TICKET: {report.ticketNo || "N/A"} • ID: {report.id}
@@ -1201,8 +1183,8 @@ export default function Dashboard({
                           </div>
                         </div>
 
-                        <div className="mt-4 pt-3.5 border-t border-slate-100 flex items-center justify-between gap-2">
-                          <div className="text-[10px] text-slate-500 flex items-center gap-1 font-bold">
+                        <div className={`mt-4 pt-3.5 border-t flex items-center justify-between gap-2 ${themeMode === "dark" ? "border-slate-700" : "border-slate-100"}`}>
+                          <div className={`text-[10px] flex items-center gap-1 font-bold ${themeMode === "dark" ? "text-slate-400" : "text-slate-500"}`}>
                             <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse" />
                             <span>Date: {report.dateOfOperation}</span>
                           </div>
@@ -1216,9 +1198,13 @@ export default function Dashboard({
                                 setEditingPartialReportId(report.id);
                                 setEditingNotesText(notesToDisplay);
                               }}
-                              className="px-2.5 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-705 rounded-lg text-[10px] font-black border border-slate-200 inline-flex items-center gap-1 transition active:scale-95"
+                              className={`px-2.5 py-1.5 rounded-lg text-[10px] font-black inline-flex items-center gap-1 transition active:scale-95 border ${
+                                themeMode === "dark"
+                                  ? "bg-slate-900 hover:bg-slate-850 text-slate-300 border-slate-700"
+                                  : "bg-slate-100 hover:bg-slate-200 text-slate-705 border-slate-200"
+                              }`}
                             >
-                              <Edit3 className="w-3 h-3 text-slate-550" />
+                              <Edit3 className="w-3 h-3 text-slate-550 dark:text-slate-400" />
                               <span>{language === "bn" ? "সংশোধন" : "Edit Notes"}</span>
                             </button>
 
@@ -1229,7 +1215,11 @@ export default function Dashboard({
                                 e.stopPropagation();
                                 handleMarkAsFullyCompleted(report.id);
                               }}
-                              className="px-2.5 py-1.5 bg-emerald-500 hover:bg-emerald-450 text-slate-950 rounded-lg text-[10px] font-black inline-flex items-center gap-1 shadow-sm transition active:scale-95"
+                              className={`px-2.5 py-1.5 rounded-lg text-[10px] font-black inline-flex items-center gap-1 shadow-sm transition active:scale-95 ${
+                                themeMode === "dark"
+                                  ? "bg-emerald-550 hover:bg-emerald-500 text-slate-950"
+                                  : "bg-emerald-500 hover:bg-emerald-450 text-slate-950"
+                              }`}
                             >
                               <CheckCircle2 className="w-3 h-3 text-slate-950" />
                               <span>{language === "bn" ? "কাজ শেষ করুন" : "Finish Job"}</span>
@@ -1248,12 +1238,20 @@ export default function Dashboard({
         {/* ================= SLOT 3: NOT COMPLETED PENDING TRACKER ================= */}
         {activeFolder === "unstarted" && (
           <div className="animate-fadeIn">
-            <div className="p-5 md:p-6 bg-gradient-to-r from-amber-5/50 to-orange-50/20 border-b border-slate-200">
-              <h2 className="text-base font-black text-slate-900 flex items-center gap-2">
+            <div className={`p-5 md:p-6 border-b ${
+              themeMode === "dark"
+                ? "bg-slate-800/80 border-slate-700"
+                : "bg-gradient-to-r from-amber-5/50 to-orange-50/20 border-slate-200"
+            }`}>
+              <h2 className={`text-base font-black flex items-center gap-2 ${
+                themeMode === "dark" ? "text-slate-100" : "text-slate-900"
+              }`}>
                 <AlertOctagon className="w-5 h-5 text-rose-500 animate-pulse" />
                 <span>{language === "bn" ? "এখনো কোন কিছুই করা হয়নি" : "Not Completed / Pending Scheduled Operations"}</span>
               </h2>
-              <p className="text-[11px] text-slate-500 font-medium">
+              <p className={`text-[11px] font-medium ${
+                themeMode === "dark" ? "text-slate-400" : "text-slate-500"
+              }`}>
                 {language === "bn" ? "নিচে আপনার আন্ডারে থাকা যে হসপিটালগুলোর কাজ এখনো চালু বা কোনো সার্ভিস প্রদান করা হয়নি তাদের তালিকা।" : "Active list of clinical accounts awaiting monthly operations cycle with physical countdown metrics."}
               </p>
             </div>
@@ -1282,21 +1280,25 @@ export default function Dashboard({
                       const { dueDateStr, diffDays } = getDeterministicDueDateAndDiff(facilityName);
 
                       return (
-                        <tr key={facilityName} className="hover:bg-slate-50/50 transition-colors">
-                          <td className="py-3.5 px-4 text-slate-900">
+                        <tr key={facilityName} className={`transition-colors ${themeMode === "dark" ? "hover:bg-slate-700/50" : "hover:bg-slate-50/50"}`}>
+                          <td className={`py-3.5 px-4 ${themeMode === "dark" ? "text-slate-100" : "text-slate-900"}`}>
                             <div className="flex items-center gap-2">
-                              <div className="w-8 h-8 rounded-lg bg-slate-100 border border-slate-200 flex items-center justify-center text-slate-650 font-mono text-[11px]">
+                              <div className={`w-8 h-8 rounded-lg flex items-center justify-center font-mono text-[11px] border ${
+                                themeMode === "dark"
+                                  ? "bg-slate-900 border-slate-700 text-slate-300"
+                                  : "bg-slate-100 border-slate-200 text-slate-650"
+                              }`}>
                                 🏥
                               </div>
                               <div>
-                                <span className="font-extrabold text-[12px] block text-slate-900">{facilityName}</span>
-                                <span className="text-[10px] text-slate-400 block font-mono">
+                                <span className={`font-black text-[13.5px] block ${themeMode === "dark" ? "text-white font-extrabold" : "text-slate-850"}`}>{facilityName}</span>
+                                <span className={`text-[10px] block font-mono font-bold ${themeMode === "dark" ? "text-slate-400" : "text-slate-550"}`}>
                                   REGISTRY ID: ALW-CLI-{(facilityName.length * 31) % 9999 + 1000}
                                 </span>
                               </div>
                             </div>
                           </td>
-                          <td className="py-3.5 px-4 text-slate-700 font-mono font-bold text-[11px]">
+                          <td className={`py-3.5 px-4 font-mono font-bold text-[11px] ${themeMode === "dark" ? "text-slate-200" : "text-slate-700"}`}>
                             {dueDateStr}
                           </td>
                           <td className="py-3.5 px-4">
@@ -1313,58 +1315,70 @@ export default function Dashboard({
                                     🔔 {language === "bn" ? "আজই শেষ দিন" : "Today"}
                                   </span>
                                 );
-                          } else if (diffDays <= 4) {
-                            return (
-                              <span className="text-[10px] text-[#2563EB] bg-blue-50 border border-blue-105 px-2.5 py-1 rounded inline-flex items-center gap-1 font-black">
-                                📅 {language === "bn" ? `${diffDays} দিন বাকি` : `${diffDays}d left`}
-                              </span>
-                            );
-                          } else {
-                            return (
-                              <span className="text-[10px] text-emerald-700 bg-emerald-50 border border-emerald-100 px-2.5 py-1 rounded inline-flex items-center gap-1 font-black">
-                                📅 {language === "bn" ? `${diffDays} দিন বাকি` : `${diffDays}d left`}
-                              </span>
-                            );
-                          }
-                        })()}
-                      </td>
-                      <td className="py-3.5 px-4 text-center">
-                        <div className="flex items-center justify-center gap-2">
-                          <button
-                            onClick={() => {
-                              setCreatingPartialCenterName(facilityName);
-                            }}
-                            className="px-3 py-1.5 bg-amber-50 hover:bg-amber-100 text-amber-700 font-extrabold rounded-lg text-[10.5px] inline-flex items-center gap-1 border border-amber-200 cursor-pointer transition active:scale-95 shadow-xs"
-                          >
-                            <Edit3 className="w-3.5 h-3.5" />
-                            <span>{language === "bn" ? "আংশিক সম্পন্ন" : "Mark Partial"}</span>
-                          </button>
+                              } else if (diffDays <= 4) {
+                                return (
+                                  <span className="text-[10px] text-[#2563EB] bg-blue-50 border border-blue-105 px-2.5 py-1 rounded inline-flex items-center gap-1 font-black">
+                                    📅 {language === "bn" ? `${diffDays} দিন বাকি` : `${diffDays}d left`}
+                                  </span>
+                                );
+                              } else {
+                                return (
+                                  <span className="text-[10px] text-emerald-700 bg-emerald-50 border border-emerald-100 px-2.5 py-1 rounded inline-flex items-center gap-1 font-black">
+                                    📅 {language === "bn" ? `${diffDays} দিন বাকি` : `${diffDays}d left`}
+                                  </span>
+                                );
+                              }
+                            })()}
+                          </td>
+                          <td className="py-3.5 px-4 text-center">
+                            <div className="flex items-center justify-center gap-2">
+                              <button
+                                onClick={() => {
+                                  setCreatingPartialCenterName(facilityName);
+                                }}
+                                className={`px-3 py-1.5 font-extrabold rounded-lg text-[10.5px] inline-flex items-center gap-1 cursor-pointer transition active:scale-95 shadow-xs border ${
+                                  themeMode === "dark"
+                                    ? "bg-amber-500/10 hover:bg-amber-500/20 text-amber-450 border-amber-500/20"
+                                    : "bg-amber-50 hover:bg-amber-100 text-amber-700 border-amber-200"
+                                }`}
+                              >
+                                <Edit3 className="w-3.5 h-3.5" />
+                                <span>{language === "bn" ? "আংশিক সম্পন্ন" : "Mark Partial"}</span>
+                              </button>
 
-                          <button
-                            onClick={() => handleQuickDispatch(facilityName)}
-                            className="px-3 py-1.5 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black rounded-lg text-[10.5px] inline-flex items-center gap-1.5 cursor-pointer transition active:scale-95 shadow-xs"
-                          >
-                            ⚡ <span>{language === "bn" ? "সম্পূর্ণ করুন" : "Complete"}</span>
-                          </button>
+                              <button
+                                onClick={() => handleQuickDispatch(facilityName)}
+                                className={`px-3 py-1.5 font-black rounded-lg text-[10.5px] inline-flex items-center gap-1.5 cursor-pointer transition active:scale-95 shadow-xs ${
+                                  themeMode === "dark"
+                                    ? "bg-emerald-550 hover:bg-emerald-500 text-slate-950"
+                                    : "bg-emerald-500 hover:bg-emerald-450 text-slate-950"
+                                }`}
+                              >
+                                ⚡ <span>{language === "bn" ? "সম্পূর্ণ করুন" : "Complete"}</span>
+                              </button>
 
-                          <button
-                            onClick={() => handleDeleteCenter(facilityName)}
-                            className="px-3 py-1.5 bg-red-50 hover:bg-red-100 text-red-600 font-extrabold rounded-lg text-[10.5px] inline-flex items-center gap-1 border border-red-200 cursor-pointer transition active:scale-95 shadow-xs"
-                            title={language === "bn" ? "ডিলিট করুন" : "Delete Center"}
-                          >
-                            <Trash2 className="w-3.5 h-3.5" />
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          )}
-        </div>
-      </div>
-      )}
+                              <button
+                                onClick={() => handleDeleteCenter(facilityName)}
+                                className={`px-3 py-1.5 font-extrabold rounded-lg text-[10.5px] inline-flex items-center gap-1 cursor-pointer transition active:scale-95 shadow-xs border ${
+                                  themeMode === "dark"
+                                    ? "bg-red-500/10 hover:bg-red-500/20 text-red-400 border-red-500/20"
+                                    : "bg-red-50 hover:bg-red-100 text-red-600 border-red-200"
+                                }`}
+                                title={language === "bn" ? "ডিলিট করুন" : "Delete Center"}
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              )}
+            </div>
+          </div>
+        )}
       </div>
       {/* ================= COMPREHENSIVE DIRECT VIEW & PRINT MODAL OVERLAY ================= */}
       {activeReportDetails && (

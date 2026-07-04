@@ -74,7 +74,10 @@ export default function SupervisorsRegistry({
       loggedInUser = JSON.parse(loggedInUserStrRaw);
     } catch(err) {}
   }
-  const isVisitor = !getCurrentUserPermissions().canManageSupervisors;
+  const perms = getCurrentUserPermissions();
+  const canAdd = perms.canCreateSupervisor ?? perms.canManageSupervisors;
+  const canEdit = perms.canEditSupervisor ?? perms.canManageSupervisors;
+  const canDelete = perms.canDeleteSupervisor ?? perms.canManageSupervisors;
 
   const triggerToast = (msg: string) => {
     setSaveStatus(msg);
@@ -98,7 +101,7 @@ export default function SupervisorsRegistry({
     field: keyof SupervisorRegistryItem,
     value: string,
   ) => {
-    if (isVisitor) { triggerToast(language === "bn" ? "ভিজিটর মোডে এই কাজ করার অনুমতি নেই!" : "Read-only mode"); return; }
+    if (!canEdit) { triggerToast(language === "bn" ? "আপনার তথ্য পরিবর্তনের অনুমতি নেই!" : "Read-only mode (No edit permission)"); return; }
     setSupervisors((prev) => {
       const next = [...prev];
       const index = next.findIndex((s) => s.id === id);
@@ -115,6 +118,7 @@ export default function SupervisorsRegistry({
     id: string,
     e: ChangeEvent<HTMLInputElement>,
   ) => {
+    if (!canEdit) { triggerToast(language === "bn" ? "ছবি আপলোড করার অনুমতি নেই!" : "No permission to upload image"); return; }
     const file = e.target.files?.[0];
     if (file) {
       if (file.size > 3 * 1024 * 1024) {
@@ -154,7 +158,7 @@ export default function SupervisorsRegistry({
 
   // Add a new handwritten-style supervisor card
   const handleAddNewSupervisor = (emirate: string) => {
-    if (isVisitor) { triggerToast(language === "bn" ? "ভিজিটর মোডে এই কাজ করার অনুমতি নেই!" : "Read-only mode"); return; }
+    if (!canAdd) { triggerToast(language === "bn" ? "আপনার নতুন সুপারভাইজার যোগ করার অনুমতি নেই!" : "Read-only mode (No add permission)"); return; }
     const targetState = emirate === "ALL" ? "Dubai" : emirate;
     const code = targetState.substring(0, 3).toUpperCase();
     const newId = `SUP-${code}-${Math.floor(100 + Math.random() * 900)}`;
@@ -189,7 +193,7 @@ export default function SupervisorsRegistry({
 
   // Delete a supervisor profile card
   const handleDeleteSupervisor = (id: string) => {
-    if (isVisitor) { triggerToast(language === "bn" ? "ভিজিটর মোডে এই কাজ করার অনুমতি নেই!" : "Read-only mode"); return; }
+    if (!canDelete) { triggerToast(language === "bn" ? "আপনার সুপারভাইজার মুছে ফেলার অনুমতি নেই!" : "Read-only mode (No delete permission)"); return; }
     setSupervisors((prev) => prev.filter((s) => s.id !== id));
     deleteDocument("supervisors", id).catch(console.warn);
     setSaveStatus(
@@ -205,6 +209,7 @@ export default function SupervisorsRegistry({
 
   // Toggle/Select preset avatar emoji
   const handleSelectEmoji = (id: string, emoji: string) => {
+    if (!canEdit) { triggerToast(language === "bn" ? "পরিবর্তনের অনুমতি নেই!" : "Read-only mode (No edit permission)"); return; }
     setSupervisors((prev) =>
       prev.map((s) => {
         if (s.id === id) {
@@ -218,6 +223,7 @@ export default function SupervisorsRegistry({
 
   // Set Custom photo via URL
   const handleSetCustomAvatarUrl = (id: string) => {
+    if (!canEdit) { triggerToast(language === "bn" ? "পরিবর্তনের অনুমতি নেই!" : "Read-only mode (No edit permission)"); return; }
     if (customImageUrl.trim()) {
       setSupervisors((prev) =>
         prev.map((s) => {
@@ -302,8 +308,9 @@ export default function SupervisorsRegistry({
           </div>
 
           <button
+            disabled={!canAdd}
             onClick={() => handleAddNewSupervisor(selectedEmirate)}
-            className="px-5 py-3 bg-amber-500 hover:bg-amber-400 text-slate-950 font-black rounded-xl transition-all cursor-pointer shadow-lg shadow-amber-500/10 flex items-center gap-2 shrink-0 self-stretch md:self-auto justify-center"
+            className={`px-5 py-3 bg-amber-500 hover:bg-amber-400 text-slate-950 font-black rounded-xl transition-all cursor-pointer shadow-lg shadow-amber-500/10 flex items-center gap-2 shrink-0 self-stretch md:self-auto justify-center ${!canAdd ? 'opacity-50 cursor-not-allowed' : ''}`}
           >
             <Plus className="w-5 h-5 stroke-[3px]" />
             <span>
@@ -430,6 +437,8 @@ export default function SupervisorsRegistry({
               setSupervisors={setSupervisors}
               setSaveStatus={setSaveStatus}
               handleUpdateField={handleUpdateField}
+              canEdit={canEdit}
+              canDelete={canDelete}
             />
           ))}
         </div>
@@ -460,6 +469,8 @@ interface SupervisorCardProps {
     field: keyof SupervisorRegistryItem,
     value: string,
   ) => void;
+  canEdit: boolean;
+  canDelete: boolean;
 }
 
 function SupervisorCard({
@@ -476,6 +487,8 @@ function SupervisorCard({
   setSupervisors,
   setSaveStatus,
   handleUpdateField,
+  canEdit,
+  canDelete,
 }: SupervisorCardProps) {
   const [name, setName] = useState(sup.name || "");
   const [id, setId] = useState(sup.id || "");
@@ -578,12 +591,13 @@ function SupervisorCard({
         {deletingId === sup.id ? (
           <div className="flex items-center gap-1 bg-rose-600 text-white rounded px-2 py-0.5 transition-all text-[8.5px] font-black animate-pulse shadow-xs shrink-0 z-35">
             <button
+              disabled={!canDelete}
               onClick={(e) => {
                 e.preventDefault();
                 e.stopPropagation();
                 handleDeleteSupervisor(sup.id);
               }}
-              className="hover:text-amber-200 flex items-center gap-0.5 cursor-pointer font-black"
+              className={`hover:text-amber-200 flex items-center gap-0.5 cursor-pointer font-black ${!canDelete ? 'opacity-50 cursor-not-allowed' : ''}`}
               title="Click to confirm delete"
             >
               <Trash2 className="w-2.5 h-2.5" />
@@ -603,12 +617,13 @@ function SupervisorCard({
           </div>
         ) : (
           <button
+            disabled={!canDelete}
             onClick={(e) => {
               e.preventDefault();
               e.stopPropagation();
               setDeletingId(sup.id);
             }}
-            className="p-1 rounded-full text-rose-500 hover:text-rose-700 hover:bg-rose-50 transition cursor-pointer"
+            className={`p-1 rounded-full text-rose-500 hover:text-rose-700 hover:bg-rose-50 transition cursor-pointer ${!canDelete ? 'opacity-40 cursor-not-allowed' : ''}`}
             title="Remove this supervisor card"
           >
             <Trash2 className="w-3.5 h-3.5 stroke-[2px]" />
@@ -617,14 +632,15 @@ function SupervisorCard({
       </div>
 
       {/* Full-Width Dedicated Area for Hospital/Facility Select Box */}
-      <div className="flex items-center gap-2 bg-white border-2 border-slate-200 hover:border-slate-350 hover:bg-slate-50/50 px-3 py-2 rounded-xl text-xs transition-colors w-full shadow-2xs">
+      <div className={`flex items-center gap-2 bg-white border-2 border-slate-200 hover:border-slate-350 hover:bg-slate-50/50 px-3 py-2 rounded-xl text-xs transition-colors w-full shadow-2xs ${!canEdit ? 'opacity-70 cursor-not-allowed' : ''}`}>
         <Building className="w-4 h-4 text-sky-600 shrink-0" />
         <select
           value={sup.facilityName}
+          disabled={!canEdit}
           onChange={(e) =>
             handleUpdateField(sup.id, "facilityName", e.target.value)
           }
-          className="bg-transparent text-slate-900 font-black text-[11.5px] outline-none cursor-pointer w-full text-ellipsis overflow-hidden"
+          className="bg-transparent text-slate-900 font-black text-[11.5px] outline-none cursor-pointer w-full text-ellipsis overflow-hidden disabled:cursor-not-allowed"
         >
           <option value="" className="text-slate-900">
             --{" "}
@@ -654,12 +670,13 @@ function SupervisorCard({
         {/* Photo container / click to change */}
         <div className="relative shrink-0 mt-0.5">
           <button
+            disabled={!canEdit}
             onClick={(e) => {
               e.preventDefault();
               e.stopPropagation();
               setEditingAvatarId(isAvatarPickerOpen ? null : sup.id);
             }}
-            className="w-12 h-12 bg-slate-100 hover:bg-amber-50 border-2 border-slate-300 rounded-full flex items-center justify-center font-bold text-xl select-none hover:scale-105 transition-all shadow-md cursor-pointer overflow-hidden relative group/avatar z-20"
+            className={`w-12 h-12 bg-slate-100 hover:bg-amber-50 border-2 border-slate-300 rounded-full flex items-center justify-center font-bold text-xl select-none hover:scale-105 transition-all shadow-md cursor-pointer overflow-hidden relative group/avatar z-20 ${!canEdit ? 'opacity-80 cursor-not-allowed' : ''}`}
             title="Click to Choose Avatar photo"
           >
             {sup.avatarUrl ? (
@@ -674,9 +691,11 @@ function SupervisorCard({
             )}
 
             {/* Overlay camera icon indicator on hover */}
-            <div className="absolute inset-0 bg-slate-950/70 text-white rounded-full flex flex-col items-center justify-center opacity-0 group-hover/avatar:opacity-100 transition-opacity">
-              <Camera className="w-4 h-4 text-white" />
-            </div>
+            {canEdit && (
+              <div className="absolute inset-0 bg-slate-950/70 text-white rounded-full flex flex-col items-center justify-center opacity-0 group-hover/avatar:opacity-100 transition-opacity">
+                <Camera className="w-4 h-4 text-white" />
+              </div>
+            )}
           </button>
         </div>
 
@@ -686,19 +705,20 @@ function SupervisorCard({
           <input
             type="text"
             value={name}
+            disabled={!canEdit}
             onChange={(e) => setName(e.target.value)}
             onBlur={() => {
               if (name !== sup.name) handleUpdateField(sup.id, "name", name);
             }}
             onKeyDown={handleKeyDown}
             placeholder="Supervisor Name"
-            className="w-full bg-white border-2 border-slate-200 text-xs font-black text-slate-950 px-2.5 py-1.5 rounded-lg outline-none hover:border-slate-350 focus:border-amber-500 transition-all placeholder:text-slate-400"
+            className={`w-full bg-white border-2 border-slate-200 text-xs font-black text-slate-950 px-2.5 py-1.5 rounded-lg outline-none hover:border-slate-350 focus:border-amber-500 transition-all placeholder:text-slate-400 ${!canEdit ? 'opacity-70 cursor-not-allowed' : ''}`}
           />
 
           {/* New Side-by-Side row containing ID & Phone together to make the card much LESS high & MORE horizontal */}
           <div className="grid grid-cols-2 gap-1.5">
             {/* ID Field */}
-            <div className="flex items-center gap-1.5 bg-white border-2 border-slate-200 px-1.5 py-1 rounded-lg text-[9px] max-w-full focus-within:border-sky-500 focus-within:ring-1 focus-within:ring-sky-100 transition-all shadow-xs">
+            <div className={`flex items-center gap-1.5 bg-white border-2 border-slate-200 px-1.5 py-1 rounded-lg text-[9px] max-w-full focus-within:border-sky-500 focus-within:ring-1 focus-within:ring-sky-100 transition-all shadow-xs ${!canEdit ? 'opacity-70' : ''}`}>
               <Shield className="w-3.5 h-3.5 text-blue-600 shrink-0" />
               <span className="text-[9px] font-black text-slate-900 uppercase shrink-0">
                 ID:
@@ -706,18 +726,19 @@ function SupervisorCard({
               <input
                 type="text"
                 value={id}
+                disabled={!canEdit}
                 onChange={(e) => setId(e.target.value)}
                 onBlur={() => {
                   if (id !== sup.id) handleUpdateField(sup.id, "id", id);
                 }}
                 onKeyDown={handleKeyDown}
                 placeholder="ID"
-                className="bg-transparent font-black text-slate-900 text-[10.5px] font-mono outline-none w-full placeholder:text-slate-400 focus:outline-none focus:ring-0"
+                className="bg-transparent font-black text-slate-900 text-[10.5px] font-mono outline-none w-full placeholder:text-slate-400 focus:outline-none focus:ring-0 disabled:cursor-not-allowed"
               />
             </div>
 
             {/* Phone Field */}
-            <div className="flex items-center gap-1.5 bg-white border-2 border-slate-200 px-1.5 py-1 rounded-lg text-[9px] max-w-full focus-within:border-emerald-500 focus-within:ring-1 focus-within:ring-emerald-100 transition-all shadow-xs">
+            <div className={`flex items-center gap-1.5 bg-white border-2 border-slate-200 px-1.5 py-1 rounded-lg text-[9px] max-w-full focus-within:border-emerald-500 focus-within:ring-1 focus-within:ring-emerald-100 transition-all shadow-xs ${!canEdit ? 'opacity-70' : ''}`}>
               <Phone className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
               <span className="text-[9px] font-black text-slate-900 uppercase shrink-0">
                 {language === "bn" ? "ফোন:" : "PH:"}
@@ -725,6 +746,7 @@ function SupervisorCard({
               <input
                 type="text"
                 value={phone}
+                disabled={!canEdit}
                 onChange={(e) => setPhone(e.target.value)}
                 onBlur={() => {
                   if (phone !== sup.phone)
@@ -732,13 +754,13 @@ function SupervisorCard({
                 }}
                 onKeyDown={handleKeyDown}
                 placeholder="Phone"
-                className="bg-transparent font-black text-slate-900 text-[10.5px] font-mono outline-none w-full placeholder:text-slate-400 focus:outline-none focus:ring-0"
+                className="bg-transparent font-black text-slate-900 text-[10.5px] font-mono outline-none w-full placeholder:text-slate-400 focus:outline-none focus:ring-0 disabled:cursor-not-allowed"
               />
             </div>
           </div>
 
           {/* Optional Email directly below ID & Phone Row */}
-          <div className="flex items-center gap-1.5 bg-white border-2 border-slate-200 px-2 py-1.5 rounded-lg text-[9px] max-w-full focus-within:border-amber-500 focus-within:ring-1 focus-within:ring-amber-50 transition-all shadow-xs">
+          <div className={`flex items-center gap-1.5 bg-white border-2 border-slate-200 px-2 py-1.5 rounded-lg text-[9px] max-w-full focus-within:border-amber-500 focus-within:ring-1 focus-within:ring-amber-50 transition-all shadow-xs ${!canEdit ? 'opacity-70' : ''}`}>
             <Mail className="w-3.5 h-3.5 text-amber-600 shrink-0" />
             <span className="text-[9px] font-black text-slate-900 uppercase tracking-widest shrink-0">
               EMAIL:
@@ -746,6 +768,7 @@ function SupervisorCard({
             <input
               type="text"
               value={email}
+              disabled={!canEdit}
               onChange={(e) => setEmail(e.target.value)}
               onBlur={() => {
                 if (email !== sup.email)
@@ -755,7 +778,7 @@ function SupervisorCard({
               placeholder={
                 language === "bn" ? "[ইমেইল ঐচ্ছিক]" : "Enter Email (Optional)"
               }
-              className="bg-transparent font-black text-slate-900 text-[10.5px] outline-none w-full text-ellipsis overflow-hidden placeholder:text-slate-400 focus:outline-none focus:ring-0"
+              className="bg-transparent font-black text-slate-900 text-[10.5px] outline-none w-full text-ellipsis overflow-hidden placeholder:text-slate-400 focus:outline-none focus:ring-0 disabled:cursor-not-allowed"
             />
           </div>
         </div>

@@ -453,7 +453,11 @@ export default function ChemicalInventory({ language, themeMode = "dark" }: Chem
       loggedInUser = JSON.parse(loggedInUserStrRaw);
     } catch(e) {}
   }
-  const isVisitor = !getCurrentUserPermissions().canManageInventory;
+  const perms = getCurrentUserPermissions();
+  const canAdd = perms.canCreateInventory ?? perms.canManageInventory;
+  const canEdit = perms.canEditInventory ?? perms.canManageInventory;
+  const canDelete = perms.canDeleteInventory ?? perms.canManageInventory;
+  const isVisitor = !perms.canManageInventory;
 
   // Helper to get formatted month/year (bilingual)
   const getMonthYearString = (dateStr: string) => {
@@ -783,9 +787,9 @@ export default function ChemicalInventory({ language, themeMode = "dark" }: Chem
 
   const handleAddNewChemSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (isVisitor) {
+    if (!canAdd) {
       showToast(
-        language === "bn" ? "ভিজিটর মোডে নতুন কেমিক্যাল যুক্ত করার অনুমতি নেই!" : "Adding chemical is disabled in Visitor mode!",
+        language === "bn" ? "নতুন কেমিক্যাল যুক্ত করার অনুমতি নেই!" : "Adding chemical is disabled (No add permission)!",
         "error"
       );
       return;
@@ -864,9 +868,9 @@ export default function ChemicalInventory({ language, themeMode = "dark" }: Chem
   };
 
   const handleDeleteChemical = async (name: string) => {
-    if (isVisitor) {
+    if (!canDelete) {
       showToast(
-        language === "bn" ? "ভিজিটর মোডে কেমিক্যাল মুছে ফেলার অনুমতি নেই!" : "Deleting chemical is disabled in Visitor mode!",
+        language === "bn" ? "কেমিক্যাল মুছে ফেলার অনুমতি নেই!" : "Deleting chemical is disabled (No delete permission)!",
         "error"
       );
       return;
@@ -901,8 +905,8 @@ export default function ChemicalInventory({ language, themeMode = "dark" }: Chem
 
   // Simulated scan camera triggers
   const startScanningAndParse = () => {
-    if (isVisitor) {
-      alert(language === "bn" ? "ভিজিটর মোডে বারকোড স্ক্যান করার অনুমতি নেই!" : "QR Code Scanning validation is disabled inside read-only Visitor mode!");
+    if (!canEdit) {
+      alert(language === "bn" ? "বারকোড স্ক্যান করার অনুমতি নেই!" : "QR Code Scanning validation is disabled (No edit permission)!");
       return;
     }
     setScanning(true);

@@ -185,7 +185,7 @@ export default function LoginScreen({
     }
   };
 
-  const fillCredentialsByRole = (roleType: "Admin" | "Moderator" | "Visitor") => {
+  const fillCredentialsByRole = (roleType: "Admin" | "Moderator" | "Visitor" | "Acting Leader") => {
     const found = registeredUsers.find((u) => u.role === roleType);
     if (found) {
       setUsernameInput(found.username);

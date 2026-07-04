@@ -103,7 +103,7 @@ export interface AppUser {
   id: string;
   username: string;
   passwordPlain: string;
-  role: "Admin" | "Moderator" | "Visitor";
+  role: "Admin" | "Moderator" | "Visitor" | "Acting Leader";
 }
 
 export interface LoginSession {
@@ -138,6 +138,31 @@ export interface RolePermissions {
   canViewAIPest: boolean;
   canViewClientPortal: boolean;
   canViewScheduler: boolean;
+
+  // New Granular Permissions for Ad (Add), Ed (Edit), D (Delete)
+  canCreateLocation?: boolean;
+  canEditLocation?: boolean;
+  canDeleteLocation?: boolean;
+
+  canCreateSupervisor?: boolean;
+  canEditSupervisor?: boolean;
+  canDeleteSupervisor?: boolean;
+
+  canCreateInventory?: boolean;
+  canEditInventory?: boolean;
+  canDeleteInventory?: boolean;
+
+  canCreateTechnician?: boolean;
+  canEditTechnician?: boolean;
+  canDeleteTechnician?: boolean;
+
+  canCreateScheduler?: boolean;
+  canEditScheduler?: boolean;
+  canDeleteScheduler?: boolean;
+
+  canCreateEngineeringReport?: boolean;
+  canEditEngineeringReport?: boolean;
+  canDeleteEngineeringReport?: boolean;
 }
 
 export const DEFAULT_ROLE_PERMISSIONS: Record<string, RolePermissions> = {
@@ -163,6 +188,30 @@ export const DEFAULT_ROLE_PERMISSIONS: Record<string, RolePermissions> = {
     canViewAIPest: true,
     canViewClientPortal: true,
     canViewScheduler: true,
+
+    canCreateLocation: true,
+    canEditLocation: true,
+    canDeleteLocation: true,
+
+    canCreateSupervisor: true,
+    canEditSupervisor: true,
+    canDeleteSupervisor: true,
+
+    canCreateInventory: true,
+    canEditInventory: true,
+    canDeleteInventory: true,
+
+    canCreateTechnician: true,
+    canEditTechnician: true,
+    canDeleteTechnician: true,
+
+    canCreateScheduler: true,
+    canEditScheduler: true,
+    canDeleteScheduler: true,
+
+    canCreateEngineeringReport: true,
+    canEditEngineeringReport: true,
+    canDeleteEngineeringReport: true,
   },
   Moderator: {
     canCreateReport: true,
@@ -186,6 +235,77 @@ export const DEFAULT_ROLE_PERMISSIONS: Record<string, RolePermissions> = {
     canViewAIPest: true,
     canViewClientPortal: true,
     canViewScheduler: true,
+
+    canCreateLocation: false,
+    canEditLocation: false,
+    canDeleteLocation: false,
+
+    canCreateSupervisor: false,
+    canEditSupervisor: false,
+    canDeleteSupervisor: false,
+
+    canCreateInventory: true,
+    canEditInventory: true,
+    canDeleteInventory: true,
+
+    canCreateTechnician: true,
+    canEditTechnician: true,
+    canDeleteTechnician: true,
+
+    canCreateScheduler: true,
+    canEditScheduler: true,
+    canDeleteScheduler: true,
+
+    canCreateEngineeringReport: true,
+    canEditEngineeringReport: true,
+    canDeleteEngineeringReport: true,
+  },
+  "Acting Leader": {
+    canCreateReport: true,
+    canEditReport: true,
+    canDeleteReport: false,
+    canManageLocations: false,
+    canManageSupervisors: false,
+    canManageInventory: true,
+    canManageTechnicians: true,
+    canManageScheduler: true,
+    canManageEngineeringReport: true,
+    canViewDashboard: true,
+    canViewCompletedRegistry: true,
+    canViewLocations: true,
+    canViewSupervisors: true,
+    canViewDirectory: true,
+    canViewEngineeringReport: true,
+    canViewMasterForm: true,
+    canViewInventory: true,
+    canViewTechnicians: true,
+    canViewAIPest: true,
+    canViewClientPortal: true,
+    canViewScheduler: true,
+
+    canCreateLocation: false,
+    canEditLocation: false,
+    canDeleteLocation: false,
+
+    canCreateSupervisor: false,
+    canEditSupervisor: false,
+    canDeleteSupervisor: false,
+
+    canCreateInventory: true,
+    canEditInventory: true,
+    canDeleteInventory: true,
+
+    canCreateTechnician: true,
+    canEditTechnician: true,
+    canDeleteTechnician: true,
+
+    canCreateScheduler: true,
+    canEditScheduler: true,
+    canDeleteScheduler: true,
+
+    canCreateEngineeringReport: true,
+    canEditEngineeringReport: true,
+    canDeleteEngineeringReport: true,
   },
   Visitor: {
     canCreateReport: false,
@@ -209,6 +329,30 @@ export const DEFAULT_ROLE_PERMISSIONS: Record<string, RolePermissions> = {
     canViewAIPest: true,
     canViewClientPortal: true,
     canViewScheduler: true,
+
+    canCreateLocation: false,
+    canEditLocation: false,
+    canDeleteLocation: false,
+
+    canCreateSupervisor: false,
+    canEditSupervisor: false,
+    canDeleteSupervisor: false,
+
+    canCreateInventory: false,
+    canEditInventory: false,
+    canDeleteInventory: false,
+
+    canCreateTechnician: false,
+    canEditTechnician: false,
+    canDeleteTechnician: false,
+
+    canCreateScheduler: false,
+    canEditScheduler: false,
+    canDeleteScheduler: false,
+
+    canCreateEngineeringReport: false,
+    canEditEngineeringReport: false,
+    canDeleteEngineeringReport: false,
   }
 };
 
@@ -226,10 +370,12 @@ export function getCurrentUserPermissions(): RolePermissions {
   }
   
   const role = loggedInUser?.role || "Visitor";
-  return rolePermissions[role] || DEFAULT_ROLE_PERMISSIONS[role] || DEFAULT_ROLE_PERMISSIONS.Visitor;
+  const basePerms = DEFAULT_ROLE_PERMISSIONS[role] || DEFAULT_ROLE_PERMISSIONS.Visitor;
+  const userPerms = rolePermissions[role] || {};
+  return { ...basePerms, ...userPerms };
 }
 
-export type UserRole = "Super Admin" | "Admin / Manager" | "Guest Admin" | "Client Portal" | "Moderator" | "Visitor" | "Admin";
+export type UserRole = "Super Admin" | "Admin / Manager" | "Guest Admin" | "Client Portal" | "Moderator" | "Visitor" | "Admin" | "Acting Leader";
 
 export const DICTIONARY: Record<AppLanguage, Record<string, string>> = {
   en: {

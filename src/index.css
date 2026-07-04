@@ -11,6 +11,8 @@ html, body, #root {
   font-family: var(--font-sans);
   overflow-x: hidden;
   max-width: 100vw;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
 /* Custom fade-in animations for smooth routing transitions */

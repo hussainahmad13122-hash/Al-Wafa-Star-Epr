@@ -36,7 +36,10 @@ export default function LocationsRegistry({
       loggedInUser = JSON.parse(loggedInUserStrRaw);
     } catch(err) {}
   }
-  const isVisitor = !getCurrentUserPermissions().canManageLocations;
+  const perms = getCurrentUserPermissions();
+  const canAdd = perms.canCreateLocation ?? perms.canManageLocations;
+  const canEdit = perms.canEditLocation ?? perms.canManageLocations;
+  const canDelete = perms.canDeleteLocation ?? perms.canManageLocations;
 
   const triggerToast = (msg: string) => {
     setSaveStatus(msg);
@@ -44,7 +47,7 @@ export default function LocationsRegistry({
   };
 
   const handleAction = (action: () => void) => {
-    if (isVisitor) {
+    if (!canEdit) {
       triggerToast(language === "bn" ? "ভিজিটর মোডে এই কাজ করার অনুমতি নেই!" : "Action not permitted in Visitor mode!");
       return;
     }
@@ -72,7 +75,7 @@ export default function LocationsRegistry({
     field: "name" | "mapUrl" | "emirate",
     value: string,
   ) => {
-    if (isVisitor) { triggerToast(language === "bn" ? "ভিজিটর মোডে এই কাজ করার অনুমতি নেই!" : "Read-only mode"); return; }
+    if (!canEdit) { triggerToast(language === "bn" ? "আপনার তথ্য পরিবর্তনের অনুমতি নেই!" : "Read-only mode (No edit permission)"); return; }
     setLocations((prev) =>
       prev.map((loc) => {
         if (loc.id === id) {
@@ -85,7 +88,7 @@ export default function LocationsRegistry({
 
   // Add new row inside a specific emirate / state
   const handleAddRow = (emirate: string) => {
-    if (isVisitor) { triggerToast(language === "bn" ? "ভিজিটর মোডে এই কাজ করার অনুমতি নেই!" : "Read-only mode"); return; }
+    if (!canAdd) { triggerToast(language === "bn" ? "আপনার নতুন লোকেশন যোগ করার অনুমতি নেই!" : "Read-only mode (No add permission)"); return; }
     const code = emirate.substring(0, 3).toUpperCase();
     const newId = `LOC-${code}-${Math.floor(100 + Math.random() * 900)}`;
     const newRow: LocationRegistryItem = {
@@ -107,7 +110,7 @@ export default function LocationsRegistry({
 
   // Delete row
   const handleDeleteRow = (id: string) => {
-    if (isVisitor) { triggerToast(language === "bn" ? "ভিজিটর মোডে এই কাজ করার অনুমতি নেই!" : "Read-only mode"); return; }
+    if (!canDelete) { triggerToast(language === "bn" ? "আপনার লোকেশন মুছে ফেলার অনুমতি নেই!" : "Read-only mode (No delete permission)"); return; }
     setLocations((prev) => prev.filter((loc) => loc.id !== id));
     deleteDocument("locations", id);
     setSaveStatus(
@@ -120,7 +123,7 @@ export default function LocationsRegistry({
 
   // Reset to original factory sheet
   const handleResetToFactory = () => {
-    if (isVisitor) { triggerToast(language === "bn" ? "ভিজিটর মোডে এই কাজ করার অনুমতি নেই!" : "Read-only mode"); return; }
+    if (!canEdit) { triggerToast(language === "bn" ? "রিসেট করার অনুমতি নেই!" : "Read-only mode (No edit permission)"); return; }
     setLocations(INITIAL_LOCATIONS_REGISTRY);
     saveDocumentsBulk("locations", INITIAL_LOCATIONS_REGISTRY).catch(
       console.warn,
@@ -183,8 +186,9 @@ export default function LocationsRegistry({
 
           <div className="flex items-center gap-2.5">
             <button
+              disabled={!canEdit}
               onClick={handleResetToFactory}
-              className="px-3.5 py-2 hover:bg-slate-800 text-slate-350 hover:text-white rounded-xl text-[11px] font-bold transition flex items-center gap-1.5 cursor-pointer border border-slate-700/60"
+              className={`px-3.5 py-2 hover:bg-slate-800 text-slate-350 hover:text-white rounded-xl text-[11px] font-bold transition flex items-center gap-1.5 cursor-pointer border border-slate-700/60 ${!canEdit ? 'opacity-50 cursor-not-allowed' : ''}`}
               title="Reset to default hospitals list"
             >
               <Undo className="w-4 h-4" />
@@ -194,12 +198,13 @@ export default function LocationsRegistry({
             </button>
 
             <button
+              disabled={!canAdd}
               onClick={() => {
                 const targetState =
                   emirateFilter === "ALL" ? "Dubai" : emirateFilter;
                 handleAddRow(targetState);
               }}
-              className="px-4 py-2 bg-[#10B981] hover:bg-emerald-400 text-slate-950 font-black rounded-xl transition cursor-pointer shadow-lg shadow-emerald-500/10 flex items-center gap-1.5"
+              className={`px-4 py-2 bg-[#10B981] hover:bg-emerald-400 text-slate-950 font-black rounded-xl transition cursor-pointer shadow-lg shadow-emerald-500/10 flex items-center gap-1.5 ${!canAdd ? 'opacity-50 cursor-not-allowed' : ''}`}
             >
               <Plus className="w-4 h-4 stroke-[3px]" />
               <span>
@@ -294,8 +299,9 @@ export default function LocationsRegistry({
                     </span>
                   </h3>
                   <button
+                    disabled={!canAdd}
                     onClick={() => handleAddRow(emirateState)}
-                    className="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 text-slate-350 hover:text-white rounded-lg text-[9px] font-bold transition flex items-center gap-1 cursor-pointer border border-slate-700"
+                    className={`px-2.5 py-1 bg-slate-800 hover:bg-slate-700 text-slate-350 hover:text-white rounded-lg text-[9px] font-bold transition flex items-center gap-1 cursor-pointer border border-slate-700 ${!canAdd ? 'opacity-50 cursor-not-allowed' : ''}`}
                   >
                     ➕ Add {emirateState} Row
                   </button>
@@ -342,6 +348,7 @@ export default function LocationsRegistry({
                               <input
                                 type="text"
                                 value={loc.name}
+                                disabled={!canEdit}
                                 onChange={(e) =>
                                   handleCellChange(
                                     loc.id,
@@ -349,11 +356,13 @@ export default function LocationsRegistry({
                                     e.target.value,
                                   )
                                 }
-                                onBlur={() =>
-                                  saveDocument("locations", loc.id, loc)
-                                }
+                                onBlur={() => {
+                                  if (canEdit) {
+                                    saveDocument("locations", loc.id, loc);
+                                  }
+                                }}
                                 placeholder="Type hospital / clinic name..."
-                                className="w-full bg-slate-900 border border-slate-800 text-slate-100 font-bold rounded px-2 py-1 outline-none focus:border-[#10B981]"
+                                className={`w-full bg-slate-900 border border-slate-800 text-slate-100 font-bold rounded px-2 py-1 outline-none focus:border-[#10B981] ${!canEdit ? 'opacity-65 cursor-not-allowed' : ''}`}
                               />
                             </td>
 
@@ -377,6 +386,7 @@ export default function LocationsRegistry({
                                 <input
                                   type="text"
                                   value={loc.mapUrl || ""}
+                                  disabled={!canEdit}
                                   onChange={(e) =>
                                     handleCellChange(
                                       loc.id,
@@ -384,19 +394,22 @@ export default function LocationsRegistry({
                                       e.target.value,
                                     )
                                   }
-                                  onBlur={() =>
-                                    saveDocument("locations", loc.id, loc)
-                                  }
+                                  onBlur={() => {
+                                    if (canEdit) {
+                                      saveDocument("locations", loc.id, loc);
+                                    }
+                                  }}
                                   placeholder="Paste google maps link here..."
-                                  className="w-full bg-slate-900 border border-slate-800 text-[#10B981] font-mono text-[10px] rounded px-2 py-1 outline-none focus:border-[#10B981]"
+                                  className={`w-full bg-slate-900 border border-slate-800 text-[#10B981] font-mono text-[10px] rounded px-2 py-1 outline-none focus:border-[#10B981] ${!canEdit ? 'opacity-65 cursor-not-allowed' : ''}`}
                                 />
                               </div>
                             </td>
 
                             <td className="py-1.5 px-2 text-center w-28">
                               <button
+                                disabled={!canDelete}
                                 onClick={() => handleDeleteRow(loc.id)}
-                                className="px-2.5 py-1 bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/20 rounded transition flex items-center justify-center gap-1 cursor-pointer text-[10px] font-bold mx-auto font-sans"
+                                className={`px-2.5 py-1 bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/20 rounded transition flex items-center justify-center gap-1 cursor-pointer text-[10px] font-bold mx-auto font-sans ${!canDelete ? 'opacity-40 cursor-not-allowed' : ''}`}
                                 title="Delete location row"
                               >
                                 <Trash2 className="w-3.5 h-3.5" />

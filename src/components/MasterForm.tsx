@@ -514,7 +514,7 @@ export default function MasterForm({
 
   // Section 10: Recommendations List (Single rich textarea representation with no line-by-line splits)
   const [recommendations, setRecommendations] = useState<string>(
-    "Kitchen sub-counters must keep dry.\nRepair perimeter screen mesh of Deira main office windows."
+    "Continue maintaining sanitation and proofing condition to minimize pest attraction and harborage."
   );
 
   // Section 11: Team members
@@ -1530,7 +1530,7 @@ export default function MasterForm({
     setProofingRemarks("");
 
     setRecommendations(
-      "Kitchen sub-counters must keep dry.\nRepair perimeter screen mesh of Deira main office windows."
+      "Continue maintaining sanitation and proofing condition to minimize pest attraction and harborage."
     );
 
     setAdditionalNotes("Four floors clinical treatment successfully finalized. Safe and verified.");
@@ -1838,29 +1838,9 @@ export default function MasterForm({
                             }
                           };
 
-                          // Add from EMIRATE_MAPPING_FACILITIES
-                          Object.entries(EMIRATE_MAPPING_FACILITIES).forEach(([em, facilities]) => {
-                             facilities.forEach(fac => addFacility(em, fac));
-                          });
-
-                          // Add from LocationRegistry (locations)
+                          // Add ONLY from LocationRegistry (locations)
                           if (locations && locations.length > 0) {
                             locations.forEach(loc => addFacility(loc.emirate || "Other", loc.name));
-                          }
-
-                          // Add from custom local storage
-                          try {
-                            const customCache = localStorage.getItem("ALW_CUSTOM_EMIRATE_FACILITIES");
-                            if (customCache) {
-                              const parsed = JSON.parse(customCache);
-                              Object.entries(parsed).forEach(([em, facilities]) => {
-                                if (Array.isArray(facilities)) {
-                                  facilities.forEach(fac => addFacility(em, fac));
-                                }
-                              });
-                            }
-                          } catch (e) {
-                            // ignore
                           }
                           
                           let groups = Object.keys(grouped).sort();

@@ -99,7 +99,11 @@ export default function Technicians({
       loggedInUser = JSON.parse(loggedInUserStrRaw);
     } catch(err) {}
   }
-  const isVisitor = !getCurrentUserPermissions().canManageTechnicians;
+  const perms = getCurrentUserPermissions();
+  const canAdd = perms.canCreateTechnician ?? perms.canManageTechnicians;
+  const canEdit = perms.canEditTechnician ?? perms.canManageTechnicians;
+  const canDelete = perms.canDeleteTechnician ?? perms.canManageTechnicians;
+  const isVisitor = !perms.canManageTechnicians;
   
   const isBengali = language === "bn";
 
@@ -343,7 +347,7 @@ export default function Technicians({
   }, [dutyContacts]);
 
   const handleAddContact = () => {
-    if (isVisitor) { setToastMessage(language === "bn" ? "ভিজিটর মোডে এই কাজ করার অনুমতি নেই!" : "Read-only mode"); return; }
+    if (!canAdd) { setToastMessage(language === "bn" ? "আপনার কন্ট্যাক্ট যোগ করার অনুমতি নেই!" : "Adding contact is disabled (No add permission)"); return; }
     if (newContactName && newContactPhone) {
       setDutyContacts([
         ...dutyContacts,
@@ -360,7 +364,7 @@ export default function Technicians({
   };
 
   const handleRemoveContact = (id: string) => {
-    if (isVisitor) { setToastMessage(language === "bn" ? "ভিজিটর মোডে এই কাজ করার অনুমতি নেই!" : "Read-only mode"); return; }
+    if (!canDelete) { setToastMessage(language === "bn" ? "আপনার কন্ট্যাক্ট মুছে ফেলার অনুমতি নেই!" : "Deleting contact is disabled (No delete permission)"); return; }
     setDutyContacts(dutyContacts.filter((c) => c.id !== id));
   };
 
@@ -390,7 +394,7 @@ export default function Technicians({
   // 4. Save New Field Plan handler (Supervisor feature)
   const handleCreateNewFieldPlan = (e: React.FormEvent) => {
     e.preventDefault();
-    if (isVisitor) { setToastMessage(language === "bn" ? "ভিজিটর মোডে এই কাজ করার অনুমতি নেই!" : "Read-only mode"); return; }
+    if (!canAdd) { setToastMessage(language === "bn" ? "আপনার নতুন ফিল্ড প্ল্যান যোগ করার অনুমতি নেই!" : "Adding field plan is disabled (No add permission)"); return; }
     if (!targetFacility) {
       triggerToast(
         isBengali
@@ -458,7 +462,7 @@ export default function Technicians({
 
   // Delete plan handler
   const handleDeletePlan = (planId: string, facilityName: string) => {
-    if (isVisitor) { setToastMessage(language === "bn" ? "ভিজিটর মোডে এই কাজ করার অনুমতি নেই!" : "Read-only mode"); return; }
+    if (!canDelete) { setToastMessage(language === "bn" ? "আপনার ফিল্ড প্ল্যান মুছে ফেলার অনুমতি নেই!" : "Deleting plan is disabled (No delete permission)"); return; }
     setPlans((prev) => prev.filter((p) => p.id !== planId));
     triggerToast(
       isBengali
@@ -469,7 +473,7 @@ export default function Technicians({
 
   // Delete timeline feed item handler
   const handleDeleteTimelineEntry = (feedId: string) => {
-    if (isVisitor) { setToastMessage(language === "bn" ? "ভিজিটর মোডে এই কাজ করার অনুমতি নেই!" : "Read-only mode"); return; }
+    if (!canDelete) { setToastMessage(language === "bn" ? "আপনার টাইমলাইন ইনফরমেশন মুছে ফেলার অনুমতি নেই!" : "Deleting timeline entry is disabled (No delete permission)"); return; }
     setTimelineFeed((prev) => prev.filter((f) => f.id !== feedId));
     triggerToast(
       isBengali
@@ -542,7 +546,7 @@ export default function Technicians({
 
   // Submit progress and post to timeline stream (Replicates video's dynamic post logic)
   const handleSubmitProgress = (isPartial: boolean) => {
-    if (isVisitor) { setToastMessage(language === "bn" ? "ভিজিটর মোডে এই কাজ করার অনুমতি নেই!" : "Read-only mode"); return; }
+    if (!canEdit) { setToastMessage(language === "bn" ? "আপনার প্রোগ্রেস সাবমিট করার অনুমতি নেই!" : "Submitting progress is disabled (No edit permission)"); return; }
     if (!updatingPlan) return;
 
     const loggedInUserStr =

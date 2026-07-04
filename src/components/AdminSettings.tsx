@@ -29,7 +29,7 @@ import {
   Search,
   CheckCircle
 } from "lucide-react";
-import { ReportItem, AppUser, UserRole } from "../types";
+import { ReportItem, AppUser, UserRole, DEFAULT_ROLE_PERMISSIONS } from "../types";
 import { getRegisteredUsers, saveRegisteredUsers, getDocuments, getActiveFirebaseConfig, initializeFirebaseClient, isFirebaseActive, getFirebaseConnectionError, synchronizeDatabase, saveBrandingData, saveStoreValue } from "../localDatabase";
 
 interface AdminSettingsProps {
@@ -61,6 +61,50 @@ interface AdminSettingsProps {
   rolePermissions?: Record<string, any>;
   setRolePermissions?: (perms: Record<string, any>) => void;
 }
+
+const PERMISSION_GROUPS = {
+  Ad: [
+    { key: "canCreateReport", label: { en: "Create Service Reports", bn: "সার্ভিস রিপোর্ট তৈরি করা" } },
+    { key: "canCreateLocation", label: { en: "Add Locations", bn: "লোকেশন যুক্ত করা" } },
+    { key: "canCreateSupervisor", label: { en: "Add Supervisors", bn: "সুপারভাইজার যুক্ত করা" } },
+    { key: "canCreateInventory", label: { en: "Add/Modify Inventory Items", bn: "ইনভেন্টরি যুক্ত করা" } },
+    { key: "canCreateTechnician", label: { en: "Add Technicians", bn: "টেকনিশিয়ান যুক্ত করা" } },
+    { key: "canCreateScheduler", label: { en: "Add Scheduler Entries", bn: "শিডিউলার এন্ট্রি যুক্ত করা" } },
+    { key: "canCreateEngineeringReport", label: { en: "Create Engineering Reports", bn: "ইঞ্জিনিয়ারিং রিপোর্ট তৈরি করা" } }
+  ],
+  V: [
+    { key: "canViewDashboard", label: { en: "View Dashboard", bn: "ড্যাশবোর্ড দেখা" } },
+    { key: "canViewClientPortal", label: { en: "View Client Portal", bn: "ক্লায়েন্ট পোর্টাল দেখা" } },
+    { key: "canViewCompletedRegistry", label: { en: "View Report History", bn: "রিপোর্ট হিস্ট্রি দেখা" } },
+    { key: "canViewLocations", label: { en: "View Location Directory", bn: "লোকেশন ডিরেক্টরি দেখা" } },
+    { key: "canViewSupervisors", label: { en: "View Supervisor List", bn: "সুপারভাইজার তালিকা দেখা" } },
+    { key: "canViewDirectory", label: { en: "View Client Directory", bn: "ক্লায়েন্ট ডিরেক্টরি দেখা" } },
+    { key: "canViewScheduler", label: { en: "View Scheduler", bn: "শিডিউলার দেখা" } },
+    { key: "canViewMasterForm", label: { en: "View Master Form", bn: "মাস্টার ফর্ম দেখা" } },
+    { key: "canViewInventory", label: { en: "View Inventory", bn: "ইনভেন্টরি দেখা" } },
+    { key: "canViewTechnicians", label: { en: "View Technicians Panel", bn: "টেকনিশিয়ান প্যানেল দেখা" } },
+    { key: "canViewAIPest", label: { en: "View AI Pest Detection", bn: "এআই পেস্ট ডিটেকশন দেখা" } },
+    { key: "canViewEngineeringReport", label: { en: "View Engineering Reports", bn: "ইঞ্জিনিয়ারিং রিপোর্ট দেখা" } }
+  ],
+  D: [
+    { key: "canDeleteReport", label: { en: "Delete Reports", bn: "রিপোর্ট ডিলিট করা" } },
+    { key: "canDeleteLocation", label: { en: "Delete Locations", bn: "লোকেশন মুছে ফেলা" } },
+    { key: "canDeleteSupervisor", label: { en: "Delete Supervisors", bn: "সুপারভাইজার মুছে ফেলা" } },
+    { key: "canDeleteInventory", label: { en: "Delete Inventory Items", bn: "ইনভেন্টরি মুছে ফেলা" } },
+    { key: "canDeleteTechnician", label: { en: "Delete Technicians", bn: "টেকনিশিয়ান মুছে ফেলা" } },
+    { key: "canDeleteScheduler", label: { en: "Delete Scheduler Entries", bn: "শিডিউলার এন্ট্রি মুছে ফেলা" } },
+    { key: "canDeleteEngineeringReport", label: { en: "Delete Engineering Reports", bn: "ইঞ্জিনিয়ারিং রিপোর্ট মুছে ফেলা" } }
+  ],
+  Ed: [
+    { key: "canEditReport", label: { en: "Edit Reports", bn: "রিপোর্ট এডিট করা" } },
+    { key: "canEditLocation", label: { en: "Edit Locations", bn: "লোকেশন এডিট করা" } },
+    { key: "canEditSupervisor", label: { en: "Edit Supervisors", bn: "সুপারভাইজার এডিট করা" } },
+    { key: "canEditInventory", label: { en: "Edit Inventory Items", bn: "ইনভেন্টরি এডিট করা" } },
+    { key: "canEditTechnician", label: { en: "Edit Technicians", bn: "টেকনিশিয়ান এডিট করা" } },
+    { key: "canEditScheduler", label: { en: "Edit Scheduler Entries", bn: "শিডিউলার এন্ট্রি এডিট করা" } },
+    { key: "canEditEngineeringReport", label: { en: "Edit Engineering Reports", bn: "ইঞ্জিনিয়ারিং রিপোর্ট এডিট করা" } }
+  ]
+};
 
 export default function AdminSettings({
   language,
@@ -126,7 +170,14 @@ export default function AdminSettings({
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
   const [showRoleMenu, setShowRoleMenu] = useState(false);
   const [activeTab, setActiveTab] = useState<"appearance" | "profile" | "security" | "password_security" | "database" | "role_permissions" | "active_devices">("appearance");
+  const [selectedRoleToManage, setSelectedRoleToManage] = useState<"Acting Leader" | "Moderator" | "Visitor">("Acting Leader");
+  const [modSubTab, setModSubTab] = useState<"Ad" | "V" | "D" | "Ed" | "All">("All");
+  const [visSubTab, setVisSubTab] = useState<"Ad" | "V" | "D" | "Ed" | "All">("All");
   const [activeSessionsList, setActiveSessionsList] = useState<any[]>([]);
+
+  useEffect(() => {
+    setModSubTab("All");
+  }, [selectedRoleToManage]);
 
   useEffect(() => {
     const fetchSessions = () => {
@@ -284,13 +335,13 @@ export default function AdminSettings({
 
   const [newUsername, setNewUsername] = useState("");
   const [newPassword, setNewPassword] = useState("");
-  const [newRole, setNewRole] = useState<"Admin" | "Moderator" | "Visitor">("Visitor");
+  const [newRole, setNewRole] = useState<"Admin" | "Moderator" | "Visitor" | "Acting Leader">("Visitor");
   const [userError, setUserError] = useState<string | null>(null);
   const [userSuccess, setUserSuccess] = useState<string | null>(null);
 
   const [editingUserId, setEditingUserId] = useState<string | null>(null);
   const [editingPassword, setEditingPassword] = useState<string>("");
-  const [editingRole, setEditingRole] = useState<"Admin" | "Moderator" | "Visitor">("Visitor");
+  const [editingRole, setEditingRole] = useState<"Admin" | "Moderator" | "Visitor" | "Acting Leader">("Visitor");
 
   // Professional security enhancer states
   const [showNewPassword, setShowNewPassword] = useState(false);
@@ -1833,6 +1884,12 @@ Reloading portal to apply updates...`;
                         color: "border-red-500/15 bg-red-950/10 hover:bg-slate-900 duration-200" 
                       },
                       { 
+                        val: "Acting Leader", 
+                        title: language === "bn" ? "অ্যাক্টিং লিডার (Acting Leader)" : "Acting Leader Role",
+                        desc: language === "bn" ? "অ্যাক্টিং লিডার টিম কন্ট্রোল ও সার্ভিস ফাইল এডিটিং পারমিশন।" : "Acting Leader view: Manage operational files and complete service entries.",
+                        color: "border-emerald-500/15 bg-emerald-950/10 hover:bg-slate-900 duration-200" 
+                      },
+                      { 
                         val: "Moderator", 
                         title: language === "bn" ? "মডারেটর (Moderator)" : "Moderator Role",
                         desc: language === "bn" ? "সার্ভিস ডিক্লারেশন রিপোর্ট, কেমিক্যাল ল্যাব ও অ্যাক্টিভিটি এডিট পারমিশন।" : "Staff view: Save, register and edit reports. Administrative tabs are locked.",
@@ -2008,6 +2065,7 @@ Reloading portal to apply updates...`;
                                   className="bg-slate-950 text-slate-200 border border-slate-750 focus:border-[#10B981] px-2 py-1.5 rounded-xl text-xs outline-none cursor-pointer"
                                 >
                                   <option value="Admin">{language === "bn" ? "অ্যাডমিন" : "Admin"}</option>
+                                  <option value="Acting Leader">{language === "bn" ? "অ্যাক্টিং লিডার" : "Acting Leader"}</option>
                                   <option value="Moderator">{language === "bn" ? "মডারেটর" : "Moderator"}</option>
                                   <option value="Visitor">{language === "bn" ? "ভিজিটর" : "Visitor"}</option>
                                 </select>
@@ -2015,11 +2073,19 @@ Reloading portal to apply updates...`;
                                 <span className={`px-2.5 py-1 rounded-full text-[9px] font-mono font-black uppercase tracking-wide border inline-flex items-center gap-1 ${
                                   user.role === "Admin" 
                                     ? "bg-red-500/10 text-red-400 border-red-500/20" 
-                                    : user.role === "Moderator" 
-                                      ? "bg-blue-500/10 text-blue-400 border-blue-500/20" 
-                                      : "bg-yellow-500/10 text-yellow-500/20 border-yellow-550/20"
+                                    : user.role === "Acting Leader"
+                                      ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/20"
+                                      : user.role === "Moderator" 
+                                        ? "bg-blue-500/10 text-blue-400 border-blue-500/20" 
+                                        : "bg-yellow-500/10 text-yellow-550 border-yellow-550/20"
                                 }`}>
-                                  {user.role === "Admin" ? "🛡️ Admin" : user.role === "Moderator" ? "✍️ Moderator" : "👁️ Visitor"}
+                                  {user.role === "Admin" 
+                                    ? "🛡️ Admin" 
+                                    : user.role === "Acting Leader"
+                                      ? "🎖️ Acting Leader"
+                                      : user.role === "Moderator" 
+                                        ? "✍️ Moderator" 
+                                        : "👁️ Visitor"}
                                 </span>
                               )}
                             </td>
@@ -2322,7 +2388,7 @@ Reloading portal to apply updates...`;
                           value={phoneInput}
                           onChange={(e) => setPhoneInput(e.target.value.replace(/[^0-9]/g, ""))}
                           placeholder="01712345678 / 501234567"
-                          className="w-full bg-slate-950 text-slate-100 border border-slate-750 focus:border-[#10B981] rounded-xl py-2.5 pl-24 pr-3 text-xs outline-none font-mono"
+                          className="w-full bg-slate-950 text-slate-100 border border-slate-755 focus:border-[#10B981] rounded-xl py-2.5 pl-24 pr-3 text-xs outline-none font-mono"
                         />
                       </div>
                     </div>
@@ -2349,9 +2415,9 @@ Reloading portal to apply updates...`;
                       <input
                         type="text"
                         maxLength={6}
+                        placeholder="e.g. 123456"
                         value={userOTPInput}
                         onChange={(e) => setUserOTPInput(e.target.value.replace(/[^0-9]/g, ""))}
-                        placeholder="e.g. 123456"
                         className="w-full bg-slate-950 text-slate-100 border border-emerald-500/30 text-center text-lg font-black tracking-[0.4em] rounded-xl py-2.5 outline-none font-mono focus:border-[#10B981]"
                       />
                     </div>
@@ -2544,7 +2610,6 @@ Reloading portal to apply updates...`;
               </div>
             )}
           </div>
-
           {/* LOWER BENTO CELL 2: Active Session Footprints & Device Auditing (Size 12 span) */}
           <div className="lg:col-span-12 bg-[#1E293B]/40 border border-[#334155] rounded-3xl p-6 shadow-xl space-y-4">
             <div className="space-y-1 border-b border-slate-800 pb-3 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
@@ -2601,7 +2666,6 @@ Reloading portal to apply updates...`;
                         </div>
                       </div>
                     </div>
-
                     <div className="flex items-center gap-3">
                       <span className="text-[10.5px] font-bold font-mono text-slate-450">
                         {ses.date}
@@ -2632,83 +2696,233 @@ Reloading portal to apply updates...`;
         <div className="bg-[#1E293B]/40 border border-[#334155] rounded-3xl p-6 shadow-sm space-y-6">
           <div className="space-y-2">
             <h3 className="text-sm font-extrabold text-slate-100 flex items-center gap-2">
-              <ShieldAlert className="w-5 h-5 text-indigo-400" />
+              <ShieldAlert className="w-5 h-5 text-[#10B981]" />
               <span>{language === "bn" ? "রোল পারমিশন সেটিং" : "Role Permissions Settings"}</span>
             </h3>
-            <p className="text-xs text-slate-400">
-              {language === "bn" ? "মডারেটর এবং ভিজিটর রোলের জন্য ড্যাশবোর্ড অ্যাক্সেস এবং ফিচার পারমিশন সেট করুন।" : "Configure access rights and feature permissions for Moderator and Visitor roles."}
-            </p>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-            {["Moderator", "Visitor"].map((targetRole) => (
-              <div key={targetRole} className="bg-slate-900 border border-slate-750 rounded-2xl p-5 space-y-4">
-                <h4 className="text-sm font-black text-slate-200 border-b border-slate-800 pb-3 mb-4">
-                  {targetRole} {language === "bn" ? "পারমিশন" : "Permissions"}
-                </h4>
-                
-                {rolePermissions && Object.entries(rolePermissions[targetRole] || {}).map(([key, value]) => {
-                  const labelMap: Record<string, string> = {
-                    canCreateReport: language === "bn" ? "সার্ভিস রিপোর্ট তৈরি করা" : "Create Service Reports",
-                    canEditReport: language === "bn" ? "রিপোর্ট এডিট করা" : "Edit Reports",
-                    canDeleteReport: language === "bn" ? "রিপোর্ট ডিলিট করা" : "Delete Reports",
-                    canManageLocations: language === "bn" ? "লোকেশন পরিচালনা" : "Manage Locations",
-                    canManageSupervisors: language === "bn" ? "সুপারভাইজার পরিচালনা" : "Manage Supervisors",
-                    canManageInventory: language === "bn" ? "ইনভেন্টরি পরিবর্তন করা" : "Manage Inventory",
-                    canManageTechnicians: language === "bn" ? "টেকনিশিয়ান পরিচালনা" : "Manage Technicians",
-                    canManageScheduler: language === "bn" ? "শিডিউলার পরিচালনা" : "Manage Scheduler",
-                    canManageEngineeringReport: language === "bn" ? "ইঞ্জিনিয়ারিং রিপোর্ট পরিচালনা" : "Manage Engineering Reports",
-                    canViewDashboard: language === "bn" ? "ড্যাশবোর্ড দেখা" : "View Dashboard",
-                    canViewCompletedRegistry: language === "bn" ? "রিপোর্ট হিস্ট্রি দেখা" : "View Report History",
-                    canViewLocations: language === "bn" ? "লোকেশন ডিরেক্টরি দেখা" : "View Location Directory",
-                    canViewSupervisors: language === "bn" ? "সুপারভাইজার তালিকা দেখা" : "View Supervisor List",
-                    canViewDirectory: language === "bn" ? "ক্লায়েন্ট ডিরেক্টরি দেখা" : "View Client Directory",
-                    canViewEngineeringReport: language === "bn" ? "ইঞ্জিনিয়ারিং রিপোর্ট দেখা" : "View Engineering Reports",
-                    canViewMasterForm: language === "bn" ? "মাস্টার ফর্ম দেখা" : "View Master Form",
-                    canViewInventory: language === "bn" ? "ইনভেন্টরি দেখা" : "View Inventory",
-                    canViewTechnicians: language === "bn" ? "টেকনিশিয়ান প্যানেল দেখা" : "View Technicians Panel",
-                    canViewAIPest: language === "bn" ? "এআই পেস্ট ডিটেকশন দেখা" : "View AI Pest Detection",
-                    canViewClientPortal: language === "bn" ? "ক্লায়েন্ট পোর্টাল দেখা" : "View Client Portal",
-                    canViewScheduler: language === "bn" ? "শিডিউলার দেখা" : "View Scheduler",
-                  };
-                  return (
-                    <label key={key} className="flex items-center justify-between group cursor-pointer">
-                      <span className="text-xs font-semibold text-slate-300 group-hover:text-slate-100 transition-colors">
-                        {labelMap[key] || key}
-                      </span>
-                      <div className="relative inline-block w-10 h-5">
-                        <input 
-                          type="checkbox"
-                          className="peer sr-only"
-                          checked={value as boolean}
-                          onChange={(e) => {
-                            if (setRolePermissions && rolePermissions) {
-                              const updated = {
-                                ...rolePermissions,
-                                [targetRole]: {
-                                  ...rolePermissions[targetRole],
-                                  [key]: e.target.checked
-                                }
-                              };
-                              setRolePermissions(updated);
-                              saveStoreValue("rolePermissions", updated);
-                            }
+          {/* Beautiful 1, 2, 3 Role Selection Tabs */}
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 border-b border-slate-800/60 pb-5">
+            {[
+              { id: "Acting Leader", num: "1", labelBn: "অ্যাক্টিং লিডার", labelEn: "Acting Leader", descBn: "পারমিশন সেট করুন", descEn: "Set Permissions" },
+              { id: "Moderator", num: "2", labelBn: "মডারেটর", labelEn: "Moderator", descBn: "পারমিশন সেট করুন", descEn: "Set Permissions" },
+              { id: "Visitor", num: "3", labelBn: "ভিজিটর", labelEn: "Visitor", descBn: "পারমিশন সেট করুন", descEn: "Set Permissions" },
+            ].map((roleOpt) => {
+              const isSelected = selectedRoleToManage === roleOpt.id;
+              return (
+                <button
+                  key={roleOpt.id}
+                  type="button"
+                  onClick={() => setSelectedRoleToManage(roleOpt.id as any)}
+                  className={`p-4 rounded-2xl border transition-all duration-300 text-left flex items-start gap-3.5 select-none relative cursor-pointer ${
+                    isSelected
+                      ? "border-emerald-500 bg-emerald-500/10 shadow-lg shadow-emerald-500/5 ring-1 ring-emerald-500/25"
+                      : "border-slate-800 bg-slate-900/60 hover:bg-slate-900 hover:border-slate-700"
+                  }`}
+                >
+                  {/* Number Badge */}
+                  <div className={`w-8 h-8 rounded-xl font-black text-xs flex items-center justify-center shrink-0 border transition-colors ${
+                    isSelected
+                      ? "bg-emerald-500 border-emerald-400 text-slate-950"
+                      : "bg-slate-950 border-slate-800 text-slate-400"
+                  }`}>
+                    {roleOpt.num}
+                  </div>
+                  
+                  <div className="space-y-0.5 leading-normal">
+                    <p className={`font-black text-[11px] uppercase tracking-wider font-mono ${
+                      isSelected ? "text-emerald-400" : "text-slate-200"
+                    }`}>
+                      {language === "bn" ? roleOpt.labelBn : roleOpt.labelEn}
+                    </p>
+                    <p className="text-[10px] text-slate-450 font-semibold font-sans">
+                      {language === "bn" ? roleOpt.descBn : roleOpt.descEn}
+                    </p>
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+
+          {/* Single permissions editor panel below the tabs */}
+          <div className="w-full">
+            <div className="bg-slate-900 border border-slate-750 rounded-2xl p-6 space-y-5 shadow-xl">
+              <div className="flex items-center justify-between border-b border-slate-800 pb-3 mb-4 gap-4 flex-wrap">
+                <div className="flex items-center gap-4 flex-wrap">
+                  <h4 className="text-sm font-black text-slate-200 flex items-center gap-2 mr-2">
+                    <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse" />
+                    <span>
+                      {selectedRoleToManage === "Acting Leader"
+                        ? (language === "bn" ? "অ্যাক্টিং লিডার পারমিশন" : "Acting Leader Permissions")
+                        : selectedRoleToManage === "Moderator"
+                          ? (language === "bn" ? "মডারেটর পারমিশন" : "Moderator Permissions")
+                          : (language === "bn" ? "ভিজিটর পারমিশন" : "Visitor Permissions")
+                      }
+                    </span>
+                  </h4>
+
+                  {/* Beautiful Separate Framed Tab Buttons Next to Title (instead of right-side circles) */}
+                  <div className="flex items-center gap-2 flex-wrap">
+                    {[
+                      { id: "All", label: language === "bn" ? "সমস্ত" : "All", tooltip: language === "bn" ? "সব পারমিশন" : "All Permissions" },
+                      { id: "Ad", label: language === "bn" ? "Add" : "Add", tooltip: language === "bn" ? "অ্যাড করা" : "Add/Create Permissions" },
+                      { id: "V", label: language === "bn" ? "View" : "View", tooltip: language === "bn" ? "ভিউ করা" : "View Permissions" },
+                      { id: "D", label: language === "bn" ? "Delete" : "Delete", tooltip: language === "bn" ? "ডিলিট করা" : "Delete Permissions" },
+                      { id: "Ed", label: language === "bn" ? "Edit" : "Edit", tooltip: language === "bn" ? "এডিট করা" : "Edit Permissions" },
+                    ].map((btn) => {
+                      const isActive = modSubTab === btn.id;
+                      return (
+                        <button
+                          key={btn.id}
+                          type="button"
+                          onClick={() => {
+                            setModSubTab(btn.id as any);
                           }}
-                          disabled={loggedInUser?.role !== "Admin"}
-                        />
-                        <div className="block bg-slate-800 border border-slate-600 w-full h-full rounded-full peer-checked:bg-emerald-500 peer-checked:border-emerald-500 transition-all"></div>
-                        <div className="absolute left-[2px] top-[2px] bg-slate-300 w-4 h-4 rounded-full transition-all peer-checked:translate-x-full peer-checked:bg-white"></div>
-                      </div>
-                    </label>
-                  );
-                })}
-                {loggedInUser?.role !== "Admin" && (
-                  <p className="text-[10px] text-red-400 mt-2 italic">
-                    {language === "bn" ? "* শুধুমাত্র এডমিন পারমিশন পরিবর্তন করতে পারবেন।" : "* Only Admin can change permissions."}
-                  </p>
-                )}
+                          className={`px-3.5 py-1.5 rounded-lg text-[11px] font-black tracking-wide border transition-all duration-300 cursor-pointer ${
+                            isActive
+                              ? "bg-emerald-500/10 border-emerald-500 text-emerald-400 shadow-sm shadow-emerald-500/10"
+                              : "bg-slate-850 border-slate-750 text-slate-400 hover:text-slate-200 hover:bg-slate-800/60 hover:border-slate-650"
+                          }`}
+                          title={btn.tooltip}
+                        >
+                          {btn.label}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
               </div>
-            ))}
+              
+              {(() => {
+                const currentSubTab = modSubTab;
+                const targetRole = selectedRoleToManage;
+                
+                // Always render all keys so the grid height is completely stable and never shrinks!
+                const keysToRender: { key: string; label: string }[] = [];
+                
+                const allKeys = [
+                  ...PERMISSION_GROUPS.Ad,
+                  ...PERMISSION_GROUPS.V,
+                  ...PERMISSION_GROUPS.D,
+                  ...PERMISSION_GROUPS.Ed
+                ];
+                const seen = new Set<string>();
+                for (const item of allKeys) {
+                  if (!seen.has(item.key)) {
+                    seen.add(item.key);
+                    keysToRender.push({
+                      key: item.key,
+                      label: language === "bn" ? item.label.bn : item.label.en
+                    });
+                  }
+                }
+                
+                const half = Math.ceil(keysToRender.length / 2);
+                const leftColumn = keysToRender.slice(0, half);
+                const rightColumn = keysToRender.slice(half);
+                
+                return (
+                  <div className="flex flex-col md:flex-row md:items-stretch gap-y-4 md:gap-x-12 min-h-[220px]">
+                    <div className="flex-1 space-y-3.5">
+                      {leftColumn.map(({ key, label }) => {
+                        const value = rolePermissions ? (rolePermissions[targetRole]?.[key] ?? DEFAULT_ROLE_PERMISSIONS[targetRole]?.[key] ?? false) : false;
+                        const isKeyInSelectedGroup = currentSubTab === "All" || (
+                          PERMISSION_GROUPS[currentSubTab as "Ad" | "V" | "D" | "Ed"]?.some(item => item.key === key)
+                        );
+                        return (
+                          <label key={key} className="flex items-center justify-between group cursor-pointer py-0.5 select-none transition-all duration-300 opacity-100">
+                            <span className={`text-xs font-semibold transition-colors ${
+                              currentSubTab !== "All" && isKeyInSelectedGroup
+                                ? "text-emerald-400 font-extrabold"
+                                : "text-slate-200 group-hover:text-white"
+                            }`}>
+                              {label}
+                            </span>
+                            <div className="relative inline-block w-10 h-5 shrink-0">
+                              <input 
+                                type="checkbox"
+                                className="peer sr-only"
+                                checked={value as boolean}
+                                onChange={(e) => {
+                                  if (setRolePermissions && rolePermissions) {
+                                    const updated = {
+                                      ...rolePermissions,
+                                      [targetRole]: {
+                                        ...(DEFAULT_ROLE_PERMISSIONS[targetRole] || {}),
+                                        ...(rolePermissions[targetRole] || {}),
+                                        [key]: e.target.checked
+                                      }
+                                    };
+                                    setRolePermissions(updated);
+                                    saveStoreValue("rolePermissions", updated);
+                                  }
+                                }}
+                                disabled={loggedInUser?.role !== "Admin"}
+                              />
+                              <div className="block bg-slate-850 border border-slate-700 w-full h-full rounded-full peer-checked:bg-emerald-500 peer-checked:border-emerald-500 transition-all"></div>
+                              <div className="absolute left-[2px] top-[2px] bg-slate-400 w-4 h-4 rounded-full transition-all peer-checked:translate-x-full peer-checked:bg-white"></div>
+                            </div>
+                          </label>
+                        );
+                      })}
+                    </div>
+
+                    {/* Elegant Vertical Divider Line */}
+                    <div className="hidden md:block w-[1px] bg-slate-800 self-stretch" />
+
+                    <div className="flex-1 space-y-3.5">
+                      {rightColumn.map(({ key, label }) => {
+                        const value = rolePermissions ? (rolePermissions[targetRole]?.[key] ?? DEFAULT_ROLE_PERMISSIONS[targetRole]?.[key] ?? false) : false;
+                        const isKeyInSelectedGroup = currentSubTab === "All" || (
+                          PERMISSION_GROUPS[currentSubTab as "Ad" | "V" | "D" | "Ed"]?.some(item => item.key === key)
+                        );
+                        return (
+                          <label key={key} className="flex items-center justify-between group cursor-pointer py-0.5 select-none transition-all duration-300 opacity-100">
+                            <span className={`text-xs font-semibold transition-colors ${
+                              currentSubTab !== "All" && isKeyInSelectedGroup
+                                ? "text-emerald-400 font-extrabold"
+                                : "text-slate-200 group-hover:text-white"
+                            }`}>
+                              {label}
+                            </span>
+                            <div className="relative inline-block w-10 h-5 shrink-0">
+                              <input 
+                                type="checkbox"
+                                className="peer sr-only"
+                                checked={value as boolean}
+                                onChange={(e) => {
+                                  if (setRolePermissions && rolePermissions) {
+                                    const updated = {
+                                      ...rolePermissions,
+                                      [targetRole]: {
+                                        ...(DEFAULT_ROLE_PERMISSIONS[targetRole] || {}),
+                                        ...(rolePermissions[targetRole] || {}),
+                                        [key]: e.target.checked
+                                      }
+                                    };
+                                    setRolePermissions(updated);
+                                    saveStoreValue("rolePermissions", updated);
+                                  }
+                                }}
+                                disabled={loggedInUser?.role !== "Admin"}
+                              />
+                              <div className="block bg-slate-850 border border-slate-700 w-full h-full rounded-full peer-checked:bg-emerald-500 peer-checked:border-emerald-500 transition-all"></div>
+                              <div className="absolute left-[2px] top-[2px] bg-slate-400 w-4 h-4 rounded-full transition-all peer-checked:translate-x-full peer-checked:bg-white"></div>
+                            </div>
+                          </label>
+                        );
+                      })}
+                    </div>
+                  </div>
+                );
+              })()}
+
+              {loggedInUser?.role !== "Admin" && (
+                <p className="text-[10px] text-red-400 mt-2 italic">
+                  {language === "bn" ? "* শুধুমাত্র এডমিন পারমিশন পরিবর্তন করতে পারবেন।" : "* Only Admin can change permissions."}
+                </p>
+              )}
+            </div>
           </div>
 
         </div>

@@ -92,9 +92,45 @@ function AutoResizeTextarea({ value, onChange, placeholder, className }: AutoRes
   );
 }
 
+const normalizeDateToYYYYMMDD = (dateStr: string): string => {
+  if (!dateStr) return "";
+  const trimmed = dateStr.trim();
+  
+  if (trimmed.includes("/")) {
+    const parts = trimmed.split("/");
+    if (parts.length === 3) {
+      if (parts[0].length === 4) {
+        return `${parts[0]}-${parts[1].padStart(2, "0")}-${parts[2].padStart(2, "0")}`;
+      } else {
+        const d = parts[0].padStart(2, "0");
+        const m = parts[1].padStart(2, "0");
+        const y = parts[2].length === 2 ? "20" + parts[2] : parts[2];
+        return `${y}-${m}-${d}`;
+      }
+    }
+  }
+
+  if (trimmed.includes("-")) {
+    const parts = trimmed.split("-");
+    if (parts.length === 3) {
+      if (parts[0].length === 4) {
+        return `${parts[0]}-${parts[1].padStart(2, "0")}-${parts[2].padStart(2, "0")}`;
+      } else {
+        const d = parts[0].padStart(2, "0");
+        const m = parts[1].padStart(2, "0");
+        const y = parts[2].length === 2 ? "20" + parts[2] : parts[2];
+        return `${y}-${m}-${d}`;
+      }
+    }
+  }
+
+  return trimmed;
+};
+
 const addDaysToDate = (dateStr: string, days: number): string => {
   if (!dateStr) return "";
-  const parts = dateStr.split("-");
+  const normalized = normalizeDateToYYYYMMDD(dateStr);
+  const parts = normalized.split("-");
   if (parts.length !== 3) return "";
   const year = parseInt(parts[0], 10);
   const month = parseInt(parts[1], 10); // 1-indexed
@@ -136,6 +172,10 @@ export default function ProjectScheduler({ language, isDark }: ProjectSchedulerP
   // Core registries
   const [projectsList, setProjectsList] = useState<HospitalProject[]>([]);
   const [groupsList, setGroupsList] = useState<DutyGroup[]>([]);
+
+  // Get today's local date string
+  const todayDate = new Date();
+  const todayStr = `${todayDate.getFullYear()}-${String(todayDate.getMonth() + 1).padStart(2, "0")}-${String(todayDate.getDate()).padStart(2, "0")}`;
 
   // Search & Filters
   const [searchQuery, setSearchQuery] = useState("");
@@ -266,44 +306,12 @@ export default function ProjectScheduler({ language, isDark }: ProjectSchedulerP
     };
   }, []);
 
-  // Check and automatically renew groups if today matches or exceeds nextDateStr
+  // Automatic reset/renewal of expired groups has been disabled as requested by the user,
+  // to ensure that completed data is never deleted automatically when the month ends.
+  // Manual renewal is still fully supported via the renewal button.
   useEffect(() => {
-    if (!groupsList || groupsList.length === 0) return;
-    
-    // Get today's local date string
-    const d = new Date();
-    const yyyy = d.getFullYear();
-    const mm = String(d.getMonth() + 1).padStart(2, "0");
-    const dd = String(d.getDate()).padStart(2, "0");
-    const todayStr = `${yyyy}-${mm}-${dd}`;
-    
-    let changed = false;
-    const updated = groupsList.map(g => {
-      if (g.isEmergency) return g;
-      
-      if (g.nextDateStr && todayStr >= g.nextDateStr) {
-        changed = true;
-        const freshTasks = g.tasks.map(t => ({ ...t, status: "pending" as const }));
-        
-        // Calculate next renewal date using intervalDays
-        const interval = g.intervalDays || 30;
-        const calculatedNextDate = addDaysToDate(g.nextDateStr, interval);
-        
-        return {
-          ...g,
-          dateStr: g.nextDateStr,
-          nextDateStr: calculatedNextDate,
-          tasks: freshTasks
-        };
-      }
-      return g;
-    });
-    
-    if (changed) {
-      saveGroups(updated);
-      triggerToast(language === "bn" ? "মেয়াদ উত্তীর্ণ গ্রুপগুলো নতুন মেয়াদে নবায়ন করা হয়েছে!" : "Expired schedule cycles auto-renewed!");
-    }
-  }, [groupsList, language]);
+    // Disabled to preserve completed schedules and avoid automatic task status resets.
+  }, []);
 
   // Save utilities
   const saveProjects = (list: HospitalProject[]) => {
@@ -364,6 +372,26 @@ export default function ProjectScheduler({ language, isDark }: ProjectSchedulerP
         }));
         saveGroups(updatedGroups);
         triggerToast("Hospital registration and assignments deleted.");
+      }
+    });
+  };
+
+  // Clear all hospital profiles/clinics
+  const handleClearAllProjects = () => {
+    setConfirmConfig({
+      title: language === "bn" ? "সব ক্লিনিক ডিলিট করবেন?" : "Clear All Registered Clinics?",
+      message: language === "bn" 
+        ? "আপনি কি নিশ্চিত যে আপনি সমস্ত নিবন্ধিত ক্লিনিক মুছে ফেলতে চান? এটি সিস্টেমের সমস্ত গ্রুপ থেকেও এদের সরিয়ে দেবে।" 
+        : "Are you sure you want to delete all registered clinics? This will also remove them from all groups/schedules.",
+      onCallback: () => {
+        saveProjects([]);
+        // Filter out all tasks across all groups
+        const updatedGroups = groupsList.map(g => ({
+          ...g,
+          tasks: []
+        }));
+        saveGroups(updatedGroups);
+        triggerToast(language === "bn" ? "সব ক্লিনিক সফলভাবে মুছে ফেলা হয়েছে!" : "All clinics cleared successfully!");
       }
     });
   };
@@ -492,6 +520,26 @@ export default function ProjectScheduler({ language, isDark }: ProjectSchedulerP
     });
     saveGroups(updated);
     triggerToast(`Renamed group to "${newName.trim()}"!`);
+  };
+
+  // Check if a group has ended or is fully completed
+  const isGroupCompleted = (g: DutyGroup) => {
+    // Get today's local date string
+    const d = new Date();
+    const yyyy = d.getFullYear();
+    const mm = String(d.getMonth() + 1).padStart(2, "0");
+    const dd = String(d.getDate()).padStart(2, "0");
+    const todayStr = `${yyyy}-${mm}-${dd}`;
+
+    // If its scheduled date is strictly in the past, it's completed/past
+    if (normalizeDateToYYYYMMDD(g.dateStr) < todayStr) return true;
+    
+    // If all tasks are completed
+    if (g.tasks && g.tasks.length > 0 && g.tasks.every(t => t.status === "completed")) {
+      return true;
+    }
+
+    return false;
   };
 
   // Add hospital project to a specific group's tasklist (Increase hospital count)
@@ -922,7 +970,7 @@ export default function ProjectScheduler({ language, isDark }: ProjectSchedulerP
     const dayStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
     const dateObj = new Date(year, month, day);
     const isSunday = dateObj.getDay() === 0;
-    const dayGroups = groupsList.filter(g => g.dateStr === dayStr);
+    const dayGroups = groupsList.filter(g => normalizeDateToYYYYMMDD(g.dateStr) === dayStr);
 
     calendarDays.push({
       dayNum: day,
@@ -933,7 +981,7 @@ export default function ProjectScheduler({ language, isDark }: ProjectSchedulerP
   }
 
   const isSelectedDateSunday = new Date(selectedDateStr).getDay() === 0;
-  const groupsOnSelectedDate = groupsList.filter(g => g.dateStr === selectedDateStr);
+  const groupsOnSelectedDate = groupsList.filter(g => normalizeDateToYYYYMMDD(g.dateStr) === normalizeDateToYYYYMMDD(selectedDateStr));
 
   return (
     <div className={`p-4 md:p-6 rounded-3xl border shadow-xl flex flex-col space-y-6 transition-all text-left ${
@@ -988,7 +1036,7 @@ export default function ProjectScheduler({ language, isDark }: ProjectSchedulerP
           }`}
         >
           <Building2 className="w-4 h-4" />
-          <span>🏢 Healthcare clinic Register (85+ Sites)</span>
+          <span>🏢 {language === "bn" ? "স্বাস্থ্যসেবা ক্লিনিক রেজিস্টার" : "Healthcare clinic Register"} ({projectsList.length} {language === "bn" ? "টি সাইট" : "Sites"})</span>
         </button>
       </div>
 
@@ -1028,115 +1076,6 @@ export default function ProjectScheduler({ language, isDark }: ProjectSchedulerP
             </div>
           </div>
 
-          {/* Inline Create Group Modal Form */}
-          {isCreateGroupOpen && (
-            <div className={`p-5 rounded-2xl border space-y-4 animate-fade-in ${
-              isDark ? "bg-slate-900 border-slate-700" : "bg-emerald-50 bg-[#F9FBF9] border-emerald-200"
-            }`}>
-              <div className="flex items-center justify-between pb-2 border-b border-slate-800/10 dark:border-slate-800">
-                <span className="text-xs font-black uppercase text-indigo-400 tracking-wider flex items-center gap-1.5">
-                  <Plus className="w-4 h-4 text-indigo-500" /> Let's Add a New Clean Group
-                </span>
-                <button type="button" onClick={() => setIsCreateGroupOpen(false)}>
-                  <X className="w-4 h-4 text-slate-400 hover:text-slate-900 dark:hover:text-white" />
-                </button>
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-5 gap-3.5">
-                <div className="space-y-1">
-                  <label className="text-[9px] block font-extrabold text-slate-400 uppercase">Group name / label</label>
-                  <input
-                    type="text"
-                    placeholder="e.g. Group 4"
-                    value={newGroupName}
-                    onChange={(e) => setNewGroupName(e.target.value)}
-                    className={`w-full text-xs p-2.5 rounded-xl border font-bold ${
-                      isDark ? "bg-slate-955 border-slate-700 text-white" : "bg-white border-slate-300 text-slate-900"
-                    }`}
-                  />
-                </div>
-
-                <div className="space-y-1">
-                  <label className="text-[9px] block font-extrabold text-slate-400 uppercase">Operation target Date</label>
-                  <input
-                    type="date"
-                    required
-                    value={newGroupDateStr}
-                    onChange={(e) => setNewGroupDateStr(e.target.value)}
-                    className={`w-full text-xs p-2.5 rounded-xl border font-mono font-bold ${
-                      isDark ? "bg-slate-955 border-slate-700 text-white" : "bg-white border-slate-300 text-slate-900"
-                    }`}
-                  />
-                </div>
-
-                <div className="space-y-1">
-                  <label className="text-[9px] block font-extrabold text-slate-400 uppercase">
-                    {language === "bn" ? "কতদিন পর পর করবেন (দিন)" : "Repeat After (Days)"}
-                  </label>
-                  <input
-                    type="number"
-                    min="1"
-                    required
-                    value={newGroupIntervalDays === "" ? "" : newGroupIntervalDays}
-                    onChange={(e) => {
-                      const val = e.target.value;
-                      setNewGroupIntervalDays(val === "" ? "" : parseInt(val, 10));
-                    }}
-                    placeholder="e.g. 30"
-                    className={`w-full text-xs p-2.5 rounded-xl border font-mono font-bold ${
-                      isDark ? "bg-slate-955 border-slate-700 text-white" : "bg-white border-slate-300 text-slate-900"
-                    }`}
-                  />
-                </div>
-
-                <div className="space-y-1">
-                  <label className="text-[9px] block font-extrabold text-slate-400 uppercase">Assigned Service Crew</label>
-                  <input
-                    type="text"
-                    placeholder="e.g. Squad Falcon"
-                    value={newGroupTeam}
-                    onChange={(e) => setNewGroupTeam(e.target.value)}
-                    className={`w-full text-xs p-2.5 rounded-xl border font-bold ${
-                      isDark ? "bg-slate-955 border-slate-700 text-white" : "bg-white border-slate-300 text-slate-900"
-                    }`}
-                  />
-                </div>
-
-                <div className="space-y-1">
-                  <label className="text-[9px] block font-extrabold text-slate-400 uppercase">Pest directive notes</label>
-                  <input
-                    type="text"
-                    placeholder="e.g. Routine gel baiting check"
-                    value={newGroupNotes}
-                    onChange={(e) => setNewGroupNotes(e.target.value)}
-                    className={`w-full text-xs p-2.5 rounded-xl border font-bold ${
-                      isDark ? "bg-slate-955 border-slate-700 text-white" : "bg-white border-slate-300 text-slate-900"
-                    }`}
-                  />
-                </div>
-              </div>
-
-              <div className="flex justify-end gap-2 pt-2">
-                <button
-                  type="button"
-                  onClick={() => setIsCreateGroupOpen(false)}
-                  className={`px-3.5 py-1.5 text-xs font-bold rounded-lg ${
-                    isDark ? "bg-slate-800 hover:bg-slate-700" : "bg-white border border-slate-300 text-slate-700"
-                  }`}
-                >
-                  Cancel
-                </button>
-                <button
-                  type="button"
-                  onClick={handleCreateRouteGroup}
-                  className="px-4 py-1.5 bg-[#10B981] hover:bg-emerald-600 text-white text-xs font-black uppercase rounded-lg"
-                >
-                  Create Card
-                </button>
-              </div>
-            </div>
-          )}
-
           {/* GROUPS RESPONSIVE GRID - 1 column on mobile, 2 on tablet, 3 on desktop, 4 on wide desktop */}
           {groupsList.length === 0 ? (
             <div className={`p-12 text-center rounded-3xl border border-dashed text-slate-400 space-y-3 ${
@@ -1155,13 +1094,26 @@ export default function ProjectScheduler({ language, isDark }: ProjectSchedulerP
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
               {[...groupsList]
                 .sort((a, b) => {
+                  // Emergency groups always go to the very top
                   if (a.isEmergency && !b.isEmergency) return -1;
                   if (!a.isEmergency && b.isEmergency) return 1;
+                  if (a.isEmergency && b.isEmergency) {
+                    return a.dateStr.localeCompare(b.dateStr);
+                  }
+
+                  const compA = isGroupCompleted(a);
+                  const compB = isGroupCompleted(b);
+
+                  if (compA && !compB) return 1;  // Completed/past goes to the bottom
+                  if (!compA && compB) return -1; // Active stays at the top
+
+                  // If both are completed/past OR both are active, sort by dateStr ascending
                   return a.dateStr.localeCompare(b.dateStr);
                 })
                 .map((group) => {
                 const isExpanded = expandedDetailsMap[group.id] || false;
                 const isAddingActive = addingToGroupMap[group.id] || false;
+                const comp = isGroupCompleted(group);
 
                 // Let's filter out hospitals already allocated inside this specific card
                 const nonAllocatedProjects = projectsList.filter(
@@ -1176,10 +1128,14 @@ export default function ProjectScheduler({ language, isDark }: ProjectSchedulerP
                       isDark 
                         ? group.isEmergency 
                           ? "bg-[#1E1719]/95 border-rose-950/60 hover:border-rose-500 hover:scale-[1.01] border-l-[6px] border-l-rose-500 shadow-rose-500/5"
-                          : "bg-[#131B2D]/95 border-slate-800 hover:border-slate-700 hover:scale-[1.01]" 
+                          : comp
+                            ? "bg-[#0F1D17]/95 border-emerald-950/80 hover:border-emerald-500 hover:scale-[1.01] border-l-[6px] border-l-emerald-500 shadow-emerald-500/5"
+                            : "bg-[#131B2D]/95 border-slate-800 hover:border-slate-700 hover:scale-[1.01]" 
                         : group.isEmergency
                           ? "bg-[#FFF9F9] border-rose-200 hover:border-rose-400 hover:scale-[1.01] text-slate-900 border-l-[6px] border-b-[3px] border-l-rose-500 shadow-rose-500/5"
-                          : "bg-[#FFFDF6] border-[#E8DDCD] hover:border-[#D4C3A9] hover:scale-[1.01] text-slate-900 border-l-[6px] border-b-[3px] border-l-stone-400"
+                          : comp
+                            ? "bg-[#F4FAF7] border-[#BADBCC] hover:border-[#8ED3B1] hover:scale-[1.01] text-slate-950 border-l-[6px] border-b-[3px] border-l-[#10B981]"
+                            : "bg-[#FFFDF6] border-[#E8DDCD] hover:border-[#D4C3A9] hover:scale-[1.01] text-slate-900 border-l-[6px] border-b-[3px] border-l-stone-400"
                     }`}
                   >
                     
@@ -1189,145 +1145,153 @@ export default function ProjectScheduler({ language, isDark }: ProjectSchedulerP
                     <div className="p-4 space-y-3.5 flex-1 select-none">
                       
                       {/* Card Title Header with Sequence Name & Delete icon */}
-                      <div className="flex items-center justify-between gap-1 pb-2 border-b border-dashed border-slate-300/65 dark:border-slate-800">
-                        <div className="flex items-center gap-1.5 min-w-0 relative">
-                          {group.isEmergency ? (
-                            <AlertTriangle className="w-4 h-4 text-rose-500 shrink-0 animate-pulse" />
-                          ) : (
-                            <Layers className="w-4 h-4 text-indigo-400 shrink-0" />
-                          )}
-                          <div className="relative flex items-center gap-1">
+                      <div className="flex flex-col gap-2.5 pb-2 border-b border-dashed border-slate-300/65 dark:border-slate-800">
+                        {/* First Row: Group Name on left, Actions on right */}
+                        <div className="flex items-center justify-between gap-1">
+                          <div className="flex items-center gap-1.5 min-w-0 relative">
+                            {group.isEmergency ? (
+                              <AlertTriangle className="w-4 h-4 text-rose-500 shrink-0 animate-pulse" />
+                            ) : (
+                              <Layers className="w-4 h-4 text-indigo-400 shrink-0" />
+                            )}
+                            <div className="relative flex items-center gap-1">
+                              <button
+                                type="button"
+                                onClick={() => setActiveGroupNameDropdownId(activeGroupNameDropdownId === group.id ? null : group.id)}
+                                className={`flex items-center gap-1 text-[13.5px] font-black tracking-tight font-sans uppercase hover:text-indigo-500 dark:hover:text-sky-200 transition-colors select-none cursor-pointer ${
+                                  group.isEmergency
+                                    ? "text-rose-600 dark:text-rose-400"
+                                    : "text-stone-850 dark:text-sky-300"
+                                }`}
+                                title="Click to select/change group name"
+                              >
+                                <span>{group.name}</span>
+                                <ChevronDown className="w-4 h-4 text-[#10B981] dark:text-[#10B981] shrink-0" />
+                              </button>
+
+                              {/* Dropdown Menu */}
+                              {activeGroupNameDropdownId === group.id && (
+                                <>
+                                  {/* Click-outside backdrop */}
+                                  <div 
+                                    className="fixed inset-0 z-40 cursor-default" 
+                                    onClick={() => setActiveGroupNameDropdownId(null)} 
+                                  />
+                                  <div className="absolute left-0 top-full mt-2 w-48 rounded-xl shadow-xl border border-stone-200 dark:border-slate-800 bg-white dark:bg-slate-900 py-1.5 z-50 animate-fade-in text-xs max-h-60 overflow-y-auto">
+                                    <div className="px-2.5 py-1 text-[10px] font-extrabold uppercase tracking-wider text-slate-400 dark:text-slate-500">
+                                      Select Region / Group Name
+                                    </div>
+                                    <div className="border-b border-stone-100 dark:border-slate-800/60 my-1" />
+                                    
+                                    {/* Presets */}
+                                    {[
+                                      "DUBAY",
+                                      "SHARH",
+                                      "DUBAI",
+                                      "SHARJAH",
+                                      "ABU DHABI",
+                                      "AJMAN",
+                                      "UMM AL QUWAIN",
+                                      "RAS AL KHAIMAH",
+                                      "FUJAIRAH",
+                                      "AL AIN",
+                                      "GROUP 1",
+                                      "GROUP 2",
+                                      "GROUP 3",
+                                      "GROUP 4",
+                                      "GROUP 5",
+                                      "GROUP 6",
+                                      "GROUP 7",
+                                      "GROUP 8",
+                                      "GROUP 9",
+                                      "GROUP 10"
+                                    ].map((namePreset) => (
+                                      <button
+                                        key={namePreset}
+                                        type="button"
+                                        onClick={() => {
+                                          handleRenameGroup(group.id, namePreset);
+                                          setActiveGroupNameDropdownId(null);
+                                        }}
+                                        className={`w-full text-left px-3 py-1.5 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors flex items-center justify-between font-bold ${
+                                          group.name.toUpperCase() === namePreset 
+                                            ? "text-indigo-600 dark:text-sky-400 bg-indigo-50/40 dark:bg-sky-950/20" 
+                                            : "text-slate-700 dark:text-slate-300"
+                                        }`}
+                                      >
+                                        <span>{namePreset}</span>
+                                        {group.name.toUpperCase() === namePreset && (
+                                          <Check className="w-3.5 h-3.5 text-indigo-500 dark:text-sky-400" />
+                                        )}
+                                      </button>
+                                    ))}
+
+                                    <div className="border-t border-stone-100 dark:border-slate-800/60 my-1.5 pt-1.5 px-2">
+                                      <input 
+                                        type="text"
+                                        placeholder="Custom name..."
+                                        className="w-full px-2 py-1 text-xs border border-stone-300 dark:border-slate-700 rounded-md bg-stone-50 dark:bg-slate-950 text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                                        onKeyDown={(e) => {
+                                          if (e.key === 'Enter') {
+                                            const val = e.currentTarget.value.trim();
+                                            if (val) {
+                                              handleRenameGroup(group.id, val);
+                                              setActiveGroupNameDropdownId(null);
+                                            }
+                                          }
+                                        }}
+                                      />
+                                    </div>
+                                  </div>
+                                </>
+                              )}
+                            </div>
+                          </div>
+
+                          {/* Quick Group Actions */}
+                          <div className="flex items-center gap-1.5 shrink-0">
+                            {/* Renew / Reset Button */}
+                            {!group.isEmergency && (
+                              <button
+                                type="button"
+                                onClick={() => handleRenewGroup(group.id)}
+                                className="p-1 text-[#10B981] dark:text-teal-400 hover:bg-teal-500/10 rounded-lg transition-all border-none bg-transparent cursor-pointer flex items-center justify-center"
+                                title={language === "bn" ? "এখনই মেয়াদ নবায়ন করুন (নতুনভাবে শুরু)" : "Renew / Reset group now"}
+                              >
+                                <RotateCcw className="w-3.5 h-3.5 text-[#10B981]" />
+                              </button>
+                            )}
+
                             <button
                               type="button"
-                              onClick={() => setActiveGroupNameDropdownId(activeGroupNameDropdownId === group.id ? null : group.id)}
-                              className={`flex items-center gap-1 text-[13.5px] font-black tracking-tight font-sans uppercase hover:text-indigo-500 dark:hover:text-sky-200 transition-colors select-none cursor-pointer ${
-                                group.isEmergency
-                                  ? "text-rose-600 dark:text-rose-400"
-                                  : "text-stone-850 dark:text-sky-300"
-                              }`}
-                              title="Click to select/change group name"
+                              onClick={() => handleDeleteGroup(group.id)}
+                              className="p-1 px-1.5 text-rose-500 hover:bg-rose-500/10 rounded-lg transition-all border-none bg-transparent cursor-pointer flex items-center justify-center"
+                              title="Delete entire group"
                             >
-                              <span>{group.name}</span>
-                              <ChevronDown className="w-4 h-4 text-[#10B981] dark:text-[#10B981] shrink-0" />
+                              <Trash2 className="w-3.5 h-3.5" />
                             </button>
-
-                            {/* Dropdown Menu */}
-                            {activeGroupNameDropdownId === group.id && (
-                              <>
-                                {/* Click-outside backdrop */}
-                                <div 
-                                  className="fixed inset-0 z-40 cursor-default" 
-                                  onClick={() => setActiveGroupNameDropdownId(null)} 
-                                />
-                                <div className="absolute left-0 top-full mt-2 w-48 rounded-xl shadow-xl border border-stone-200 dark:border-slate-800 bg-white dark:bg-slate-900 py-1.5 z-50 animate-fade-in text-xs max-h-60 overflow-y-auto">
-                                  <div className="px-2.5 py-1 text-[10px] font-extrabold uppercase tracking-wider text-slate-400 dark:text-slate-500">
-                                    Select Region / Group Name
-                                  </div>
-                                  <div className="border-b border-stone-100 dark:border-slate-800/60 my-1" />
-                                  
-                                  {/* Presets */}
-                                  {[
-                                    "DUBAY",
-                                    "SHARH",
-                                    "DUBAI",
-                                    "SHARJAH",
-                                    "ABU DHABI",
-                                    "AJMAN",
-                                    "UMM AL QUWAIN",
-                                    "RAS AL KHAIMAH",
-                                    "FUJAIRAH",
-                                    "AL AIN",
-                                    "GROUP 1",
-                                    "GROUP 2",
-                                    "GROUP 3",
-                                    "GROUP 4",
-                                    "GROUP 5",
-                                    "GROUP 6",
-                                    "GROUP 7",
-                                    "GROUP 8",
-                                    "GROUP 9",
-                                    "GROUP 10"
-                                  ].map((namePreset) => (
-                                    <button
-                                      key={namePreset}
-                                      type="button"
-                                      onClick={() => {
-                                        handleRenameGroup(group.id, namePreset);
-                                        setActiveGroupNameDropdownId(null);
-                                      }}
-                                      className={`w-full text-left px-3 py-1.5 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors flex items-center justify-between font-bold ${
-                                        group.name.toUpperCase() === namePreset 
-                                          ? "text-indigo-600 dark:text-sky-400 bg-indigo-50/40 dark:bg-sky-950/20" 
-                                          : "text-slate-700 dark:text-slate-300"
-                                      }`}
-                                    >
-                                      <span>{namePreset}</span>
-                                      {group.name.toUpperCase() === namePreset && (
-                                        <Check className="w-3.5 h-3.5 text-indigo-500 dark:text-sky-400" />
-                                      )}
-                                    </button>
-                                  ))}
-
-                                  <div className="border-t border-stone-100 dark:border-slate-800/60 my-1.5 pt-1.5 px-2">
-                                    <input 
-                                      type="text"
-                                      placeholder="Custom name..."
-                                      className="w-full px-2 py-1 text-xs border border-stone-300 dark:border-slate-700 rounded-md bg-stone-50 dark:bg-slate-950 text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-1 focus:ring-indigo-500"
-                                      onKeyDown={(e) => {
-                                        if (e.key === 'Enter') {
-                                          const val = e.currentTarget.value.trim();
-                                          if (val) {
-                                            handleRenameGroup(group.id, val);
-                                            setActiveGroupNameDropdownId(null);
-                                          }
-                                        }
-                                      }}
-                                    />
-                                  </div>
-                                </div>
-                              </>
-                            )}
                           </div>
                         </div>
 
-                        {/* Right tools side: contains date option and delete button */}
-                        <div className="flex flex-wrap items-center gap-2 shrink-0">
-                          {/* Interactive Inline Date Changer */}
-                          <div className="flex items-center gap-1" title={language === "bn" ? "অপারেশন তারিখ" : "Operation target date"}>
-                            <Calendar className="w-3.5 h-3.5 text-[#10B981] dark:text-sky-400 shrink-0" />
-                            <input
-                              type="date"
-                              value={group.dateStr}
-                              onChange={(e) => handleRescheduleGroupDate(group.id, e.target.value)}
-                              className={`p-1 px-1.5 border-2 font-mono text-[11px] font-black rounded-xl focus:outline-none focus:ring-2 focus:ring-[#10B981] shadow-md cursor-pointer transition-all ${
-                                isDark 
-                                  ? "bg-slate-955 border-slate-700 text-teal-400 hover:border-slate-500" 
-                                  : "bg-stone-50 border-stone-400 text-stone-900 hover:bg-stone-100 hover:border-stone-600 focus:bg-white"
-                              }`}
-                              title="Modify operating schedule date for this entire group"
-                            />
+                        {/* Second Row: Interactive Inline Date Changer with full width flexibility */}
+                        <div className="flex items-center gap-2 w-full pt-0.5" title={language === "bn" ? "অপারেশন তারিখ" : "Operation target date"}>
+                          <div className="flex items-center gap-1 shrink-0 text-slate-400 dark:text-slate-500">
+                            <Calendar className="w-3.5 h-3.5 text-[#10B981]" />
+                            <span className="text-[10px] font-bold uppercase tracking-wider">
+                              {language === "bn" ? "তারিখ:" : "Target:"}
+                            </span>
                           </div>
-
-                          {/* Renew / Reset Button */}
-                          {!group.isEmergency && (
-                            <button
-                              type="button"
-                              onClick={() => handleRenewGroup(group.id)}
-                              className="p-1 text-[#10B981] dark:text-teal-400 hover:bg-teal-500/10 rounded-lg transition-all border-none bg-transparent cursor-pointer flex items-center justify-center"
-                              title={language === "bn" ? "এখনই মেয়াদ নবায়ন করুন (নতুনভাবে শুরু)" : "Renew / Reset group now"}
-                            >
-                              <RotateCcw className="w-3.5 h-3.5 text-[#10B981]" />
-                            </button>
-                          )}
-
-                          <button
-                            type="button"
-                            onClick={() => handleDeleteGroup(group.id)}
-                            className="p-1 px-1.5 text-rose-500 hover:bg-rose-500/10 rounded-lg transition-all border-none bg-transparent cursor-pointer"
-                            title="Delete entire group"
-                          >
-                            <Trash2 className="w-3.5 h-3.5" />
-                          </button>
+                          <input
+                            type="date"
+                            value={normalizeDateToYYYYMMDD(group.dateStr)}
+                            onChange={(e) => handleRescheduleGroupDate(group.id, e.target.value)}
+                            className={`flex-1 p-1 px-2 border font-mono text-[11px] font-black rounded-lg focus:outline-none focus:ring-1 focus:ring-[#10B981] shadow-sm cursor-pointer transition-all ${
+                              isDark 
+                                ? "bg-slate-900 border-slate-700/60 text-teal-400 hover:border-slate-500" 
+                                : "bg-stone-50 border-stone-300 text-stone-900 hover:bg-stone-100 hover:border-stone-400 focus:bg-white"
+                            }`}
+                            title="Modify operating schedule date for this entire group"
+                          />
                         </div>
                       </div>
 
@@ -1371,7 +1335,7 @@ export default function ProjectScheduler({ language, isDark }: ProjectSchedulerP
                                           className="space-y-0.5 min-w-0 flex-1 cursor-pointer hover:underline transition-all"
                                           title="Click to swap/change clinic"
                                         >
-                                          <p className="font-extrabold leading-tight text-[11px] break-words">
+                                          <p className={`font-black leading-tight text-[12.5px] break-words ${isDark ? "text-white font-extrabold" : "text-stone-850"}`}>
                                             {pInfo?.name || "Deleted register Clinic"}
                                           </p>
                                         </div>
@@ -1547,13 +1511,50 @@ export default function ProjectScheduler({ language, isDark }: ProjectSchedulerP
                 const isSelected = selectedDateStr === dayItem.dateStr;
                 const groupsCount = dayItem.groups.length;
 
+                // Determine if this day has any scheduling issues (errors or unfinished critical tasks)
+                const hasEmptyGroup = dayItem.groups.some(g => g.tasks.length === 0);
+                const hasUnfinishedPast = dayItem.dateStr < todayStr && dayItem.groups.some(g => g.tasks.some(t => t.status !== "completed"));
+                const hasEmergencyUnfinished = dayItem.groups.some(g => g.isEmergency && g.tasks.some(t => t.status !== "completed"));
+                const hasError = groupsCount > 0 && (hasEmptyGroup || hasUnfinishedPast || hasEmergencyUnfinished);
+
                 let containerClass = "aspect-square rounded-xl flex flex-col justify-between p-1.5 md:p-2 border relative cursor-pointer select-none transition-all hover:scale-105 ";
                 if (dayItem.isSunday) {
                   containerClass += "bg-rose-500/5 hover:bg-rose-500/10 border-rose-500/10 dark:border-rose-500/5 text-rose-500 ";
                 } else if (isSelected) {
-                  containerClass += "bg-[#10B981] text-white border-emerald-500 shadow-md scale-105 ring-2 ring-emerald-400 ring-offset-2 ring-offset-[#1E293B] ";
+                  if (hasError) {
+                    containerClass += "bg-rose-600 text-white border-rose-700 shadow-md scale-105 ring-2 ring-rose-400 ring-offset-2 ring-offset-[#1E293B] ";
+                  } else if (groupsCount > 0) {
+                    containerClass += "bg-[#10B981] text-white border-emerald-500 shadow-md scale-105 ring-2 ring-emerald-400 ring-offset-2 ring-offset-[#1E293B] ";
+                  } else {
+                    containerClass += "bg-slate-500 text-white border-slate-650 shadow-md scale-105 ring-2 ring-slate-400 ring-offset-2 ring-offset-[#1E293B] ";
+                  }
                 } else {
-                  containerClass += "bg-slate-100/50 hover:bg-slate-100 dark:bg-slate-900/40 dark:hover:bg-slate-900 border-slate-100 dark:border-slate-800 text-slate-800 dark:text-slate-200 ";
+                  if (hasError) {
+                    containerClass += "bg-rose-50 hover:bg-rose-100 dark:bg-rose-950/20 dark:hover:bg-rose-950/30 border-rose-200 dark:border-rose-900/30 text-rose-800 dark:text-rose-400 ";
+                  } else if (groupsCount > 0) {
+                    containerClass += "bg-emerald-50 hover:bg-emerald-100/70 dark:bg-emerald-950/15 dark:hover:bg-emerald-950/25 border-emerald-200 dark:border-emerald-900/30 text-emerald-800 dark:text-emerald-400 ";
+                  } else {
+                    // Empty days: strictly clean and white in light mode
+                    containerClass += "bg-white hover:bg-slate-50 dark:bg-slate-900/40 dark:hover:bg-slate-900 border-slate-100 dark:border-slate-800 text-slate-700 dark:text-slate-300 ";
+                  }
+                }
+
+                // Determine display text for scheduled or alert states
+                let cellLabelText = "";
+                if (hasError) {
+                  if (language === "bn") {
+                    if (hasEmptyGroup) cellLabelText = "ক্লিনিক খালি";
+                    else if (hasUnfinishedPast) cellLabelText = "বাকি আছে";
+                    else if (hasEmergencyUnfinished) cellLabelText = "জরুরী বাকি";
+                    else cellLabelText = "ত্রুটি";
+                  } else {
+                    if (hasEmptyGroup) cellLabelText = "No Clinics";
+                    else if (hasUnfinishedPast) cellLabelText = "Overdue";
+                    else if (hasEmergencyUnfinished) cellLabelText = "Emerg. Pending";
+                    else cellLabelText = "Alert";
+                  }
+                } else if (groupsCount > 0) {
+                  cellLabelText = dayItem.groups.map(g => g.name).join(", ");
                 }
 
                 return (
@@ -1562,7 +1563,7 @@ export default function ProjectScheduler({ language, isDark }: ProjectSchedulerP
                     onClick={() => setSelectedDateStr(dayItem.dateStr)}
                     className={containerClass}
                   >
-                    <span className="text-[11px] md:text-sm font-black font-mono">
+                    <span className="text-[11px] md:text-xs font-black font-mono">
                       {dayItem.dayNum}
                     </span>
 
@@ -1570,16 +1571,29 @@ export default function ProjectScheduler({ language, isDark }: ProjectSchedulerP
                       <span className="text-[8px] font-black tracking-tighter block text-center uppercase opacity-80">
                         Closed
                       </span>
-                    ) : groupsCount > 0 ? (
-                      <div className="flex flex-col items-center justify-center gap-0.5 pointer-events-none">
-                        <span className={`px-1.5 rounded text-[8.5px] font-extrabold pb-0.5 leading-tight ${
-                          isSelected ? "bg-white text-[#10B981]" : "bg-sky-500 text-white"
+                    ) : hasError ? (
+                      <div className="flex flex-col items-center justify-center pointer-events-none w-full" title={cellLabelText}>
+                        <span className={`px-1 py-0.5 rounded-[5px] text-[7px] md:text-[8px] font-extrabold block text-center truncate w-full ${
+                          isSelected ? "bg-white text-rose-600" : "bg-rose-500 text-white"
                         }`}>
-                          {groupsCount} Group{groupsCount > 1 ? 's' : ''}
+                          ⚠️ {cellLabelText}
+                        </span>
+                      </div>
+                    ) : groupsCount > 0 ? (
+                      <div className="flex flex-col items-center justify-center pointer-events-none w-full gap-0.5" title={cellLabelText}>
+                        <span className={`px-1 py-0.5 rounded-[5px] text-[7.5px] md:text-[8.5px] font-extrabold block text-center truncate w-full ${
+                          isSelected ? "bg-white text-[#10B981]" : "bg-emerald-600 text-white"
+                        }`}>
+                          ✓ {cellLabelText}
+                        </span>
+                        <span className={`text-[7.5px] md:text-[8.5px] font-black uppercase text-center tracking-tighter ${
+                          isSelected ? "text-white opacity-90" : "text-emerald-700 dark:text-emerald-400"
+                        }`}>
+                          {language === "bn" ? "খালি নাই" : "Occupied"}
                         </span>
                       </div>
                     ) : (
-                      <div className="w-1 h-1 rounded-full bg-slate-300 dark:bg-slate-700 mx-auto opacity-20" />
+                      <div className="h-2" />
                     )}
                   </div>
                 );
@@ -1685,9 +1699,9 @@ export default function ProjectScheduler({ language, isDark }: ProjectSchedulerP
                             g.tasks.map((t, idx) => {
                               const p = projectsList.find(x => x.id === t.projectId);
                               return (
-                                <div key={t.id} className="flex items-center justify-between text-slate-700 dark:text-slate-200">
-                                  <span>{idx + 1}. {p?.name}</span>
-                                  <span className="text-[9px] opacity-70">({t.sectionServiced})</span>
+                                <div key={t.id} className="flex items-center justify-between">
+                                  <span className={`font-black text-[12px] ${isDark ? "text-white" : "text-stone-850"}`}>{idx + 1}. {p?.name}</span>
+                                  <span className="text-[9.5px] font-bold text-slate-500 dark:text-slate-400">({t.sectionServiced})</span>
                                 </div>
                               );
                             })
@@ -1731,10 +1745,19 @@ export default function ProjectScheduler({ language, isDark }: ProjectSchedulerP
               <button
                 type="button"
                 onClick={() => setIsAddProjectFormOpen(!isAddProjectFormOpen)}
-                className="px-3.5 py-2.5 bg-sky-600 hover:bg-sky-700 text-white font-black text-xs uppercase tracking-wider rounded-xl flex items-center gap-1.5 transition-all shadow cursor-pointer"
+                className="px-3.5 py-2.5 bg-sky-600 hover:bg-sky-700 text-white font-black text-xs uppercase tracking-wider rounded-xl flex items-center gap-1.5 transition-all shadow cursor-pointer border-none"
               >
                 <Plus className="w-4 h-4" />
                 <span>Add Custom Clinic</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={handleClearAllProjects}
+                className="px-3.5 py-2.5 bg-rose-600 hover:bg-rose-700 text-white font-black text-xs uppercase tracking-wider rounded-xl flex items-center gap-1.5 transition-all shadow cursor-pointer border-none"
+              >
+                <Trash2 className="w-4 h-4" />
+                <span>{language === "bn" ? "সব ক্লিনিক মুছুন" : "Clear All Clinics"}</span>
               </button>
             </div>
           </div>
@@ -1872,9 +1895,9 @@ export default function ProjectScheduler({ language, isDark }: ProjectSchedulerP
                           </span>
                         </div>
 
-                        <h4 className="font-extrabold text-[12.5px] md:text-[13px] leading-tight text-slate-800 dark:text-slate-100 flex items-center gap-1.5">
+                        <h4 className="font-black text-[13.5px] leading-tight flex items-center gap-1.5">
                           <Building2 className="w-4 h-4 text-[#10B981] shrink-0" />
-                          <span>{proj.name}</span>
+                          <span className={isDark ? "text-white" : "text-stone-850"}>{proj.name}</span>
                         </h4>
                       </div>
 
@@ -2077,28 +2100,11 @@ export default function ProjectScheduler({ language, isDark }: ProjectSchedulerP
         })();
 
         // Filter locationsRegistry:
-        // Always hide if it is already inside the current group's tasks.
-        // On non-Fridays, also hide if assigned to ANY OTHER group in the system.
+        // Keep all locations/clinics in the list. Do not hide if already selected/assigned.
         const filteredRegistry = locationsRegistry.filter(loc => {
           const s = addSearchQuery.toLowerCase();
           const matchesSearch = loc.name.toLowerCase().includes(s) || (loc.emirate && loc.emirate.toLowerCase().includes(s));
-          if (!matchesSearch) return false;
-
-          const alreadyInThisGroup = group.tasks.some(task => {
-            const proj = projectsList.find(p => p.id === task.projectId);
-            return proj && proj.name.toLowerCase().trim() === loc.name.toLowerCase().trim();
-          });
-          if (alreadyInThisGroup) return false;
-
-          if (!isFriday && !group.isEmergency) {
-            const alreadyInAnyGroup = groupsList.some(g => g.tasks.some(task => {
-              const proj = projectsList.find(p => p.id === task.projectId);
-              return proj && proj.name.toLowerCase().trim() === loc.name.toLowerCase().trim();
-            }));
-            if (alreadyInAnyGroup) return false;
-          }
-
-          return true;
+          return matchesSearch;
         });
 
         const currentSelected = selectedLocationIds[group.id] || [];
@@ -2250,76 +2256,148 @@ export default function ProjectScheduler({ language, isDark }: ProjectSchedulerP
                     </p>
                   </div>
                 ) : (
-                  <div className="grid grid-cols-1 gap-2">
-                    {filteredRegistry.map(loc => {
-                      const isSelected = currentSelected.includes(loc.id);
+                  <div className="space-y-4">
+                    {(() => {
+                      const emiratesMetaData = [
+                        { key: "abu dhabi", labelen: "Abu Dhabi", labelbn: "আবুধাবি" },
+                        { key: "dubai", labelen: "Dubai", labelbn: "দুবাই" },
+                        { key: "sharjah", labelen: "Sharjah", labelbn: "শারজাহ" },
+                        { key: "ajman", labelen: "Ajman", labelbn: "আজমান" },
+                        { key: "umm al quwain", labelen: "Umm Al Quwain", labelbn: "উম্মুল কুইন" },
+                        { key: "ras al khaimah", labelen: "Ras Al Khaimah", labelbn: "রাস আল খাইমাহ" },
+                        { key: "fujairah", labelen: "Fujairah", labelbn: "ফুজিরাহ (ফজিলা)" },
+                        { key: "other", labelen: "Other Emirates", labelbn: "অন্যান্য এমিরেটস" },
+                      ];
 
-                      const allocatedOtherGroup = groupsList
-                        .filter(g => g.id !== group.id)
-                        .find(g => g.tasks.some(task => {
-                          const proj = projectsList.find(p => p.id === task.projectId);
-                          return proj && proj.name.toLowerCase().trim() === loc.name.toLowerCase().trim();
-                        }));
+                      const grouped: Record<string, typeof filteredRegistry> = {};
+                      emiratesMetaData.forEach(meta => {
+                        grouped[meta.key] = [];
+                      });
 
-                      return (
-                        <button
-                          key={loc.id}
-                          type="button"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setSelectedLocationIds(prev => {
-                              const current = prev[group.id] || [];
-                              const updated = current.includes(loc.id)
-                                ? current.filter(id => id !== loc.id)
-                                : [...current, loc.id];
-                              return { ...prev, [group.id]: updated };
-                            });
-                          }}
-                          className={`w-full text-left p-3 rounded-xl text-xs transition-all flex items-center justify-between border font-semibold leading-tight ${
-                            isSelected
-                              ? isDark
-                                ? "bg-indigo-500/15 border-sky-500 text-sky-300 cursor-pointer"
-                                : "bg-indigo-500/10 border-indigo-500 text-indigo-600 cursor-pointer"
-                              : isDark 
-                                ? "hover:bg-slate-800 border-slate-800 text-slate-200 bg-slate-900/40 cursor-pointer" 
-                                : "hover:bg-stone-100 border-stone-200 text-stone-850 bg-white cursor-pointer"
-                          }`}
-                        >
-                          <div className="min-w-0 pr-3">
-                            <span className={`font-black text-xs block truncate ${
-                              isDark ? "text-slate-100" : "text-stone-900"
-                            }`}>{loc.name}</span>
-                            <span className={`text-[9.5px] truncate mt-0.5 block flex items-center gap-1.5 flex-wrap ${
-                              isDark ? "text-slate-400" : "text-slate-500"
+                      filteredRegistry.forEach(loc => {
+                        const em = (loc.emirate || "").trim().toLowerCase();
+                        let matchedKey = "other";
+                        for (const meta of emiratesMetaData) {
+                          if (meta.key !== "other" && (em === meta.key || em.includes(meta.key))) {
+                            matchedKey = meta.key;
+                            break;
+                          }
+                        }
+                        grouped[matchedKey].push(loc);
+                      });
+
+                      return emiratesMetaData.map(meta => {
+                        const items = grouped[meta.key] || [];
+                        if (items.length === 0) return null;
+                        const groupLabel = language === "bn" ? meta.labelbn : meta.labelen;
+
+                        return (
+                          <div key={meta.key} className="space-y-2">
+                            <div className={`text-[10.5px] font-black uppercase tracking-wider px-3.5 py-1.5 rounded-xl flex items-center justify-between border ${
+                              isDark 
+                                ? "bg-slate-900/80 text-sky-400 border-slate-800" 
+                                : "bg-indigo-50/50 text-indigo-700 border-indigo-100/35"
                             }`}>
-                              <span>{loc.emirate || "United Arab Emirates"}</span>
-                              {allocatedOtherGroup && (
-                                <span className={`px-1.5 py-0.5 text-[8px] bg-rose-500/10 rounded border border-rose-500/10 font-black font-mono ${
-                                  isDark ? "text-rose-400" : "text-rose-500"
-                                }`}>
-                                  {language === "bn" 
-                                    ? `ইতিমধ্যে ${allocatedOtherGroup.name} গ্রুপে বরাদ্দ` 
-                                    : `Already in ${allocatedOtherGroup.name}`}
-                                </span>
-                              )}
-                            </span>
+                              <div className="flex items-center gap-2">
+                                <span>📁</span>
+                                <span>{groupLabel}</span>
+                              </div>
+                              <span className={`px-2 py-0.5 text-[9px] rounded-full font-mono font-bold ${
+                                isDark ? "bg-slate-800 text-slate-400" : "bg-indigo-100 text-indigo-800"
+                              }`}>
+                                {items.length}
+                              </span>
+                            </div>
+
+                            <div className="grid grid-cols-1 gap-2 pl-1">
+                              {items.map(loc => {
+                                const isSelected = currentSelected.includes(loc.id);
+
+                                const allocatedOtherGroup = groupsList
+                                  .filter(g => g.id !== group.id)
+                                  .find(g => g.tasks.some(task => {
+                                    const proj = projectsList.find(p => p.id === task.projectId);
+                                    return proj && proj.name.toLowerCase().trim() === loc.name.toLowerCase().trim();
+                                  }));
+
+                                const allocatedThisGroup = group.tasks.some(task => {
+                                  const proj = projectsList.find(p => p.id === task.projectId);
+                                  return proj && proj.name.toLowerCase().trim() === loc.name.toLowerCase().trim();
+                                });
+
+                                return (
+                                  <button
+                                    key={loc.id}
+                                    type="button"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      setSelectedLocationIds(prev => {
+                                        const current = prev[group.id] || [];
+                                        const updated = current.includes(loc.id)
+                                          ? current.filter(id => id !== loc.id)
+                                          : [...current, loc.id];
+                                        return { ...prev, [group.id]: updated };
+                                      });
+                                    }}
+                                    className={`w-full text-left p-3 rounded-xl text-xs transition-all flex items-center justify-between border font-semibold leading-tight ${
+                                      isSelected
+                                        ? isDark
+                                          ? "bg-indigo-500/15 border-sky-500 text-sky-300 cursor-pointer animate-pulse-subtle"
+                                          : "bg-indigo-500/10 border-indigo-500 text-indigo-600 cursor-pointer animate-pulse-subtle"
+                                        : isDark 
+                                          ? "hover:bg-slate-800 border-slate-800 text-slate-200 bg-slate-900/40 cursor-pointer" 
+                                          : "hover:bg-stone-100 border-stone-200 text-stone-850 bg-white cursor-pointer"
+                                    }`}
+                                  >
+                                    <div className="min-w-0 pr-3 text-left">
+                                      <span className={`font-black text-xs block truncate ${
+                                        isDark ? "text-slate-100" : "text-stone-900"
+                                      }`}>{loc.name}</span>
+                                      <span className={`text-[9.5px] truncate mt-0.5 block flex items-center gap-1.5 flex-wrap ${
+                                        isDark ? "text-slate-400" : "text-slate-500"
+                                      }`}>
+                                        <span>{loc.emirate || "United Arab Emirates"}</span>
+                                        {allocatedOtherGroup && (
+                                          <span className={`px-1.5 py-0.5 text-[8px] bg-rose-500/10 rounded border border-rose-500/10 font-black font-mono ${
+                                            isDark ? "text-rose-400" : "text-rose-500"
+                                          }`}>
+                                            {language === "bn" 
+                                              ? `ইতিমধ্যে ${allocatedOtherGroup.name} গ্রুপে বরাদ্দ` 
+                                              : `Already in ${allocatedOtherGroup.name}`}
+                                          </span>
+                                        )}
+                                        {allocatedThisGroup && (
+                                          <span className={`px-1.5 py-0.5 text-[8px] bg-emerald-500/10 rounded border border-emerald-500/10 font-black font-mono ${
+                                            isDark ? "text-emerald-400" : "text-emerald-500"
+                                          }`}>
+                                            {language === "bn" 
+                                              ? "ইতিমধ্যে এই গ্রুপে বরাদ্দ" 
+                                              : "Already in this group"}
+                                          </span>
+                                        )}
+                                      </span>
+                                    </div>
+                                    
+                                    {/* Checkbox indicator */}
+                                    {isSelected ? (
+                                      <span className={`w-4 h-4 flex items-center justify-center rounded-md text-white shrink-0 ${
+                                        isDark ? "bg-sky-500" : "bg-indigo-600"
+                                      }`}>
+                                        <Check className="w-3 h-3 stroke-[3]" />
+                                      </span>
+                                    ) : (
+                                      <span className={`w-4 h-4 rounded-md border shrink-0 ${
+                                        isDark ? "border-slate-700 bg-slate-950" : "border-slate-300 bg-stone-50"
+                                      }`} />
+                                    )}
+                                  </button>
+                                );
+                              })}
+                            </div>
                           </div>
-                          
-                          {/* Checkbox indicator */}
-                          {isSelected ? (
-                            <span className={`w-4 h-4 flex items-center justify-center rounded-md text-white shrink-0 ${
-                              isDark ? "bg-sky-500" : "bg-indigo-600"
-                            }`}>
-                              <Check className="w-3 h-3 stroke-[3]" />
-                            </span>
-                          ) : (
-                            <span className={`w-4 h-4 rounded-md border shrink-0 ${
-                              isDark ? "border-slate-700 bg-slate-950" : "border-slate-300 bg-stone-50"
-                            }`} />
-                          )}
-                        </button>
-                      );
-                    })}
+                        );
+                      });
+                    })()}
                   </div>
                 )}
               </div>
@@ -2392,6 +2470,124 @@ export default function ProjectScheduler({ language, isDark }: ProjectSchedulerP
                 className="px-4 py-2 bg-rose-500 hover:bg-rose-600 text-white text-xs font-extrabold rounded-xl transition-all shadow-md cursor-pointer border-none"
               >
                 Yes, Confirm
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* GLOBAL MODAL: CREATE GROUP DIALOG */}
+      {isCreateGroupOpen && (
+        <div className="fixed inset-0 z-[10000] flex items-center justify-center p-4 bg-slate-950/75 backdrop-blur-xs select-none animate-fade-in">
+          <div 
+            className="absolute inset-0 cursor-default" 
+            onClick={() => setIsCreateGroupOpen(false)} 
+          />
+          <div className={`relative w-full max-w-2xl p-6 rounded-3xl border shadow-2xl space-y-4 transform transition-all duration-200 scale-100 text-left ${
+            isDark 
+              ? "bg-[#1E293B] border-slate-700 text-white shadow-black/95" 
+              : "bg-white border-stone-200 text-stone-900 shadow-stone-400/45"
+          }`}>
+            <div className="flex items-center justify-between pb-2 border-b border-slate-200/40 dark:border-slate-800">
+              <span className="text-xs font-black uppercase text-[#10B981] tracking-wider flex items-center gap-1.5 font-mono">
+                <Plus className="w-4 h-4 text-[#10B981]" /> 
+                {language === "bn" ? "নতুন গ্রুপ কার্ড তৈরি করুন" : "Let's Add a New Clean Group"}
+              </span>
+              <button type="button" onClick={() => setIsCreateGroupOpen(false)} className="cursor-pointer">
+                <X className="w-4 h-4 text-slate-400 hover:text-slate-900 dark:hover:text-white" />
+              </button>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-left">
+              <div className="space-y-1">
+                <label className="text-[9px] block font-extrabold text-slate-400 uppercase">Group name / label</label>
+                <input
+                  type="text"
+                  placeholder="e.g. Group 4"
+                  value={newGroupName}
+                  onChange={(e) => setNewGroupName(e.target.value)}
+                  className={`w-full text-xs p-2.5 rounded-xl border font-bold ${
+                    isDark ? "bg-slate-900 border-slate-700 text-white" : "bg-white border-slate-300 text-slate-900"
+                  }`}
+                />
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-[9px] block font-extrabold text-slate-400 uppercase">Operation target Date</label>
+                <input
+                  type="date"
+                  required
+                  value={normalizeDateToYYYYMMDD(newGroupDateStr)}
+                  onChange={(e) => setNewGroupDateStr(e.target.value)}
+                  className={`w-full text-xs p-2.5 rounded-xl border font-mono font-bold ${
+                    isDark ? "bg-slate-900 border-slate-700 text-white" : "bg-white border-slate-300 text-slate-900"
+                  }`}
+                />
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-[9px] block font-extrabold text-slate-400 uppercase">
+                  {language === "bn" ? "কতদিন পর পর করবেন (দিন)" : "Repeat After (Days)"}
+                </label>
+                <input
+                  type="number"
+                  min="1"
+                  required
+                  value={newGroupIntervalDays === "" ? "" : newGroupIntervalDays}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    setNewGroupIntervalDays(val === "" ? "" : parseInt(val, 10));
+                  }}
+                  placeholder="e.g. 30"
+                  className={`w-full text-xs p-2.5 rounded-xl border font-mono font-bold ${
+                    isDark ? "bg-slate-900 border-slate-700 text-white" : "bg-white border-slate-300 text-slate-900"
+                  }`}
+                />
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-[9px] block font-extrabold text-slate-400 uppercase">Assigned Service Crew</label>
+                <input
+                  type="text"
+                  placeholder="e.g. Squad Falcon"
+                  value={newGroupTeam}
+                  onChange={(e) => setNewGroupTeam(e.target.value)}
+                  className={`w-full text-xs p-2.5 rounded-xl border font-bold ${
+                    isDark ? "bg-slate-900 border-slate-700 text-white" : "bg-white border-slate-300 text-slate-900"
+                  }`}
+                />
+              </div>
+
+              <div className="sm:col-span-2 space-y-1 text-left">
+                <label className="text-[9px] block font-extrabold text-slate-400 uppercase">Pest directive notes</label>
+                <input
+                  type="text"
+                  placeholder="e.g. Routine gel baiting check"
+                  value={newGroupNotes}
+                  onChange={(e) => setNewGroupNotes(e.target.value)}
+                  className={`w-full text-xs p-2.5 rounded-xl border font-bold ${
+                    isDark ? "bg-slate-900 border-slate-700 text-white" : "bg-white border-slate-300 text-slate-900"
+                  }`}
+                />
+              </div>
+            </div>
+
+            <div className="flex justify-end gap-2 pt-2 border-t border-slate-200/40 dark:border-slate-800">
+              <button
+                type="button"
+                onClick={() => setIsCreateGroupOpen(false)}
+                className={`px-3.5 py-1.5 text-xs font-bold rounded-lg cursor-pointer ${
+                  isDark ? "bg-slate-800 hover:bg-slate-700 text-slate-300 border-none" : "bg-white border border-slate-300 text-slate-700"
+                }`}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleCreateRouteGroup}
+                className="px-4 py-1.5 bg-[#10B981] hover:bg-[#059669] text-white text-xs font-black uppercase rounded-lg cursor-pointer border-none"
+              >
+                Create Card
               </button>
             </div>
           </div>
