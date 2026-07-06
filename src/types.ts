@@ -104,6 +104,16 @@ export interface AppUser {
   username: string;
   passwordPlain: string;
   role: "Admin" | "Moderator" | "Visitor" | "Acting Leader";
+  customPermissionsEnabled?: boolean;
+  customPermissions?: {
+    serviceReport?: "None" | "View" | "Edit" | "Delete";
+    engineeringReport?: "None" | "View" | "Edit" | "Delete";
+    inventory?: "None" | "View" | "Edit" | "Delete";
+    technicians?: "None" | "View" | "Edit" | "Delete";
+    scheduler?: "None" | "View" | "Edit" | "Delete";
+    clientDirectory?: "None" | "View" | "Edit" | "Delete";
+  };
+  allowedEmirates?: string[];
 }
 
 export interface LoginSession {
@@ -358,7 +368,7 @@ export const DEFAULT_ROLE_PERMISSIONS: Record<string, RolePermissions> = {
 
 export function getCurrentUserPermissions(): RolePermissions {
   const loggedInUserStrRaw = localStorage.getItem("ALW_STAR_LOGGED_IN_USER") || sessionStorage.getItem("ALW_STAR_LOGGED_IN_USER") || localStorage.getItem("ALW_LOGGED_IN_USER_V2");
-  let loggedInUser = null;
+  let loggedInUser: AppUser | null = null;
   if (loggedInUserStrRaw) {
     try { loggedInUser = JSON.parse(loggedInUserStrRaw); } catch (e) {}
   }
@@ -372,7 +382,82 @@ export function getCurrentUserPermissions(): RolePermissions {
   const role = loggedInUser?.role || "Visitor";
   const basePerms = DEFAULT_ROLE_PERMISSIONS[role] || DEFAULT_ROLE_PERMISSIONS.Visitor;
   const userPerms = rolePermissions[role] || {};
-  return { ...basePerms, ...userPerms };
+  const perms = { ...basePerms, ...userPerms };
+
+  // Apply individual custom permissions if enabled
+  if (loggedInUser && loggedInUser.customPermissionsEnabled && loggedInUser.customPermissions) {
+    const cp = loggedInUser.customPermissions;
+
+    // 1. Service Report
+    if (cp.serviceReport) {
+      const mode = cp.serviceReport;
+      perms.canViewDashboard = mode !== "None";
+      perms.canViewCompletedRegistry = mode !== "None";
+      perms.canViewMasterForm = mode !== "None";
+      perms.canCreateReport = mode === "Edit" || mode === "Delete";
+      perms.canEditReport = mode === "Edit" || mode === "Delete";
+      perms.canDeleteReport = mode === "Delete";
+    }
+
+    // 2. Engineering Report
+    if (cp.engineeringReport) {
+      const mode = cp.engineeringReport;
+      perms.canViewEngineeringReport = mode !== "None";
+      perms.canCreateEngineeringReport = mode === "Edit" || mode === "Delete";
+      perms.canEditEngineeringReport = mode === "Edit" || mode === "Delete";
+      perms.canDeleteEngineeringReport = mode === "Delete";
+      perms.canManageEngineeringReport = mode === "Edit" || mode === "Delete";
+    }
+
+    // 3. Chemical Inventory
+    if (cp.inventory) {
+      const mode = cp.inventory;
+      perms.canViewInventory = mode !== "None";
+      perms.canCreateInventory = mode === "Edit" || mode === "Delete";
+      perms.canEditInventory = mode === "Edit" || mode === "Delete";
+      perms.canDeleteInventory = mode === "Delete";
+      perms.canManageInventory = mode === "Edit" || mode === "Delete";
+    }
+
+    // 4. Technicians & Supervisors
+    if (cp.technicians) {
+      const mode = cp.technicians;
+      perms.canViewTechnicians = mode !== "None";
+      perms.canCreateTechnician = mode === "Edit" || mode === "Delete";
+      perms.canEditTechnician = mode === "Edit" || mode === "Delete";
+      perms.canDeleteTechnician = mode === "Delete";
+      perms.canManageTechnicians = mode === "Edit" || mode === "Delete";
+
+      perms.canViewSupervisors = mode !== "None";
+      perms.canCreateSupervisor = mode === "Edit" || mode === "Delete";
+      perms.canEditSupervisor = mode === "Edit" || mode === "Delete";
+      perms.canDeleteSupervisor = mode === "Delete";
+      perms.canManageSupervisors = mode === "Edit" || mode === "Delete";
+    }
+
+    // 5. Project Scheduler
+    if (cp.scheduler) {
+      const mode = cp.scheduler;
+      perms.canViewScheduler = mode !== "None";
+      perms.canCreateScheduler = mode === "Edit" || mode === "Delete";
+      perms.canEditScheduler = mode === "Edit" || mode === "Delete";
+      perms.canDeleteScheduler = mode === "Delete";
+      perms.canManageScheduler = mode === "Edit" || mode === "Delete";
+    }
+
+    // 6. Client Directory
+    if (cp.clientDirectory) {
+      const mode = cp.clientDirectory;
+      perms.canViewDirectory = mode !== "None";
+      perms.canViewLocations = mode !== "None";
+      perms.canCreateLocation = mode === "Edit" || mode === "Delete";
+      perms.canEditLocation = mode === "Edit" || mode === "Delete";
+      perms.canDeleteLocation = mode === "Delete";
+      perms.canManageLocations = mode === "Edit" || mode === "Delete";
+    }
+  }
+
+  return perms;
 }
 
 export type UserRole = "Super Admin" | "Admin / Manager" | "Guest Admin" | "Client Portal" | "Moderator" | "Visitor" | "Admin" | "Acting Leader";

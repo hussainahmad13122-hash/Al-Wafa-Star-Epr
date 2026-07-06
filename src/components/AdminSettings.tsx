@@ -342,6 +342,23 @@ export default function AdminSettings({
   const [editingUserId, setEditingUserId] = useState<string | null>(null);
   const [editingPassword, setEditingPassword] = useState<string>("");
   const [editingRole, setEditingRole] = useState<"Admin" | "Moderator" | "Visitor" | "Acting Leader">("Visitor");
+  const [editingCustomPermissionsEnabled, setEditingCustomPermissionsEnabled] = useState<boolean>(false);
+  const [editingCustomPermissions, setEditingCustomPermissions] = useState<{
+    serviceReport: "None" | "View" | "Edit" | "Delete";
+    engineeringReport: "None" | "View" | "Edit" | "Delete";
+    inventory: "None" | "View" | "Edit" | "Delete";
+    technicians: "None" | "View" | "Edit" | "Delete";
+    scheduler: "None" | "View" | "Edit" | "Delete";
+    clientDirectory: "None" | "View" | "Edit" | "Delete";
+  }>({
+    serviceReport: "View",
+    engineeringReport: "View",
+    inventory: "View",
+    technicians: "View",
+    scheduler: "View",
+    clientDirectory: "View"
+  });
+  const [editingAllowedEmirates, setEditingAllowedEmirates] = useState<string[]>([]);
 
   // Professional security enhancer states
   const [showNewPassword, setShowNewPassword] = useState(false);
@@ -387,18 +404,52 @@ export default function AdminSettings({
     setEditingUserId(user.id);
     setEditingPassword(user.passwordPlain);
     setEditingRole(user.role);
+    setEditingCustomPermissionsEnabled(!!user.customPermissionsEnabled);
+    setEditingCustomPermissions(user.customPermissions || {
+      serviceReport: "View",
+      engineeringReport: "View",
+      inventory: "View",
+      technicians: "View",
+      scheduler: "View",
+      clientDirectory: "View"
+    });
+    setEditingAllowedEmirates(user.allowedEmirates || []);
   };
 
   const handleSaveUserEdit = (id: string) => {
     const updated = usersList.map(u => {
       if (u.id === id) {
-        return { ...u, passwordPlain: editingPassword.trim() || u.passwordPlain, role: editingRole };
+        return { 
+          ...u, 
+          passwordPlain: editingPassword.trim() || u.passwordPlain, 
+          role: editingRole,
+          customPermissionsEnabled: editingCustomPermissionsEnabled,
+          customPermissions: editingCustomPermissions,
+          allowedEmirates: editingAllowedEmirates
+        };
       }
       return u;
     });
     setUsersList(updated);
     localStorage.setItem("ALW_STAR_USERS", JSON.stringify(updated));
     window.dispatchEvent(new Event("storage"));
+
+    // Also update current logged in user if they edited their own profile
+    if (loggedInUser && loggedInUser.id === id) {
+      const updatedLoggedInUser = {
+        ...loggedInUser,
+        passwordPlain: editingPassword.trim() || loggedInUser.passwordPlain,
+        role: editingRole,
+        customPermissionsEnabled: editingCustomPermissionsEnabled,
+        customPermissions: editingCustomPermissions,
+        allowedEmirates: editingAllowedEmirates
+      };
+      localStorage.setItem("ALW_STAR_LOGGED_IN_USER", JSON.stringify(updatedLoggedInUser));
+      if (sessionStorage.getItem("ALW_STAR_LOGGED_IN_USER")) {
+        sessionStorage.setItem("ALW_STAR_LOGGED_IN_USER", JSON.stringify(updatedLoggedInUser));
+      }
+    }
+
     setEditingUserId(null);
     setUserSuccess(language === "bn" ? "অ্যাকাউন্ট সফলভাবে আপডেট করা হয়েছে!" : "Account credentials updated successfully!");
     setTimeout(() => setUserSuccess(null), 3500);
@@ -1176,10 +1227,10 @@ Reloading portal to apply updates...`;
       )}
 
       {/* 2-Column Dashboard Layout (Facebook/Cloud Platform Style) */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
+      <div className="grid grid-cols-12 gap-6 items-start">
         
         {/* Left Side: Professional Settings Directory (Sidebar) */}
-        <div className="lg:col-span-3 space-y-4">
+        <div className="col-span-4 space-y-4 min-w-0">
           
           {/* Active Superintendent Mini-Profile Card */}
           <div className="bg-[#192333]/70 border border-[#334155]/60 rounded-3xl p-4 shadow-xl space-y-3 relative overflow-hidden">
@@ -1321,30 +1372,215 @@ Reloading portal to apply updates...`;
               ⚡ Connected Endpoint
             </span>
             <p className="text-[9.5px] text-slate-400 leading-normal">
-              {language === "bn" ? "ইআরপি সিস্টেমটি সম্পূর্ণ ডাটা লোকাল ও ক্লাউড সিঙ্ক মোডে রিভোল্ভিং ক্যাশে মেমোরি দ্বারা পরিচালিত হচ্ছে।" : "The ERP portal operates under persistent cloud sync & offline cache modes, certified for remote compliance logs."}
+              {language === "bn"
+                ? "লোকাল সিকিউর গেটওয়ে এবং রিয়েল-টাইম ডাটাবেজ সিঙ্ক সচল আছে।"
+                : "Local secure gateway and real-time cloud sync are active."}
             </p>
+          </div>
+
+          {/* Accent Palette Option selector */}
+          <div className="space-y-3 bg-slate-950/40 border border-slate-800 p-4 rounded-2xl">
+            <label className="text-[11px] font-bold text-slate-350 uppercase tracking-wider block">
+              ✨ {language === "bn" ? "২. অ্যাকসেন্ট কালার প্যালেট" : "2. COLOR PALETTE"}
+            </label>
+            <div className="flex flex-wrap gap-2 pt-1">
+              {[
+                { id: "emerald", hex: "#2DD4BF", name: "Mint", label: language === "bn" ? "মিন্ট" : "Mint" },
+                { id: "amber", hex: "#FBBF24", name: "Amber", label: language === "bn" ? "অ্যাম্বার" : "Amber" },
+                { id: "sky", hex: "#38BDF8", name: "Sky", label: language === "bn" ? "আকাশি" : "Sky" },
+                { id: "rose", hex: "#FB7185", name: "Blush", label: language === "bn" ? "ব্লাশ" : "Blush" },
+                { id: "crimson", hex: "#F43F5E", name: "Crimson", label: language === "bn" ? "লাল" : "Crimson" },
+                { id: "indigo", hex: "#818CF8", name: "Indigo", label: language === "bn" ? "নীল" : "Indigo" },
+                { id: "violet", hex: "#A78BFA", name: "Lavender", label: language === "bn" ? "ল্যাভেন্ডার" : "Lavender" },
+                { id: "orange", hex: "#FB923C", name: "Orange", label: language === "bn" ? "কমলা" : "Orange" },
+                { id: "gold", hex: "#FACC15", name: "Gold", label: language === "bn" ? "স্বর্ণালী" : "Gold" },
+                { id: "fuchsia", hex: "#E879F9", name: "Fuchsia", label: language === "bn" ? "ফিউশিয়" : "Fuchsia" },
+                { id: "turquoise", hex: "#22D3EE", name: "Turquoise", label: language === "bn" ? "টার্কিশ" : "Turquoise" },
+                { id: "lime", hex: "#A3E635", name: "Lime", label: language === "bn" ? "লেবু সবুজ" : "Lime" },
+                { id: "sapphire", hex: "#60A5FA", name: "Sapphire", label: language === "bn" ? "রাজকীয় নীল" : "Sapphire" },
+                { id: "magenta", hex: "#F472B6", name: "Magenta", label: language === "bn" ? "ম্যাজেন্টা" : "Magenta" },
+                { id: "forest", hex: "#4ADE80", name: "Forest", label: language === "bn" ? "বন সবুজ" : "Forest" },
+              ].map((c) => (
+                <button
+                  key={c.id}
+                  type="button"
+                  title={c.name}
+                  onClick={() => setThemeColor(c.id)}
+                  className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border text-[10px] font-bold transition-all cursor-pointer ${
+                    themeColor === c.id
+                      ? "bg-slate-900 border-slate-700"
+                      : "border-slate-800 bg-slate-900/40 text-slate-450 hover:text-slate-200"
+                  }`}
+                  style={themeColor === c.id ? { borderColor: c.hex, color: c.hex, backgroundColor: `${c.hex}22` } : {}}
+                >
+                  <span className={`w-2.5 h-2.5 rounded-full shrink-0`} style={{ backgroundColor: c.hex }} />
+                  <span>{c.label}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Screen Size Layout toggler (Fullscreen vs Window/Half Mode) */}
+          <div className="space-y-3 bg-slate-950/40 border border-slate-800 p-4 rounded-2xl">
+            <label className="text-[11px] font-bold text-slate-350 uppercase tracking-wider block">
+              🖥️ {language === "bn" ? "৩. স্ক্রিন ডিসপ্লে লেআউট" : "3. SCREEN LAYOUT"}
+            </label>
+            <div className="grid grid-cols-2 gap-3 pt-1">
+              <button
+                type="button"
+                onClick={() => onSetFullscreenLayout?.(false)}
+                className={`py-2 px-3 rounded-xl flex items-center justify-center gap-2 font-bold text-xs transition-all duration-200 cursor-pointer select-none active:scale-95 ${
+                  !isFullscreenLayout
+                    ? "bg-[#10B981] text-slate-950 font-black shadow-lg"
+                    : "bg-slate-900 border border-slate-800 text-slate-450 hover:text-slate-100 hover:border-slate-700"
+                }`}
+                title={language === "bn" ? "সাইডবার এবং হেডার সহ সাধারণ লেআউট" : "Window mode with header and menu sidebar"}
+              >
+                <span>🖥️</span>
+                <span>{language === "bn" ? "হাফ স্ক্রিন" : "Windowed"}</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => onSetFullscreenLayout?.(true)}
+                className={`py-2 px-3 rounded-xl flex items-center justify-center gap-2 font-bold text-xs transition-all duration-200 cursor-pointer select-none active:scale-95 ${
+                  isFullscreenLayout
+                    ? "bg-[#10B981] text-slate-950 font-black shadow-lg"
+                    : "bg-slate-900 border border-slate-800 text-slate-450 hover:text-slate-100 hover:border-slate-700"
+                }`}
+                title={language === "bn" ? "সাইডবার এবং হেডার ছাড়া ফুল-স্ক্রিন মোড" : "Fullscreen layout with maximized canvas width"}
+              >
+                <span>📺</span>
+                <span>{language === "bn" ? "ফুল স্ক্রিন" : "Full Screen"}</span>
+              </button>
+            </div>
           </div>
         </div>
 
-        {/* Right Side: Active Settings Screen View Panel (Content detail pane) */}
-        <div id="settings-details-pane-content" className="lg:col-span-9 space-y-6">
+      {/* Right Side Settings Details Panel */}
+      <div className="col-span-8 space-y-6 min-w-0">
+
+        {/* First section of Appearance Tab (Branding parameters) */}
+        <div className={activeTab === "appearance" ? "space-y-6 block animate-fade-in" : "hidden"}>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            
+            {/* Item 1: ERP Branding Setup */}
+            <div className="bg-[#1E293B]/40 border border-[#334155] rounded-2xl p-5 shadow-sm space-y-4 flex flex-col justify-between">
+              <div className="space-y-3">
+                <h3 className="text-sm font-extrabold text-slate-100 flex items-center gap-2 border-b border-slate-800 pb-2">
+                  <Building className="w-4 h-4 text-[#10B981]" />
+                  <span>{t.brandingT}</span>
+                </h3>
+                <p className="text-[11px] text-slate-400">
+                  {t.brandingSub}
+                </p>
+
+                <div className="space-y-3 pt-2">
+                  <div className="space-y-1">
+                    <label className="text-slate-400 font-bold block">{t.companyLabel}</label>
+                    <input 
+                      type="text"
+                      value={localBrand}
+                      onChange={(e) => setLocalBrand(e.target.value)}
+                      className="w-full bg-slate-950 text-slate-100 border border-slate-700 rounded-xl py-2 px-3 text-xs outline-none focus:border-[#10B981]"
+                    />
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="text-slate-400 font-bold block">{t.subtitleLabel}</label>
+                    <input 
+                      type="text"
+                      value={localSubtitle}
+                      onChange={(e) => setLocalSubtitle(e.target.value)}
+                      className="w-full bg-slate-950 text-slate-100 border border-slate-700 rounded-xl py-2 px-3 text-xs outline-none focus:border-[#10B981]"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              <div className="pt-4">
+                <button
+                  onClick={handleSaveParams}
+                  className="w-full bg-[#10B981] hover:bg-emerald-400 text-slate-950 py-2.5 px-4 rounded-xl font-bold flex items-center justify-center gap-2 transition cursor-pointer"
+                >
+                  <Save className="w-4 h-4" />
+                  <span>{t.saveAll}</span>
+                </button>
+              </div>
+            </div>
+
+          </div>
+        </div>
 
       {/* ===================== TAB: PROFILE ===================== */}
       <div className={activeTab === "profile" ? "space-y-6 block animate-fade-in" : "hidden"}>
 
-      {/* Profile & Session Status */}
-      <div className="bg-[#1E293B]/60 border border-[#334155] rounded-3xl p-6 shadow-xl flex flex-col md:flex-row items-center justify-between gap-4">
-        <div className="flex items-center gap-4">
+        {/* Item 2: Superintendent identity Profile */}
+        <div className="bg-[#1E293B]/40 border border-[#334155] rounded-2xl p-5 shadow-sm space-y-4 flex flex-col justify-between">
+          <div className="space-y-3">
+            <h3 className="text-sm font-extrabold text-slate-100 flex items-center gap-2 border-b border-slate-800 pb-2">
+              <User className="w-4 h-4 text-emerald-450" />
+              <span>{t.profileT}</span>
+            </h3>
+            <p className="text-[11px] text-slate-400">
+              {t.profileDesc}
+            </p>
+
+            <div className="space-y-3 pt-2">
+              <div className="space-y-1">
+                <label className="text-slate-400 font-bold block">{t.usernameLabel}</label>
+                <input 
+                  type="text"
+                  value={localUser}
+                  onChange={(e) => setLocalUser(e.target.value)}
+                  className="w-full bg-slate-950 text-slate-100 border border-slate-700 rounded-xl py-2 px-3 text-xs outline-none focus:border-[#10B981]"
+                />
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-slate-400 font-bold block">{t.emailLabel}</label>
+                <input 
+                  type="email"
+                  value={localEmail}
+                  onChange={(e) => setLocalEmail(e.target.value)}
+                  className="w-full bg-slate-950 text-slate-100 border border-slate-700 rounded-xl py-2 px-3 text-xs outline-none focus:border-[#10B981]"
+                />
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-slate-400 font-bold block">{t.avatarLabel}</label>
+                <input 
+                  type="text"
+                  placeholder="Paste URL link e.g. https://images.unsplash.com..."
+                  value={localAvatar}
+                  onChange={(e) => setLocalAvatar(e.target.value)}
+                  className="w-full bg-slate-950 text-slate-100 border border-slate-700 rounded-xl py-2 px-3 text-xs outline-none focus:border-[#10B981]"
+                />
+              </div>
+            </div>
+          </div>
+
+          <div className="pt-4">
+            <button
+              onClick={handleSaveParams}
+              className="w-full bg-[#10B981] hover:bg-emerald-400 text-slate-950 py-2.5 px-4 rounded-xl font-bold flex items-center justify-center gap-2 transition cursor-pointer"
+            >
+              <Save className="w-4 h-4" />
+              <span>{t.saveAll}</span>
+            </button>
+          </div>
+        </div>
+        {/* Superintendent Active Visual Card */}
+        <div className="flex items-center gap-4 bg-slate-950/20 p-4 border border-slate-800 rounded-2xl">
           <div className="relative">
             {profileAvatarUrl ? (
               <img 
                 src={profileAvatarUrl} 
-                alt="Profile Avatar" 
-                className="w-14 h-14 rounded-full border-2 border-[#10B981] bg-slate-950 object-cover shadow-lg" 
+                className="w-16 h-16 rounded-full border border-emerald-500/20 object-cover shadow bg-slate-950" 
+                alt="Profile Avatar"
               />
             ) : (
-              <div className="w-14 h-14 rounded-full bg-[#0B0F19] border-2 border-slate-700 flex items-center justify-center shadow-lg">
-                <User className="w-6 h-6 text-slate-400" />
+              <div className="w-16 h-16 rounded-full bg-slate-950 border border-slate-800 flex items-center justify-center text-slate-400 font-bold text-lg">
+                {profileUser ? profileUser.substring(0, 2).toUpperCase() : "AD"}
               </div>
             )}
             <span className="absolute bottom-0 right-0 w-4 h-4 bg-[#10B981] border-2 border-[#1E293B] rounded-full" />
@@ -1369,7 +1605,6 @@ Reloading portal to apply updates...`;
             <span>{language === "bn" ? "লগ আউট / লক স্যুইট" : language === "ar" ? "تسجيل الخروج / قفل" : "Log Out / Lock Suite"}</span>
           </button>
         )}
-      </div>
 
       {/* Operational Profile Role Switcher */}
       {role && setRole && loggedInUser && (
@@ -1533,7 +1768,7 @@ Reloading portal to apply updates...`;
                 className={`py-2 px-3 rounded-xl flex items-center justify-center gap-2 font-bold text-xs transition-all duration-200 cursor-pointer select-none active:scale-95 ${
                   !isFullscreenLayout
                     ? "bg-[#10B981] text-slate-950 font-black shadow-lg"
-                    : "bg-slate-900 border border-slate-800 text-slate-400 hover:text-slate-100 hover:border-slate-700"
+                    : "bg-slate-900 border border-slate-800 text-slate-450 hover:text-slate-100 hover:border-slate-700"
                 }`}
                 title={language === "bn" ? "সাইডবার এবং হেডার সহ সাধারণ লেআউট" : "Window mode with header and menu sidebar"}
               >
@@ -1546,7 +1781,7 @@ Reloading portal to apply updates...`;
                 className={`py-2 px-3 rounded-xl flex items-center justify-center gap-2 font-bold text-xs transition-all duration-200 cursor-pointer select-none active:scale-95 ${
                   isFullscreenLayout
                     ? "bg-[#10B981] text-slate-950 font-black shadow-lg"
-                    : "bg-slate-900 border border-slate-800 text-slate-400 hover:text-slate-100 hover:border-slate-700"
+                    : "bg-slate-900 border border-slate-800 text-slate-450 hover:text-slate-100 hover:border-slate-700"
                 }`}
                 title={language === "bn" ? "সাইডবার এবং হেডার ছাড়া ফুল-স্ক্রিন মোড" : "Fullscreen layout with maximized canvas width"}
               >
@@ -1557,127 +1792,7 @@ Reloading portal to apply updates...`;
           </div>
         </div>
       </div>
-
-      {/* Multi-column grid config settings */}
-      <div className="grid grid-cols-1 gap-6">
-        
-        {/* Item 1: ERP Branding Setup */}
-        <div className="bg-[#1E293B]/40 border border-[#334155] rounded-2xl p-5 shadow-sm space-y-4 flex flex-col justify-between">
-          <div className="space-y-3">
-            <h3 className="text-sm font-extrabold text-slate-100 flex items-center gap-2 border-b border-slate-800 pb-2">
-              <Building className="w-4 h-4 text-[#10B981]" />
-              <span>{t.brandingT}</span>
-            </h3>
-            <p className="text-[11px] text-slate-400">
-              {t.brandingSub}
-            </p>
-
-            <div className="space-y-3 pt-2">
-              <div className="space-y-1">
-                <label className="text-slate-400 font-bold block">{t.companyLabel}</label>
-                <input 
-                  type="text"
-                  value={localBrand}
-                  onChange={(e) => setLocalBrand(e.target.value)}
-                  className="w-full bg-slate-950 text-slate-100 border border-slate-700 rounded-xl py-2 px-3 text-xs outline-none focus:border-[#10B981]"
-                />
-              </div>
-
-              <div className="space-y-1">
-                <label className="text-slate-400 font-bold block">{t.subtitleLabel}</label>
-                <input 
-                  type="text"
-                  value={localSubtitle}
-                  onChange={(e) => setLocalSubtitle(e.target.value)}
-                  className="w-full bg-slate-950 text-slate-100 border border-slate-700 rounded-xl py-2 px-3 text-xs outline-none focus:border-[#10B981]"
-                />
-              </div>
-            </div>
-          </div>
-
-          <div className="pt-4">
-            <button
-              onClick={handleSaveParams}
-              className="w-full bg-[#10B981] hover:bg-emerald-400 text-slate-950 py-2.5 px-4 rounded-xl font-bold flex items-center justify-center gap-2 transition cursor-pointer"
-            >
-              <Save className="w-4 h-4" />
-              <span>{t.saveAll}</span>
-            </button>
-          </div>
-        </div>
-
-      </div> {/* End Appearance Tab */}
-      </div> {/* End Outer Appearance Container */}
-
-      {/* ===================== TAB: PROFILE ===================== */}
-      <div className={activeTab === "profile" ? "space-y-6 block animate-fade-in" : "hidden"}>
-
-        {/* Item 2: Superintendent identity Profile */}
-        <div className="bg-[#1E293B]/40 border border-[#334155] rounded-2xl p-5 shadow-sm space-y-4 flex flex-col justify-between">
-          <div className="space-y-3">
-            <h3 className="text-sm font-extrabold text-slate-100 flex items-center gap-2 border-b border-slate-800 pb-2">
-              <User className="w-4 h-4 text-emerald-450" />
-              <span>{t.profileT}</span>
-            </h3>
-            <p className="text-[11px] text-slate-400">
-              {t.profileDesc}
-            </p>
-
-            <div className="space-y-3 pt-2">
-              <div className="space-y-1">
-                <label className="text-slate-400 font-bold block">{t.usernameLabel}</label>
-                <input 
-                  type="text"
-                  value={localUser}
-                  onChange={(e) => setLocalUser(e.target.value)}
-                  className="w-full bg-slate-950 text-slate-100 border border-slate-700 rounded-xl py-2 px-3 text-xs outline-none focus:border-[#10B981]"
-                />
-              </div>
-
-              <div className="space-y-1">
-                <label className="text-slate-400 font-bold block">{t.emailLabel}</label>
-                <input 
-                  type="email"
-                  value={localEmail}
-                  onChange={(e) => setLocalEmail(e.target.value)}
-                  className="w-full bg-slate-950 text-slate-100 border border-slate-700 rounded-xl py-2 px-3 text-xs outline-none focus:border-[#10B981]"
-                />
-              </div>
-
-              <div className="space-y-1">
-                <label className="text-slate-400 font-bold block">{t.avatarLabel}</label>
-                <input 
-                  type="text"
-                  placeholder="Paste URL link e.g. https://images.unsplash.com..."
-                  value={localAvatar}
-                  onChange={(e) => setLocalAvatar(e.target.value)}
-                  className="w-full bg-slate-950 text-slate-100 border border-slate-700 rounded-xl py-2 px-3 text-xs outline-none focus:border-[#10B981]"
-                />
-              </div>
-              
-              {/* Profile Scope Options */}
-              <div className="pt-3 border-t border-slate-800 space-y-3">
-                <div className="text-[10px] text-[#10B981] bg-[#10B981]/5 p-2.5 rounded-xl border border-[#10B981]/20">
-                  ✨ {language === "bn"
-                    ? "এই পরিবর্তনটি রিয়েল-টাইমে গ্লোবালি সমস্ত ডিভাইসে সিনক্রোনাইজ হবে।"
-                    : "This change will be synchronized globally in real-time to all devices."}
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <div className="pt-4">
-            <button
-              onClick={handleSaveParams}
-              className="w-full bg-[#10B981] hover:bg-emerald-400 text-slate-950 py-2.5 px-4 rounded-xl font-bold flex items-center justify-center gap-2 transition cursor-pointer"
-            >
-              <Check className="w-4 h-4" />
-              <span>{t.saveAll}</span>
-            </button>
-          </div>
-        </div>
-
-      </div> {/* End Profile Tab */}
+    </div> {/* End Appearance Tab */}
 
       {/* ===================== TAB: SECURITY ===================== */}
       <div className={activeTab === "security" ? "space-y-6 block animate-fade-in" : "hidden"}>
@@ -1803,7 +1918,7 @@ Reloading portal to apply updates...`;
                 {language === "bn" ? "নতুন অ্যাকাউন্ট যুক্ত করুন" : "Create Account"}
               </h4>
 
-              <div className="space-y-3.5">
+              <div className="space-y-3.5 text-left">
                 <div className="space-y-1">
                   <label className="text-slate-400 block font-bold text-[10px]">
                     {language === "bn" ? "ইউজারনেম (ইংরেজিতে)" : "Username (Lowercase)"}
@@ -1813,7 +1928,7 @@ Reloading portal to apply updates...`;
                     value={newUsername}
                     onChange={(e) => setNewUsername(e.target.value)}
                     placeholder="e.g. jamil_visitor"
-                    className="w-full bg-slate-950 text-slate-100 border border-slate-755 hover:border-slate-700 rounded-xl py-2.5 px-3 text-xs outline-none focus:border-[#10B981] font-mono"
+                    className="w-full bg-slate-950 text-slate-100 border border-slate-750 hover:border-slate-700 rounded-xl py-2.5 px-3 text-xs outline-none focus:border-[#10B981] font-mono"
                   />
                 </div>
 
@@ -1832,14 +1947,13 @@ Reloading portal to apply updates...`;
                       <span>{language === "bn" ? "র্যান্ডম পাসওয়ার্ড" : "Auto Generate"}</span>
                     </button>
                   </div>
-                  
                   <div className="relative">
                     <input 
                       type={showNewPassword ? "text" : "password"} 
                       value={newPassword}
                       onChange={(e) => setNewPassword(e.target.value)}
                       placeholder="e.g. pass789"
-                      className="w-full bg-slate-950 text-slate-100 border border-slate-755 hover:border-slate-700 rounded-xl py-2.5 pl-3 pr-10 text-xs outline-none focus:border-[#10B981] font-mono"
+                      className="w-full bg-slate-950 text-slate-100 border border-slate-750 hover:border-slate-700 rounded-xl py-2.5 pl-3 pr-10 text-xs outline-none focus:border-[#10B981] font-mono"
                     />
                     <button
                       type="button"
@@ -1922,7 +2036,7 @@ Reloading portal to apply updates...`;
                             <p className={`font-black text-[10.5px] ${isSelected ? "text-emerald-400" : "text-slate-200"}`}>
                               {opt.title}
                             </p>
-                            <p className="text-[9.5px] text-slate-450">
+                            <p className="text-[9.5px] text-slate-455">
                               {opt.desc}
                             </p>
                           </div>
@@ -1941,7 +2055,6 @@ Reloading portal to apply updates...`;
                   <span>{language === "bn" ? "অ্যাকাউন্ট তৈরি করুন" : "Add Account"}</span>
                 </button>
               </div>
-            </div>
 
             {/* Active Users Table/List segment */}
             <div className="lg:col-span-2 bg-slate-950/40 p-5 border border-slate-800 rounded-2xl space-y-3.5">
@@ -1951,7 +2064,7 @@ Reloading portal to apply updates...`;
                     <UserPlus className="w-4 h-4 text-[#10B981]" />
                     <span>{language === "bn" ? "নিবন্ধিত অ্যাকাউন্ট সমূহ" : "Registered User Accounts List"}</span>
                   </h4>
-                  <p className="text-[10px] text-slate-400">
+                  <p className="text-[10px] text-slate-440">
                     {language === "bn" 
                       ? `সর্বমোট ${usersList.length} টি অ্যাকাউন্ট সংরক্ষিত আছে` 
                       : `${usersList.length} actively registered credentials`}
@@ -1960,7 +2073,7 @@ Reloading portal to apply updates...`;
 
                 {/* Dynamic Live Filter input */}
                 <div className="relative max-w-xs w-full">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-450" />
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-455" />
                   <input 
                     type="text"
                     value={searchQuery}
@@ -1975,9 +2088,9 @@ Reloading portal to apply updates...`;
                 <table className="w-full text-[11px] font-sans">
                   <thead>
                     <tr className="border-b border-slate-800 text-slate-450 font-mono text-left">
-                      <th className="pb-2.5 font-bold">{language === "bn" ? "ইউজারনেম" : "Username"}</th>
-                      <th className="pb-2.5 font-bold">{language === "bn" ? "পাসওয়ার্ড" : "Password"}</th>
-                      <th className="pb-2.5 font-bold">{language === "bn" ? "নির্ধারিত রোল" : "Assigned Role"}</th>
+                      <th className="pb-2.5 font-bold text-left">{language === "bn" ? "ইউজারনেম" : "Username"}</th>
+                      <th className="pb-2.5 font-bold text-left">{language === "bn" ? "পাসওয়ার্ড" : "Password"}</th>
+                      <th className="pb-2.5 font-bold text-left">{language === "bn" ? "নির্ধারিত রোল" : "Assigned Role"}</th>
                       <th className="pb-2.5 font-bold text-center">{language === "bn" ? "অ্যাকশন" : "Action"}</th>
                     </tr>
                   </thead>
@@ -2001,141 +2114,262 @@ Reloading portal to apply updates...`;
                         const isSystemRoot = user.username === "admin";
                         
                         return (
-                          <tr key={user.id} className="hover:bg-slate-900/25 transition border-b border-slate-900/50">
-                            <td className="py-3 font-mono font-bold text-slate-100 text-left">
-                              <div className="flex items-center gap-2">
-                                <span className={`w-2.5 h-2.5 rounded-full shrink-0 ${
-                                  user.role === "Admin" 
-                                    ? "bg-red-500 shadow-md shadow-red-500/20" 
-                                    : user.role === "Moderator" 
-                                      ? "bg-blue-400 shadow-md shadow-blue-500/20" 
-                                      : "bg-amber-400 shadow-md shadow-amber-500/20"
-                                }`} />
-                                <div className="text-left leading-tight">
-                                  <span className="block text-[11.5px] text-slate-100">{user.username}</span>
-                                  {isSystemRoot && (
-                                    <span className="text-[8px] bg-red-500/10 text-red-400 font-extrabold uppercase px-1 rounded-sm border border-red-500/20">
-                                      System Root
-                                    </span>
-                                  )}
-                                </div>
-                              </div>
-                            </td>
-                            
-                            <td className="py-3 font-mono text-slate-300 font-bold tracking-wider text-left">
-                              {isEditing ? (
-                                <div className="relative inline-block w-full max-w-[150px]">
-                                  <input
-                                    type={editingPasswordVisibilities[user.id] ? "text" : "password"}
-                                    value={editingPassword}
-                                    onChange={(e) => setEditingPassword(e.target.value)}
-                                    className="bg-slate-950 text-emerald-400 border border-slate-750 focus:border-[#10B981] px-2.5 py-1.5 rounded-xl text-xs w-full font-mono outline-none pr-8"
-                                  />
-                                  <button
-                                    type="button"
-                                    onClick={() => togglePasswordVisibilityForUser(user.id)}
-                                    className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white cursor-pointer"
-                                  >
-                                    {editingPasswordVisibilities[user.id] ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
-                                  </button>
-                                </div>
-                              ) : (
+                          <React.Fragment key={user.id}>
+                            <tr className="hover:bg-slate-900/25 transition border-b border-slate-900/50">
+                              <td className="py-3 font-mono font-bold text-slate-100 text-left">
                                 <div className="flex items-center gap-2">
-                                  <span className="bg-slate-950/60 px-2.5 py-1 rounded-xl font-mono text-[10.5px] border border-slate-850 text-slate-350 min-w-[70px] inline-block text-center font-bold">
-                                    {isPasswordVisible ? user.passwordPlain : "••••••••"}
-                                  </span>
-                                  <button
-                                    type="button"
-                                    className="p-1 rounded bg-slate-905 border border-slate-800 hover:border-slate-700 text-slate-400 hover:text-white transition cursor-pointer"
-                                    onClick={() => togglePasswordVisibilityForUser(user.id)}
-                                    title={isPasswordVisible ? "Hide password" : "Show password"}
-                                  >
-                                    {isPasswordVisible ? <EyeOff className="w-2.5 h-2.5" /> : <Eye className="w-2.5 h-2.5" />}
-                                  </button>
-                                </div>
-                              )}
-                            </td>
-                            
-                            <td className="py-3 text-left">
-                              {isEditing ? (
-                                <select
-                                  value={editingRole}
-                                  onChange={(e) => setEditingRole(e.target.value as any)}
-                                  disabled={isSystemRoot}
-                                  className="bg-slate-950 text-slate-200 border border-slate-750 focus:border-[#10B981] px-2 py-1.5 rounded-xl text-xs outline-none cursor-pointer"
-                                >
-                                  <option value="Admin">{language === "bn" ? "অ্যাডমিন" : "Admin"}</option>
-                                  <option value="Acting Leader">{language === "bn" ? "অ্যাক্টিং লিডার" : "Acting Leader"}</option>
-                                  <option value="Moderator">{language === "bn" ? "মডারেটর" : "Moderator"}</option>
-                                  <option value="Visitor">{language === "bn" ? "ভিজিটর" : "Visitor"}</option>
-                                </select>
-                              ) : (
-                                <span className={`px-2.5 py-1 rounded-full text-[9px] font-mono font-black uppercase tracking-wide border inline-flex items-center gap-1 ${
-                                  user.role === "Admin" 
-                                    ? "bg-red-500/10 text-red-400 border-red-500/20" 
-                                    : user.role === "Acting Leader"
-                                      ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/20"
+                                  <span className={`w-2.5 h-2.5 rounded-full shrink-0 ${
+                                    user.role === "Admin" 
+                                      ? "bg-red-500 shadow-md shadow-red-500/20" 
                                       : user.role === "Moderator" 
-                                        ? "bg-blue-500/10 text-blue-400 border-blue-500/20" 
-                                        : "bg-yellow-500/10 text-yellow-550 border-yellow-550/20"
-                                }`}>
-                                  {user.role === "Admin" 
-                                    ? "🛡️ Admin" 
-                                    : user.role === "Acting Leader"
-                                      ? "🎖️ Acting Leader"
-                                      : user.role === "Moderator" 
-                                        ? "✍️ Moderator" 
-                                        : "👁️ Visitor"}
-                                </span>
-                              )}
-                            </td>
-                            
-                            <td className="py-3 text-center">
-                              {isEditing ? (
-                                <div className="flex gap-1.5 justify-center">
-                                  <button
-                                    type="button"
-                                    onClick={() => handleSaveUserEdit(user.id)}
-                                    className="bg-[#10B981] hover:bg-emerald-400 text-slate-950 px-3 py-1.5 rounded-xl font-black text-[10px] cursor-pointer transition shadow-md shadow-emerald-500/10"
-                                  >
-                                    {language === "bn" ? "সেভ" : "Save"}
-                                  </button>
-                                  <button
-                                    type="button"
-                                    onClick={cancelEditingUser}
-                                    className="bg-slate-800 hover:bg-slate-750 text-slate-300 px-3 py-1.5 rounded-xl font-bold text-[10px] cursor-pointer transition"
-                                  >
-                                    {language === "bn" ? "বাতিল" : "Cancel"}
-                                  </button>
+                                        ? "bg-blue-400 shadow-md shadow-blue-500/20" 
+                                        : "bg-amber-400 shadow-md shadow-amber-500/20"
+                                  }`} />
+                                  <div className="text-left leading-tight">
+                                    <span className="block text-[11.5px] text-slate-100">{user.username}</span>
+                                    {isSystemRoot && (
+                                      <span className="text-[8px] bg-red-500/10 text-red-400 font-extrabold uppercase px-1 rounded-sm border border-red-500/20">
+                                        System Root
+                                      </span>
+                                    )}
+                                  </div>
                                 </div>
-                              ) : (
-                                <div className="flex gap-1.5 justify-center items-center">
-                                  <button
-                                    type="button"
-                                    onClick={() => startEditingUser(user)}
-                                    className="bg-slate-900 hover:bg-slate-800 border border-slate-800 hover:border-slate-700 text-slate-300 px-2.5 py-1.5 rounded-xl text-[10px] font-bold cursor-pointer transition flex items-center gap-1"
-                                    title={language === "bn" ? "পাসওয়ার্ড বা তথ্য পরিবর্তন করুন" : "Update user password"}
-                                  >
-                                    <span>⚙️</span>
-                                    <span>{language === "bn" ? "এডিট" : "Edit"}</span>
-                                  </button>
-                                  <button
-                                    type="button"
-                                    onClick={() => handleDeleteUser(user.id, user.username)}
+                              </td>
+                              
+                              <td className="py-3 font-mono text-slate-300 font-bold tracking-wider text-left">
+                                {isEditing ? (
+                                  <div className="relative inline-block w-full max-w-[150px]">
+                                    <input
+                                      type={editingPasswordVisibilities[user.id] ? "text" : "password"}
+                                      value={editingPassword}
+                                      onChange={(e) => setEditingPassword(e.target.value)}
+                                      className="bg-slate-950 text-emerald-400 border border-slate-750 focus:border-[#10B981] px-2.5 py-1.5 rounded-xl text-xs w-full font-mono outline-none pr-8"
+                                    />
+                                    <button
+                                      type="button"
+                                      onClick={() => togglePasswordVisibilityForUser(user.id)}
+                                      className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white cursor-pointer"
+                                    >
+                                      {editingPasswordVisibilities[user.id] ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                                    </button>
+                                  </div>
+                                ) : (
+                                  <div className="flex items-center gap-2">
+                                    <span className="bg-slate-950/60 px-2.5 py-1 rounded-xl font-mono text-[10.5px] border border-slate-850 text-slate-350 min-w-[70px] inline-block text-center font-bold">
+                                      {isPasswordVisible ? user.passwordPlain : "••••••••"}
+                                    </span>
+                                    <button
+                                      type="button"
+                                      className="p-1 rounded bg-slate-905 border border-slate-800 hover:border-slate-700 text-slate-400 hover:text-white transition cursor-pointer"
+                                      onClick={() => togglePasswordVisibilityForUser(user.id)}
+                                      title={isPasswordVisible ? "Hide password" : "Show password"}
+                                    >
+                                      {isPasswordVisible ? <EyeOff className="w-2.5 h-2.5" /> : <Eye className="w-2.5 h-2.5" />}
+                                    </button>
+                                  </div>
+                                )}
+                              </td>
+                              
+                              <td className="py-3 text-left">
+                                {isEditing ? (
+                                  <select
+                                    value={editingRole}
+                                    onChange={(e) => setEditingRole(e.target.value as any)}
                                     disabled={isSystemRoot}
-                                    className={`p-1.5 rounded-xl border transition cursor-pointer inline-flex items-center justify-center ${
-                                      isSystemRoot 
-                                        ? "opacity-20 cursor-not-allowed border-slate-800 text-slate-600" 
-                                        : "bg-red-500/10 hover:bg-red-500/25 border-red-500/15 text-red-400"
-                                    }`}
-                                    title={language === "bn" ? "অ্যাকাউন্ট মুছুন" : "Wipe credentials"}
+                                    className="bg-slate-950 text-slate-200 border border-slate-750 focus:border-[#10B981] px-2 py-1.5 rounded-xl text-xs outline-none cursor-pointer"
                                   >
-                                    <Trash2 className="w-3.5 h-3.5" />
-                                  </button>
-                                </div>
-                              )}
-                            </td>
-                          </tr>
+                                    <option value="Admin">{language === "bn" ? "অ্যাডমিন" : "Admin"}</option>
+                                    <option value="Acting Leader">{language === "bn" ? "অ্যাক্টিং লিডার" : "Acting Leader"}</option>
+                                    <option value="Moderator">{language === "bn" ? "মডারেটর" : "Moderator"}</option>
+                                    <option value="Visitor">{language === "bn" ? "ভিজিটর" : "Visitor"}</option>
+                                  </select>
+                                ) : (
+                                  <span className={`px-2.5 py-1 rounded-full text-[9px] font-mono font-black uppercase tracking-wide border inline-flex items-center gap-1 ${
+                                    user.role === "Admin" 
+                                      ? "bg-red-500/10 text-red-400 border-red-500/20" 
+                                      : user.role === "Acting Leader"
+                                        ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/20"
+                                        : user.role === "Moderator" 
+                                          ? "bg-blue-500/10 text-blue-400 border-blue-500/20" 
+                                          : "bg-yellow-500/10 text-yellow-550 border-yellow-550/20"
+                                  }`}>
+                                    {user.role === "Admin" 
+                                      ? "🛡️ Admin" 
+                                      : user.role === "Acting Leader"
+                                        ? "🎖️ Acting Leader"
+                                        : user.role === "Moderator" 
+                                          ? "✍️ Moderator" 
+                                          : "👁️ Visitor"}
+                                  </span>
+                                )}
+                              </td>
+                              
+                              <td className="py-3 text-center">
+                                {isEditing ? (
+                                  <div className="flex gap-1.5 justify-center">
+                                    <button
+                                      type="button"
+                                      onClick={() => handleSaveUserEdit(user.id)}
+                                      className="bg-[#10B981] hover:bg-emerald-400 text-slate-950 px-3 py-1.5 rounded-xl font-black text-[10px] cursor-pointer transition shadow-md shadow-emerald-500/10"
+                                    >
+                                      {language === "bn" ? "সেভ" : "Save"}
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={cancelEditingUser}
+                                      className="bg-slate-800 hover:bg-slate-750 text-slate-300 px-3 py-1.5 rounded-xl font-bold text-[10px] cursor-pointer transition"
+                                    >
+                                      {language === "bn" ? "বাতিল" : "Cancel"}
+                                    </button>
+                                  </div>
+                                ) : (
+                                  <div className="flex gap-1.5 justify-center items-center">
+                                    <button
+                                      type="button"
+                                      onClick={() => startEditingUser(user)}
+                                      className="bg-slate-900 hover:bg-slate-800 border border-slate-800 hover:border-slate-700 text-slate-300 px-2.5 py-1.5 rounded-xl text-[10px] font-bold cursor-pointer transition flex items-center gap-1"
+                                      title={language === "bn" ? "পাসওয়ার্ড বা তথ্য পরিবর্তন করুন" : "Update user password"}
+                                    >
+                                      <span>⚙️</span>
+                                      <span>{language === "bn" ? "এডিট" : "Edit"}</span>
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => handleDeleteUser(user.id, user.username)}
+                                      disabled={isSystemRoot}
+                                      className={`p-1.5 rounded-xl border transition cursor-pointer inline-flex items-center justify-center ${
+                                        isSystemRoot 
+                                          ? "opacity-20 cursor-not-allowed border-slate-800 text-slate-600" 
+                                          : "bg-red-500/10 hover:bg-red-500/25 border-red-500/15 text-red-400"
+                                      }`}
+                                      title={language === "bn" ? "অ্যাকাউন্ট মুছুন" : "Wipe credentials"}
+                                    >
+                                      <Trash2 className="w-3.5 h-3.5" />
+                                    </button>
+                                  </div>
+                                )}
+                              </td>
+                            </tr>
+
+                            {isEditing && (
+                              <tr className="bg-slate-950/20">
+                                <td colSpan={4} className="p-4 border-b border-slate-850">
+                                  <div className="space-y-4">
+                                    {/* Toggle Custom Permissions */}
+                                    <div className="flex items-center justify-between bg-slate-900/20 p-3 rounded-xl border border-slate-850">
+                                      <div className="text-left leading-snug">
+                                        <span className="block text-xs font-bold text-slate-200">
+                                          ⚙️ {language === "bn" ? "কাস্টম পারমিশন সক্রিয় করুন" : "Enable Custom Permissions"}
+                                        </span>
+                                        <span className="text-[10px] text-slate-450">
+                                          {language === "bn" ? "বেস রোলের পরিবর্তে নিজস্ব পারমিশন সেট করুন" : "Override default role permissions for this user"}
+                                        </span>
+                                      </div>
+                                      <button
+                                        type="button"
+                                        onClick={() => setEditingCustomPermissionsEnabled(!editingCustomPermissionsEnabled)}
+                                        className={`w-9 h-5 rounded-full transition-colors relative cursor-pointer ${
+                                          editingCustomPermissionsEnabled ? "bg-[#10B981]" : "bg-slate-800"
+                                        }`}
+                                      >
+                                        <span className={`w-4 h-4 rounded-full bg-slate-950 absolute top-0.5 transition-transform ${
+                                          editingCustomPermissionsEnabled ? "translate-x-4.5" : "translate-x-0.5"
+                                        }`} />
+                                      </button>
+                                    </div>
+
+                                    {editingCustomPermissionsEnabled && (
+                                      <div className="bg-slate-950/40 border border-slate-850 rounded-2xl p-4 space-y-3">
+                                        <span className="block text-[10px] font-bold text-slate-350 uppercase tracking-wider">
+                                          🔑 {language === "bn" ? "মডিউল ভিত্তিক অ্যাক্সেস কন্ট্রোল" : "Granular Module Permissions"}
+                                        </span>
+                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                          {[
+                                            { key: "serviceReport", label: language === "bn" ? "সার্ভিস রিপোর্ট" : "Service Reports" },
+                                            { key: "engineeringReport", label: language === "bn" ? "ইঞ্জিনিয়ারিং রিপোর্ট" : "Engineering Reports" },
+                                            { key: "inventory", label: language === "bn" ? "কেমিক্যাল ইনভেন্টরি" : "Chemical Inventory" },
+                                            { key: "technicians", label: language === "bn" ? "টেকনিশিয়ান প্যানেল" : "Technicians & Supervisors" },
+                                            { key: "scheduler", label: language === "bn" ? "প্রজেক্ট শিডিউলার" : "Project Scheduler" },
+                                            { key: "clientDirectory", label: language === "bn" ? "লোকেশন ডিরেক্টরি" : "Location Directory" },
+                                          ].map((mod) => {
+                                            const currentVal = editingCustomPermissions[mod.key as keyof typeof editingCustomPermissions] || "None";
+                                            return (
+                                              <div key={mod.key} className="flex items-center justify-between bg-slate-900/40 p-2.5 rounded-xl border border-slate-850/60">
+                                                <span className="text-xs font-bold text-slate-300">{mod.label}</span>
+                                                <div className="flex bg-slate-950 rounded-lg p-0.5 border border-slate-800">
+                                                  {(["None", "View", "Edit", "Delete"] as const).map((level) => (
+                                                    <button
+                                                      key={level}
+                                                      type="button"
+                                                      onClick={() => setEditingCustomPermissions({
+                                                        ...editingCustomPermissions,
+                                                        [mod.key]: level
+                                                      })}
+                                                      className={`px-2 py-1 rounded text-[9px] font-bold transition cursor-pointer ${
+                                                        currentVal === level
+                                                          ? "bg-[#10B981] text-slate-950"
+                                                          : "text-slate-455 hover:text-slate-200"
+                                                      }`}
+                                                    >
+                                                      {level === "None" && (language === "bn" ? "বন্ধ" : "None")}
+                                                      {level === "View" && (language === "bn" ? "দেখা" : "View")}
+                                                      {level === "Edit" && (language === "bn" ? "এডিট" : "Edit")}
+                                                      {level === "Delete" && (language === "bn" ? "মুছা" : "Delete")}
+                                                    </button>
+                                                  ))}
+                                                </div>
+                                              </div>
+                                            );
+                                          })}
+                                        </div>
+                                      </div>
+                                    )}
+
+                                    {/* Allowed Emirates Multi-select Selector */}
+                                    <div className="bg-slate-950/40 border border-slate-850 rounded-2xl p-4 space-y-3">
+                                      <span className="block text-[10px] font-bold text-slate-350 uppercase tracking-wider">
+                                        🌍 {language === "bn" ? "অনুমোদিত আমিরাত সমূহ (এলাকা ফিল্টার)" : "Allowed Emirates (Regional Access Control)"}
+                                      </span>
+                                      <div className="flex flex-wrap gap-2">
+                                        {[
+                                          { id: "Ajman", label: language === "bn" ? "আজমান" : "Ajman" },
+                                          { id: "Dubai", label: language === "bn" ? "দুবাই" : "Dubai" },
+                                          { id: "Sharjah", label: language === "bn" ? "শারজাহ" : "Sharjah" },
+                                          { id: "Umm Al Quwain", label: language === "bn" ? "উম্ম আল কুয়াইন" : "Umm Al Quwain" },
+                                          { id: "Ras Al Khaimah", label: language === "bn" ? "রাস আল খাইমাহ" : "Ras Al Khaimah" },
+                                          { id: "Fujairah", label: language === "bn" ? "ফুজিরাহ" : "Fujairah" },
+                                          { id: "Al Dhaid", label: language === "bn" ? "আল ধাইদ" : "Al Dhaid" },
+                                        ].map((em) => {
+                                          const isSelected = editingAllowedEmirates.includes(em.id);
+                                          return (
+                                            <button
+                                              key={em.id}
+                                              type="button"
+                                              onClick={() => {
+                                                if (isSelected) {
+                                                  setEditingAllowedEmirates(editingAllowedEmirates.filter(x => x !== em.id));
+                                                } else {
+                                                  setEditingAllowedEmirates([...editingAllowedEmirates, em.id]);
+                                                }
+                                              }}
+                                              className={`px-3 py-1.5 rounded-xl border text-[10.5px] font-bold transition flex items-center gap-1.5 cursor-pointer ${
+                                                isSelected
+                                                  ? "bg-emerald-500/15 border-emerald-500 text-emerald-400"
+                                                  : "bg-slate-900 border-slate-800 text-slate-400 hover:text-slate-200"
+                                              }`}
+                                            >
+                                              <span className={`w-2 h-2 rounded-full ${isSelected ? "bg-emerald-400" : "bg-slate-600"}`} />
+                                              <span>{em.label}</span>
+                                            </button>
+                                          );
+                                        })}
+                                      </div>
+                                    </div>
+                                  </div>
+                                </td>
+                              </tr>
+                            )}
+                          </React.Fragment>
                         );
                       })
                     )}
@@ -2143,15 +2377,12 @@ Reloading portal to apply updates...`;
                 </table>
               </div>
             </div>
-
           </div>
         </div>
       </div> {/* End Security Tab */}
 
       {/* ===================== TAB: PASSWORD & SECURITY ===================== */}
       <div className={activeTab === "password_security" ? "space-y-6 block animate-fade-in" : "hidden"}>
-        
-        {/* Main Bento Container */}
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 max-w-5xl mx-auto">
           
           {/* LEFT BENTO CELL: Password Change Box (Size 7 span) */}
@@ -2689,8 +2920,6 @@ Reloading portal to apply updates...`;
 
         </div>
 
-      </div> {/* End Password & Security Tab */}
-
       {/* ===================== TAB: ROLE PERMISSIONS ===================== */}
       <div className={activeTab === "role_permissions" ? "space-y-6 block animate-fade-in" : "hidden"}>
         <div className="bg-[#1E293B]/40 border border-[#334155] rounded-3xl p-6 shadow-sm space-y-6">
@@ -2797,19 +3026,28 @@ Reloading portal to apply updates...`;
                 const currentSubTab = modSubTab;
                 const targetRole = selectedRoleToManage;
                 
-                // Always render all keys so the grid height is completely stable and never shrinks!
                 const keysToRender: { key: string; label: string }[] = [];
                 
-                const allKeys = [
-                  ...PERMISSION_GROUPS.Ad,
-                  ...PERMISSION_GROUPS.V,
-                  ...PERMISSION_GROUPS.D,
-                  ...PERMISSION_GROUPS.Ed
-                ];
-                const seen = new Set<string>();
-                for (const item of allKeys) {
-                  if (!seen.has(item.key)) {
-                    seen.add(item.key);
+                if (currentSubTab === "All") {
+                  const allKeys = [
+                    ...PERMISSION_GROUPS.Ad,
+                    ...PERMISSION_GROUPS.V,
+                    ...PERMISSION_GROUPS.D,
+                    ...PERMISSION_GROUPS.Ed
+                  ];
+                  const seen = new Set<string>();
+                  for (const item of allKeys) {
+                    if (!seen.has(item.key)) {
+                      seen.add(item.key);
+                      keysToRender.push({
+                        key: item.key,
+                        label: language === "bn" ? item.label.bn : item.label.en
+                      });
+                    }
+                  }
+                } else {
+                  const groupKeys = PERMISSION_GROUPS[currentSubTab as "Ad" | "V" | "D" | "Ed"] || [];
+                  for (const item of groupKeys) {
                     keysToRender.push({
                       key: item.key,
                       label: language === "bn" ? item.label.bn : item.label.en
@@ -2926,7 +3164,6 @@ Reloading portal to apply updates...`;
           </div>
 
         </div>
-      </div>
 
       {/* ===================== TAB: ACTIVE DEVICES ===================== */}
       <div className={activeTab === "active_devices" ? "space-y-6 block animate-fade-in" : "hidden"}>
