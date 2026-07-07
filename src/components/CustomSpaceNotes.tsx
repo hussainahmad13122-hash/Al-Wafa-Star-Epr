@@ -15,21 +15,26 @@ import {
   Copy,
   Info,
 } from "lucide-react";
+import { saveStoreValue, subscribeStoreValue } from "../localDatabase";
+import { AppUser } from "../types";
 
 interface Note {
   id: string;
   title: string;
   content: string;
-  category: string; // "Ants" | "Drain Flies" | "Rats" | "Custom"
+  category: string;
   lastUpdated: string;
 }
 
 interface CustomSpaceNotesProps {
   language: "en" | "ar" | "bn";
+  loggedInUser?: AppUser | null;
 }
 
-export default function CustomSpaceNotes({ language }: CustomSpaceNotesProps) {
-  // Default Template Notes (Ants, Drain Flies, Rats) - Completely in English as requested
+export default function CustomSpaceNotes({ language, loggedInUser }: CustomSpaceNotesProps) {
+  const isAdmin = loggedInUser?.role === "Admin";
+
+  // Default Template Notes (Ants, Drain Flies, Rodents) - Completely in English as requested
   const defaultNotes: Note[] = [
     {
       id: "note-ants",
@@ -56,7 +61,7 @@ export default function CustomSpaceNotes({ language }: CustomSpaceNotesProps) {
     {
       id: "note-rodents",
       title: "Rodent Control Operations",
-      category: "Rats",
+      category: "Rodents",
       lastUpdated: new Date().toLocaleDateString(),
       content: `**Rodent Control Operations Completed:**
 - Positioned secure, tamper-resistant bait stations along the outer perimeters.
@@ -65,33 +70,11 @@ export default function CustomSpaceNotes({ language }: CustomSpaceNotesProps) {
     },
   ];
 
-  // Load from LocalStorage or use defaults
-  const [notes, setNotes] = useState<Note[]>(() => {
-    const saved = localStorage.getItem("ALW_CUSTOM_SPACE_NOTES_V2");
-    if (saved) {
-      try {
-        const parsed = JSON.parse(saved);
-        // Map legacy notes if they had titleBn etc.
-        return parsed.map((n: any) => ({
-          id: n.id,
-          title: n.title || n.titleBn || "Untitled Note",
-          content: n.content || "",
-          category: n.category || "Custom",
-          lastUpdated: n.lastUpdated || new Date().toLocaleDateString(),
-        }));
-      } catch (e) {
-        return defaultNotes;
-      }
-    }
-    return defaultNotes;
-  });
-
-  // Save to LocalStorage
-  useEffect(() => {
-    localStorage.setItem("ALW_CUSTOM_SPACE_NOTES_V2", JSON.stringify(notes));
-  }, [notes]);
+  const DEFAULT_CATEGORIES = ["Ants", "Drain Flies", "Rodents", "Custom"];
 
   // States
+  const [notes, setNotes] = useState<Note[]>(defaultNotes);
+  const [customCategories, setCustomCategories] = useState<string[]>(DEFAULT_CATEGORIES);
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedCategory, setSelectedCategory] = useState<string>("All");
 
@@ -102,41 +85,54 @@ export default function CustomSpaceNotes({ language }: CustomSpaceNotesProps) {
     inputValue?: string;
   }>({ type: null, catName: "" });
 
-  // Custom categories list that are persistent
-  const [customCategories, setCustomCategories] = useState<string[]>(() => {
-    const saved = localStorage.getItem("ALW_CUSTOM_NOTE_CATEGORIES");
-    if (saved) {
-      try {
-        return JSON.parse(saved);
-      } catch (e) {}
-    }
-    return ["Custom"];
-  });
+  // Subscribe to changes in store
+  useEffect(() => {
+    const unsubNotes = subscribeStoreValue<Note[]>(
+      "custom_space_notes_v3",
+      defaultNotes,
+      (newNotes) => {
+        setNotes(newNotes);
+      }
+    );
+
+    const unsubCats = subscribeStoreValue<string[]>(
+      "custom_note_categories_v3",
+      DEFAULT_CATEGORIES,
+      (newCats) => {
+        setCustomCategories(newCats);
+      }
+    );
+
+    return () => {
+      unsubNotes();
+      unsubCats();
+    };
+  }, []);
+
+  // Helper functions to update database and trigger real-time replication
+  const updateNotes = (updated: Note[]) => {
+    setNotes(updated);
+    saveStoreValue("custom_space_notes_v3", updated);
+  };
+
+  const updateCategories = (updatedCats: string[]) => {
+    setCustomCategories(updatedCats);
+    saveStoreValue("custom_note_categories_v3", updatedCats);
+  };
 
   // Sync customCategories to include any category in existing notes automatically
   useEffect(() => {
     const noteCats = notes.map((n) => n.category);
     const uniqueCats = Array.from(new Set(noteCats)).filter(
       (c): c is string =>
-        typeof c === "string" && !["Ants", "Drain Flies", "Rats"].includes(c),
+        typeof c === "string" && !DEFAULT_CATEGORIES.includes(c),
     );
 
-    setCustomCategories((prev) => {
-      const merged = Array.from(new Set([...prev, ...uniqueCats]));
-      if (JSON.stringify(merged) !== JSON.stringify(prev)) {
-        return merged;
-      }
-      return prev;
-    });
-  }, [notes]);
-
-  // Save custom categories to localStorage
-  useEffect(() => {
-    localStorage.setItem(
-      "ALW_CUSTOM_NOTE_CATEGORIES",
-      JSON.stringify(customCategories),
-    );
-  }, [customCategories]);
+    const merged = Array.from(new Set([...customCategories, ...uniqueCats]));
+    if (JSON.stringify(merged) !== JSON.stringify(customCategories)) {
+      updateCategories(merged);
+    }
+  }, [notes, customCategories]);
 
   // Inline category add states
   const [isAddingCategory, setIsAddingCategory] = useState(false);
@@ -151,7 +147,7 @@ export default function CustomSpaceNotes({ language }: CustomSpaceNotesProps) {
 
     // Check if category already exists
     if (!customCategories.includes(trimmed)) {
-      setCustomCategories((prev) => [...prev, trimmed]);
+      updateCategories([...customCategories, trimmed]);
     }
 
     // Automatically select the newly created category as active
@@ -166,13 +162,15 @@ export default function CustomSpaceNotes({ language }: CustomSpaceNotesProps) {
     const fallbackCategory = remainingCustom.includes("Custom") ? "Custom" : (remainingCustom[0] || "Custom");
 
     // Re-assign notes of this category to fallbackCategory
-    setNotes((prev) =>
-      prev.map((n) =>
-        n.category === catName ? { ...n, category: fallbackCategory } : n,
-      ),
+    const updatedNotes = notes.map((n) =>
+      n.category === catName ? { ...n, category: fallbackCategory } : n,
     );
+    updateNotes(updatedNotes);
+
     // Remove from customCategories
-    setCustomCategories((prev) => prev.filter((c) => c !== catName));
+    const updatedCats = customCategories.filter((c) => c !== catName);
+    updateCategories(updatedCats);
+
     // Select All or fallback
     if (selectedCategory === catName) {
       setSelectedCategory("All");
@@ -198,16 +196,14 @@ export default function CustomSpaceNotes({ language }: CustomSpaceNotesProps) {
     if (exists) return;
 
     // Rename notes of this category to the new name
-    setNotes((prev) =>
-      prev.map((n) =>
-        n.category === oldCatName ? { ...n, category: trimmed } : n,
-      ),
+    const updatedNotes = notes.map((n) =>
+      n.category === oldCatName ? { ...n, category: trimmed } : n,
     );
+    updateNotes(updatedNotes);
 
     // Update in customCategories list
-    setCustomCategories((prev) =>
-      prev.map((c) => (c === oldCatName ? trimmed : c)),
-    );
+    const updatedCats = customCategories.map((c) => (c === oldCatName ? trimmed : c));
+    updateCategories(updatedCats);
 
     // If active category was this one, update selectedCategory to the new one
     if (selectedCategory === oldCatName) {
@@ -266,25 +262,24 @@ export default function CustomSpaceNotes({ language }: CustomSpaceNotesProps) {
 
       // Auto-add to customCategories list if it's not already there
       if (trimmed && !customCategories.includes(trimmed)) {
-        setCustomCategories((prev) => [...prev, trimmed]);
+        updateCategories([...customCategories, trimmed]);
       }
     }
 
     if (editingNote) {
       // Edit mode
-      setNotes((prev) =>
-        prev.map((n) =>
-          n.id === editingNote.id
-            ? {
-                ...n,
-                title: formTitle.trim(),
-                content: formContent,
-                category: finalCategory,
-                lastUpdated: timestamp,
-              }
-            : n,
-        ),
+      const updatedNotes = notes.map((n) =>
+        n.id === editingNote.id
+          ? {
+              ...n,
+              title: formTitle.trim(),
+              content: formContent,
+              category: finalCategory,
+              lastUpdated: timestamp,
+            }
+          : n,
       );
+      updateNotes(updatedNotes);
     } else {
       // Add mode
       const newNote: Note = {
@@ -294,7 +289,7 @@ export default function CustomSpaceNotes({ language }: CustomSpaceNotesProps) {
         category: finalCategory,
         lastUpdated: timestamp,
       };
-      setNotes((prev) => [...prev, newNote]);
+      updateNotes([...notes, newNote]);
     }
 
     closeModal();
@@ -331,7 +326,7 @@ export default function CustomSpaceNotes({ language }: CustomSpaceNotesProps) {
   // Delete Note
   const handleDeleteNote = (id: string) => {
     if (window.confirm("Are you sure you want to delete this note?")) {
-      setNotes((prev) => prev.filter((n) => n.id !== id));
+      updateNotes(notes.filter((n) => n.id !== id));
     }
   };
 
@@ -342,20 +337,36 @@ export default function CustomSpaceNotes({ language }: CustomSpaceNotesProps) {
         "This will restore the original English templates for Ants, Drain Flies, and Rodents, while preserving your other custom notes. Proceed?",
       )
     ) {
-      setNotes((prev) => {
-        const customNotes = prev.filter(
-          (n) =>
-            !n.id.startsWith("note-ants") &&
-            !n.id.startsWith("note-drainflies") &&
-            !n.id.startsWith("note-rodents"),
-        );
-        return [...defaultNotes, ...customNotes];
-      });
+      const customNotes = notes.filter(
+        (n) =>
+          !n.id.startsWith("note-ants") &&
+          !n.id.startsWith("note-drainflies") &&
+          !n.id.startsWith("note-rodents"),
+      );
+      updateNotes([...defaultNotes, ...customNotes]);
+
+      // Also restore default categories if deleted
+      const updatedCats = Array.from(new Set([...customCategories, "Ants", "Drain Flies", "Rodents"]));
+      updateCategories(updatedCats);
     }
   };
 
   return (
     <div className="w-full max-w-6xl mx-auto space-y-6 animate-fade-in text-slate-100">
+      {/* Admin Notice for Non-Admins */}
+      {!isAdmin && (
+        <div className="bg-blue-500/10 border border-blue-500/20 rounded-2xl p-4 flex items-center gap-3 text-blue-400">
+          <Info className="w-5 h-5 shrink-0" />
+          <div className="text-xs font-semibold leading-relaxed">
+            {language === "bn"
+              ? "শুধুমাত্র দেখার মোড: অ্যাডমিনরা নতুন কাস্টম নোট তৈরি করতে বা ক্যাটাগরি এডিট/ডিলিট করতে পারেন। আপনি এখানে যেকোন নোট কপি করতে পারবেন।"
+              : language === "ar"
+                ? "وضع العرض فقط: يمكن للمسؤولين فقط إنشاء ملاحظات مخصصة جديدة أو تعديل الفئات. يمكنك نسخ الملاحظات هنا."
+                : "View-Only Mode: Only Admins can create/edit notes or manage categories. You are free to copy any notes."}
+          </div>
+        </div>
+      )}
+
       {/* Title & Stats Ribbon */}
       <div className="bg-slate-900/80 border border-slate-800 rounded-3xl p-6 shadow-xl flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div className="flex items-center gap-4">
@@ -374,25 +385,27 @@ export default function CustomSpaceNotes({ language }: CustomSpaceNotesProps) {
           </div>
         </div>
 
-        <div className="flex items-center gap-3">
-          <button
-            type="button"
-            onClick={openCreateModal}
-            className="px-4 py-2.5 bg-gradient-to-r from-emerald-600 to-teal-500 hover:from-emerald-500 hover:to-teal-400 active:scale-95 text-slate-950 text-xs font-black uppercase rounded-xl transition-all cursor-pointer shadow-lg shadow-emerald-500/10 flex items-center gap-1.5"
-          >
-            <Plus className="w-4 h-4" />
-            <span>Add New Note</span>
-          </button>
+        {isAdmin && (
+          <div className="flex items-center gap-3">
+            <button
+              type="button"
+              onClick={openCreateModal}
+              className="px-4 py-2.5 bg-gradient-to-r from-emerald-600 to-teal-500 hover:from-emerald-500 hover:to-teal-400 active:scale-95 text-slate-950 text-xs font-black uppercase rounded-xl transition-all cursor-pointer shadow-lg shadow-emerald-500/10 flex items-center gap-1.5"
+            >
+              <Plus className="w-4 h-4" />
+              <span>Add New Note</span>
+            </button>
 
-          <button
-            type="button"
-            onClick={handleResetToDefaults}
-            className="px-3 py-2 bg-slate-800 hover:bg-slate-750 text-slate-300 text-[11px] font-bold rounded-xl border border-slate-700/80 transition-all cursor-pointer"
-            title="Reset Default English Templates"
-          >
-            Reset Templates
-          </button>
-        </div>
+            <button
+              type="button"
+              onClick={handleResetToDefaults}
+              className="px-3 py-2 bg-slate-800 hover:bg-slate-750 text-slate-300 text-[11px] font-bold rounded-xl border border-slate-700/80 transition-all cursor-pointer"
+              title="Reset Default English Templates"
+            >
+              Reset Templates
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Filter & Search Bar */}
@@ -423,10 +436,7 @@ export default function CustomSpaceNotes({ language }: CustomSpaceNotesProps) {
         <div className="flex flex-wrap gap-2 items-center w-full md:w-auto">
           {[
             { id: "All", label: "All Notes" },
-            { id: "Ants", label: "Ants" },
-            { id: "Drain Flies", label: "Drain Flies" },
-            { id: "Rats", label: "Rodents" },
-            ...customCategories.map((cat) => ({ id: cat, label: cat })),
+            ...customCategories.map((cat) => ({ id: cat, label: cat === "Rats" ? "Rodents" : cat })),
           ]
             .reduce(
               (acc, current) => {
@@ -454,7 +464,7 @@ export default function CustomSpaceNotes({ language }: CustomSpaceNotesProps) {
                 </button>
 
                 {/* Optional inline edit and deletion of custom category tabs */}
-                {!["All", "Ants", "Drain Flies", "Rats"].includes(cat.id) && (
+                {isAdmin && cat.id !== "All" && (
                   <div className="hidden group-hover:flex items-center gap-0.5 pr-0.5 shrink-0">
                     {/* Edit button */}
                     <button
@@ -635,24 +645,28 @@ export default function CustomSpaceNotes({ language }: CustomSpaceNotesProps) {
                   </button>
 
                   {/* Edit Button */}
-                  <button
-                    type="button"
-                    onClick={() => openEditModal(note)}
-                    className="p-1.5 bg-slate-800 hover:bg-slate-700 border border-slate-700/60 rounded-lg text-slate-400 hover:text-slate-200 transition-all cursor-pointer"
-                    title="Edit Note"
-                  >
-                    <Edit2 className="w-3.5 h-3.5" />
-                  </button>
+                  {isAdmin && (
+                    <button
+                      type="button"
+                      onClick={() => openEditModal(note)}
+                      className="p-1.5 bg-slate-800 hover:bg-slate-700 border border-slate-700/60 rounded-lg text-slate-400 hover:text-slate-200 transition-all cursor-pointer"
+                      title="Edit Note"
+                    >
+                      <Edit2 className="w-3.5 h-3.5" />
+                    </button>
+                  )}
 
                   {/* Delete Button */}
-                  <button
-                    type="button"
-                    onClick={() => handleDeleteNote(note.id)}
-                    className="p-1.5 bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/20 rounded-lg text-rose-400 hover:text-rose-300 transition-all cursor-pointer"
-                    title="Delete Note"
-                  >
-                    <Trash2 className="w-3.5 h-3.5" />
-                  </button>
+                  {isAdmin && (
+                    <button
+                      type="button"
+                      onClick={() => handleDeleteNote(note.id)}
+                      className="p-1.5 bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/20 rounded-lg text-rose-400 hover:text-rose-300 transition-all cursor-pointer"
+                      title="Delete Note"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                  )}
                 </div>
               </div>
             </div>

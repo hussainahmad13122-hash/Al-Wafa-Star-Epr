@@ -2045,8 +2045,9 @@ Reloading portal to apply updates...`;
                     })}
                   </div>
                 </div>
+              </div>
 
-                <button
+              <button
                   type="button"
                   onClick={handleAddUser}
                   className="w-full bg-[#10B981] hover:bg-emerald-400 text-slate-950 py-2.5 px-3 rounded-xl font-black text-xs transition flex justify-center items-center gap-2 cursor-pointer shadow-lg shadow-emerald-500/10 mt-4"
@@ -2919,6 +2920,7 @@ Reloading portal to apply updates...`;
           </div>
 
         </div>
+      </div> {/* End Password Security Tab */}
 
       {/* ===================== TAB: ROLE PERMISSIONS ===================== */}
       <div className={activeTab === "role_permissions" ? "space-y-6 block animate-fade-in" : "hidden"}>
@@ -3055,101 +3057,146 @@ Reloading portal to apply updates...`;
                   }
                 }
                 
+                const handleToggleAll = (enabled: boolean) => {
+                  if (setRolePermissions && rolePermissions) {
+                    const allKeys = [
+                      ...PERMISSION_GROUPS.Ad,
+                      ...PERMISSION_GROUPS.V,
+                      ...PERMISSION_GROUPS.D,
+                      ...PERMISSION_GROUPS.Ed
+                    ];
+                    const updatedRole = { ...(rolePermissions[targetRole] || DEFAULT_ROLE_PERMISSIONS[targetRole] || {}) };
+                    for (const item of allKeys) {
+                      updatedRole[item.key] = enabled;
+                    }
+                    const updated = {
+                      ...rolePermissions,
+                      [targetRole]: updatedRole
+                    };
+                    setRolePermissions(updated);
+                    saveStoreValue("rolePermissions", updated);
+                  }
+                };
+
                 const half = Math.ceil(keysToRender.length / 2);
                 const leftColumn = keysToRender.slice(0, half);
                 const rightColumn = keysToRender.slice(half);
                 
                 return (
-                  <div className="flex flex-col md:flex-row md:items-stretch gap-y-4 md:gap-x-12 min-h-[220px]">
-                    <div className="flex-1 space-y-3.5">
-                      {leftColumn.map(({ key, label }) => {
-                        const value = rolePermissions ? (rolePermissions[targetRole]?.[key] ?? DEFAULT_ROLE_PERMISSIONS[targetRole]?.[key] ?? false) : false;
-                        const isKeyInSelectedGroup = currentSubTab === "All" || (
-                          PERMISSION_GROUPS[currentSubTab as "Ad" | "V" | "D" | "Ed"]?.some(item => item.key === key)
-                        );
-                        return (
-                          <label key={key} className="flex items-center justify-between group cursor-pointer py-0.5 select-none transition-all duration-300 opacity-100">
-                            <span className={`text-xs font-semibold transition-colors ${
-                              currentSubTab !== "All" && isKeyInSelectedGroup
-                                ? "text-emerald-400 font-extrabold"
-                                : "text-slate-200 group-hover:text-white"
-                            }`}>
-                              {label}
-                            </span>
-                            <div className="relative inline-block w-10 h-5 shrink-0">
-                              <input 
-                                type="checkbox"
-                                className="peer sr-only"
-                                checked={value as boolean}
-                                onChange={(e) => {
-                                  if (setRolePermissions && rolePermissions) {
-                                    const updated = {
-                                      ...rolePermissions,
-                                      [targetRole]: {
-                                        ...(DEFAULT_ROLE_PERMISSIONS[targetRole] || {}),
-                                        ...(rolePermissions[targetRole] || {}),
-                                        [key]: e.target.checked
-                                      }
-                                    };
-                                    setRolePermissions(updated);
-                                    saveStoreValue("rolePermissions", updated);
-                                  }
-                                }}
-                                disabled={loggedInUser?.role !== "Admin"}
-                              />
-                              <div className="block bg-slate-850 border border-slate-700 w-full h-full rounded-full peer-checked:bg-emerald-500 peer-checked:border-emerald-500 transition-all"></div>
-                              <div className="absolute left-[2px] top-[2px] bg-slate-400 w-4 h-4 rounded-full transition-all peer-checked:translate-x-full peer-checked:bg-white"></div>
-                            </div>
-                          </label>
-                        );
-                      })}
-                    </div>
+                  <div className="space-y-4">
+                    {currentSubTab === "All" && (
+                      <div className="flex flex-wrap items-center gap-3 bg-slate-950/40 border border-slate-800 p-3.5 rounded-xl mb-2">
+                        <span className="text-[11px] font-black text-slate-300 uppercase tracking-wider font-mono">
+                          {language === "bn" ? "গ্লোবাল নিয়ন্ত্রণ:" : "Global Controls:"}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => handleToggleAll(true)}
+                          className="px-3 py-1 rounded-md bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 border border-emerald-500/20 text-[10px] font-bold uppercase transition-all cursor-pointer"
+                        >
+                          {language === "bn" ? "সমস্ত সক্রিয় করুন" : "Activate All"}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleToggleAll(false)}
+                          className="px-3 py-1 rounded-md bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/20 text-[10px] font-bold uppercase transition-all cursor-pointer"
+                        >
+                          {language === "bn" ? "সমস্ত নিষ্ক্রিয় করুন" : "Deactivate All"}
+                        </button>
+                      </div>
+                    )}
 
-                    {/* Elegant Vertical Divider Line */}
-                    <div className="hidden md:block w-[1px] bg-slate-800 self-stretch" />
+                    <div className="flex flex-col md:flex-row md:items-stretch gap-y-4 md:gap-x-12 min-h-[220px]">
+                      <div className="flex-1 space-y-3.5">
+                        {leftColumn.map(({ key, label }) => {
+                          const value = rolePermissions ? (rolePermissions[targetRole]?.[key] ?? DEFAULT_ROLE_PERMISSIONS[targetRole]?.[key] ?? false) : false;
+                          const isKeyInSelectedGroup = currentSubTab === "All" || (
+                            PERMISSION_GROUPS[currentSubTab as "Ad" | "V" | "D" | "Ed"]?.some(item => item.key === key)
+                          );
+                          return (
+                            <label key={key} className="flex items-center justify-between group cursor-pointer py-0.5 select-none transition-all duration-300 opacity-100">
+                              <span className={`text-xs font-semibold transition-colors ${
+                                currentSubTab !== "All" && isKeyInSelectedGroup
+                                  ? "text-emerald-400 font-extrabold"
+                                  : "text-slate-200 group-hover:text-white"
+                              }`}>
+                                {label}
+                              </span>
+                              <div className="relative inline-block w-10 h-5 shrink-0">
+                                <input 
+                                  type="checkbox"
+                                  className="peer sr-only"
+                                  checked={value as boolean}
+                                  onChange={(e) => {
+                                    if (setRolePermissions && rolePermissions) {
+                                      const updated = {
+                                        ...rolePermissions,
+                                        [targetRole]: {
+                                          ...(DEFAULT_ROLE_PERMISSIONS[targetRole] || {}),
+                                          ...(rolePermissions[targetRole] || {}),
+                                          [key]: e.target.checked
+                                        }
+                                      };
+                                      setRolePermissions(updated);
+                                      saveStoreValue("rolePermissions", updated);
+                                    }
+                                  }}
+                                  disabled={loggedInUser?.role !== "Admin"}
+                                />
+                                <div className="block bg-slate-850 border border-slate-700 w-full h-full rounded-full peer-checked:bg-emerald-500 peer-checked:border-emerald-500 transition-all"></div>
+                                <div className="absolute left-[2px] top-[2px] bg-slate-400 w-4 h-4 rounded-full transition-all peer-checked:translate-x-full peer-checked:bg-white"></div>
+                              </div>
+                            </label>
+                          );
+                        })}
+                      </div>
 
-                    <div className="flex-1 space-y-3.5">
-                      {rightColumn.map(({ key, label }) => {
-                        const value = rolePermissions ? (rolePermissions[targetRole]?.[key] ?? DEFAULT_ROLE_PERMISSIONS[targetRole]?.[key] ?? false) : false;
-                        const isKeyInSelectedGroup = currentSubTab === "All" || (
-                          PERMISSION_GROUPS[currentSubTab as "Ad" | "V" | "D" | "Ed"]?.some(item => item.key === key)
-                        );
-                        return (
-                          <label key={key} className="flex items-center justify-between group cursor-pointer py-0.5 select-none transition-all duration-300 opacity-100">
-                            <span className={`text-xs font-semibold transition-colors ${
-                              currentSubTab !== "All" && isKeyInSelectedGroup
-                                ? "text-emerald-400 font-extrabold"
-                                : "text-slate-200 group-hover:text-white"
-                            }`}>
-                              {label}
-                            </span>
-                            <div className="relative inline-block w-10 h-5 shrink-0">
-                              <input 
-                                type="checkbox"
-                                className="peer sr-only"
-                                checked={value as boolean}
-                                onChange={(e) => {
-                                  if (setRolePermissions && rolePermissions) {
-                                    const updated = {
-                                      ...rolePermissions,
-                                      [targetRole]: {
-                                        ...(DEFAULT_ROLE_PERMISSIONS[targetRole] || {}),
-                                        ...(rolePermissions[targetRole] || {}),
-                                        [key]: e.target.checked
-                                      }
-                                    };
-                                    setRolePermissions(updated);
-                                    saveStoreValue("rolePermissions", updated);
-                                  }
-                                }}
-                                disabled={loggedInUser?.role !== "Admin"}
-                              />
-                              <div className="block bg-slate-850 border border-slate-700 w-full h-full rounded-full peer-checked:bg-emerald-500 peer-checked:border-emerald-500 transition-all"></div>
-                              <div className="absolute left-[2px] top-[2px] bg-slate-400 w-4 h-4 rounded-full transition-all peer-checked:translate-x-full peer-checked:bg-white"></div>
-                            </div>
-                          </label>
-                        );
-                      })}
+                      {/* Elegant Vertical Divider Line */}
+                      <div className="hidden md:block w-[1px] bg-slate-800 self-stretch" />
+
+                      <div className="flex-1 space-y-3.5">
+                        {rightColumn.map(({ key, label }) => {
+                          const value = rolePermissions ? (rolePermissions[targetRole]?.[key] ?? DEFAULT_ROLE_PERMISSIONS[targetRole]?.[key] ?? false) : false;
+                          const isKeyInSelectedGroup = currentSubTab === "All" || (
+                            PERMISSION_GROUPS[currentSubTab as "Ad" | "V" | "D" | "Ed"]?.some(item => item.key === key)
+                          );
+                          return (
+                            <label key={key} className="flex items-center justify-between group cursor-pointer py-0.5 select-none transition-all duration-300 opacity-100">
+                              <span className={`text-xs font-semibold transition-colors ${
+                                currentSubTab !== "All" && isKeyInSelectedGroup
+                                  ? "text-emerald-400 font-extrabold"
+                                  : "text-slate-200 group-hover:text-white"
+                              }`}>
+                                {label}
+                              </span>
+                              <div className="relative inline-block w-10 h-5 shrink-0">
+                                <input 
+                                  type="checkbox"
+                                  className="peer sr-only"
+                                  checked={value as boolean}
+                                  onChange={(e) => {
+                                    if (setRolePermissions && rolePermissions) {
+                                      const updated = {
+                                        ...rolePermissions,
+                                        [targetRole]: {
+                                          ...(DEFAULT_ROLE_PERMISSIONS[targetRole] || {}),
+                                          ...(rolePermissions[targetRole] || {}),
+                                          [key]: e.target.checked
+                                        }
+                                      };
+                                      setRolePermissions(updated);
+                                      saveStoreValue("rolePermissions", updated);
+                                    }
+                                  }}
+                                  disabled={loggedInUser?.role !== "Admin"}
+                                />
+                                <div className="block bg-slate-850 border border-slate-700 w-full h-full rounded-full peer-checked:bg-emerald-500 peer-checked:border-emerald-500 transition-all"></div>
+                                <div className="absolute left-[2px] top-[2px] bg-slate-400 w-4 h-4 rounded-full transition-all peer-checked:translate-x-full peer-checked:bg-white"></div>
+                              </div>
+                            </label>
+                          );
+                        })}
+                      </div>
                     </div>
                   </div>
                 );
@@ -3164,6 +3211,7 @@ Reloading portal to apply updates...`;
           </div>
 
         </div>
+      </div> {/* End Role Permissions Tab */}
 
       {/* ===================== TAB: ACTIVE DEVICES ===================== */}
       <div className={activeTab === "active_devices" ? "space-y-6 block animate-fade-in" : "hidden"}>

@@ -1721,7 +1721,7 @@ export default function App() {
           )}
 
           {currentTab === "technicians" && (
-            <CustomSpaceNotes language={language} />
+            <CustomSpaceNotes language={language} loggedInUser={currentUser} />
           )}
 
           {currentTab === "ai_pest" && <AIPestDetection language={language} />}
