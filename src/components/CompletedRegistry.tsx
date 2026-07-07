@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { ReportItem, SupervisorRegistryItem } from "../types";
 import AlWafaLogo from "./AlWafaLogo";
 import { deleteDocument } from "../localDatabase";
@@ -96,8 +96,26 @@ export default function CompletedRegistry({
   onEditReport,
   supervisors = []
 }: CompletedRegistryProps) {
+  const loggedInUserStrRaw = localStorage.getItem("ALW_STAR_LOGGED_IN_USER") || sessionStorage.getItem("ALW_STAR_LOGGED_IN_USER") || localStorage.getItem("ALW_LOGGED_IN_USER_V2");
+  let loggedInUser = null;
+  if (loggedInUserStrRaw) {
+    try {
+      loggedInUser = JSON.parse(loggedInUserStrRaw);
+    } catch(err) {}
+  }
+  const userAllowedEmirates = loggedInUser?.allowedEmirates || [];
+  const hasRegionalRestriction = loggedInUser?.role !== "Admin" && userAllowedEmirates.length > 0;
+
   const [completedSearch, setCompletedSearch] = useState("");
   const [emirateFilter, setEmirateFilter] = useState("All");
+
+  useEffect(() => {
+    if (hasRegionalRestriction && userAllowedEmirates.length > 0) {
+      if (emirateFilter !== "All" && !userAllowedEmirates.some((e) => e.toLowerCase() === emirateFilter.toLowerCase())) {
+        setEmirateFilter("All");
+      }
+    }
+  }, [loggedInUser, emirateFilter, hasRegionalRestriction, userAllowedEmirates]);
   const [activeReportDetails, setActiveReportDetails] = useState<ReportItem | null>(null);
   const [deleteConfirmReport, setDeleteConfirmReport] = useState<ReportItem | null>(null);
   const [simulatedPrint, setSimulatedPrint] = useState(false);
@@ -310,7 +328,12 @@ export default function CompletedRegistry({
               className="bg-white border border-slate-350 text-slate-800 text-[11px] font-bold px-2 py-1.5 rounded-lg outline-none cursor-pointer focus:border-indigo-500"
             >
               <option value="All">{t.allEmirates}</option>
-              {["Ajman", "Dubai", "Sharjah", "Umm Al Quwain", "Ras Al Khaimah", "Fujairah"].map(em => (
+              {(() => {
+                const allEm = ["Ajman", "Dubai", "Sharjah", "Umm Al Quwain", "Ras Al Khaimah", "Fujairah", "Abu Dhabi", "Al Dhaid"];
+                return hasRegionalRestriction
+                  ? allEm.filter((em) => userAllowedEmirates.some((e) => e.toLowerCase() === em.toLowerCase()))
+                  : allEm;
+              })().map((em) => (
                 <option key={em} value={em}>{em}</option>
               ))}
             </select>
@@ -638,8 +661,8 @@ export default function CompletedRegistry({
                     <span className="block font-black uppercase tracking-wider text-slate-900 mb-2 border-b border-dashed border-slate-300 pb-1">
                       SERVICE CHECKLISTS:
                     </span>
-                    <div className="grid grid-cols-3 gap-2">
-                      {["Basic", "Follow Up", "Call Back", "Replenishing", "Free", "Sample"].map((item) => {
+                    <div className="grid grid-cols-4 gap-2">
+                      {["Basic", "Follow Up", "Call Back", "One Time", "Replenishing", "Free", "Sample"].map((item) => {
                         const isChecked = activeReportDetails.categories?.some(c => c && typeof c === "string" && c.toLowerCase() === item.toLowerCase()) || 
                                           activeReportDetails.methods?.some(m => m && typeof m === "string" && m.toLowerCase() === item.toLowerCase());
                         return (

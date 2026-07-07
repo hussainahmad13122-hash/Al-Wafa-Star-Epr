@@ -58,10 +58,32 @@ interface QuickLinkClinicProps {
 }
 
 export default function QuickLinkClinic({ onSelectClinic, selectedClinicName }: QuickLinkClinicProps) {
+  const loggedInUserStrRaw = localStorage.getItem("ALW_STAR_LOGGED_IN_USER") || sessionStorage.getItem("ALW_STAR_LOGGED_IN_USER") || localStorage.getItem("ALW_LOGGED_IN_USER_V2");
+  let loggedInUser = null;
+  if (loggedInUserStrRaw) {
+    try {
+      loggedInUser = JSON.parse(loggedInUserStrRaw);
+    } catch(err) {}
+  }
+  const userAllowedEmirates = loggedInUser?.allowedEmirates || [];
+  const hasRegionalRestriction = loggedInUser?.role !== "Admin" && userAllowedEmirates.length > 0;
+
   const [showCustomClinicInput, setShowCustomClinicInput] = useState(false);
   const [newClinicName, setNewClinicName] = useState("");
   const [newClinicEmirate, setNewClinicEmirate] = useState("Dubai");
   const [quickLinkEmirateFilter, setQuickLinkEmirateFilter] = useState("All");
+
+  useEffect(() => {
+    if (hasRegionalRestriction && userAllowedEmirates.length > 0) {
+      if (!userAllowedEmirates.some((e) => e.toLowerCase() === newClinicEmirate.toLowerCase())) {
+        setNewClinicEmirate(userAllowedEmirates[0]);
+      }
+      if (quickLinkEmirateFilter !== "All" && !userAllowedEmirates.some((e) => e.toLowerCase() === quickLinkEmirateFilter.toLowerCase())) {
+        setQuickLinkEmirateFilter("All");
+      }
+    }
+  }, [loggedInUser, newClinicEmirate, quickLinkEmirateFilter, hasRegionalRestriction, userAllowedEmirates]);
+
   const [isQuickLinkOpen, setIsQuickLinkOpen] = useState(false);
   const [copied, setCopied] = useState(false);
   const [forceUpdateToggle, setForceUpdateToggle] = useState(0);
@@ -162,7 +184,12 @@ export default function QuickLinkClinic({ onSelectClinic, selectedClinicName }: 
             className="w-full text-xs font-bold px-2 py-1.5 bg-slate-800 border border-slate-700 rounded-lg text-slate-200 cursor-pointer focus:outline-none focus:border-[#2DD4BF] focus:ring-1 focus:ring-[#2DD4BF] transition-colors"
           >
             <option value="All">All Emirates</option>
-            {["Dubai", "Sharjah", "Ajman", "Umm Al Quwain", "Ras Al Khaimah", "Fujairah", "Abu Dhabi"].map(em => (
+            {(() => {
+              const allEm = ["Dubai", "Sharjah", "Ajman", "Umm Al Quwain", "Ras Al Khaimah", "Fujairah", "Abu Dhabi"];
+              return hasRegionalRestriction
+                ? allEm.filter((em) => userAllowedEmirates.some((e) => e.toLowerCase() === em.toLowerCase()))
+                : allEm;
+            })().map((em) => (
               <option key={em} value={em}>{em}</option>
             ))}
           </select>
@@ -196,7 +223,12 @@ export default function QuickLinkClinic({ onSelectClinic, selectedClinicName }: 
                 value={newClinicEmirate}
                 onChange={(e) => setNewClinicEmirate(e.target.value)}
               >
-                {["Dubai", "Sharjah", "Ajman", "Umm Al Quwain", "Ras Al Khaimah", "Fujairah", "Abu Dhabi"].map(em => (
+                {(() => {
+                  const allEm = ["Dubai", "Sharjah", "Ajman", "Umm Al Quwain", "Ras Al Khaimah", "Fujairah", "Abu Dhabi"];
+                  return hasRegionalRestriction
+                    ? allEm.filter((em) => userAllowedEmirates.some((e) => e.toLowerCase() === em.toLowerCase()))
+                    : allEm;
+                })().map((em) => (
                   <option key={em} value={em}>{em}</option>
                 ))}
               </select>

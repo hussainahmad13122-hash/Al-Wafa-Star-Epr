@@ -1846,6 +1846,32 @@ export default function App() {
             </div>
 
             <div className="flex-1 overflow-y-auto space-y-4 py-4 text-xs font-semibold">
+              {/* Current logged-in user session with Logout action */}
+              <div className="bg-slate-950/60 border border-slate-800 rounded-2xl p-3 flex items-center justify-between">
+                <div>
+                  <p className="text-[10px] text-slate-400">
+                    {language === "bn" ? "বর্তমান সেশন" : "Active Session"}
+                  </p>
+                  <p className="text-xs font-bold text-white">
+                    {currentUser?.fullName || currentUser?.username || "Admin User"}
+                  </p>
+                  <p className="text-[10px] text-emerald-400 font-mono">
+                    {currentUser?.role || "Administrator"}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    handleLogout();
+                    setShowProfileEditor(false);
+                  }}
+                  className="px-3 py-1.5 bg-rose-600 hover:bg-rose-500 text-white rounded-xl transition-colors cursor-pointer flex items-center gap-1.5 font-bold text-[10px]"
+                >
+                  <span>🚪</span>
+                  {language === "bn" ? "লগ আউট" : "Logout"}
+                </button>
+              </div>
+
               {/* Field 1: Brand Title */}
               <div className="space-y-1">
                 <label className="text-slate-300 block">
@@ -1976,6 +2002,17 @@ export default function App() {
             </div>
 
             <div className="pt-3 flex justify-end gap-2 text-xs font-bold border-t border-slate-800">
+              <button
+                type="button"
+                onClick={() => {
+                  handleLogout();
+                  setShowProfileEditor(false);
+                }}
+                className="mr-auto px-4 py-2.5 bg-rose-600/90 hover:bg-rose-500 text-white rounded-xl transition cursor-pointer flex items-center gap-1.5 font-bold"
+              >
+                <span>🚪</span>
+                {language === "bn" ? "লগ আউট" : "Logout"}
+              </button>
               <button
                 type="button"
                 onClick={() => {

@@ -67,6 +67,7 @@ export const generateReportHTML = (report: any, language: string) => {
     "Basic",
     "Follow Up",
     "Call Back",
+    "One Time",
     "Replenishing",
     "Free",
     "Sample",
@@ -530,7 +531,7 @@ export const generateReportHTML = (report: any, language: string) => {
                                 <tr style="border: none;">
                                     <td style="width: 50%; padding: 0 15px 0 0; border: none; background: transparent; vertical-align: top; border-right: 1.5px dashed #cbd5e1;">
                                         <div style="font-size: 10px; font-weight: 900; color: #003366; text-transform: uppercase; border-bottom: 1.5px dashed #cbd5e1; padding-bottom: 3px; margin-bottom: 8px;">Service Checklists:</div>
-                                        <div class="checkbox-grid" style="grid-template-columns: repeat(3, 1fr);">
+                                        <div class="checkbox-grid" style="grid-template-columns: repeat(4, 1fr);">
                                             ${serviceCategories
                                               .map((item) => {
                                                 const isChecked =

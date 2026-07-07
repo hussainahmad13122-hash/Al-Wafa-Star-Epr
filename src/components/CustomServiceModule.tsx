@@ -29,8 +29,27 @@ const formatFacilityType = (type: string, lang: "en" | "ar" | "bn") => {
 };
 
 export default function CustomServiceModule({ language, isDark, reports = [], onEditReport, onDeleteReport }: CustomServiceModuleProps) {
+  const loggedInUserStrRaw = localStorage.getItem("ALW_STAR_LOGGED_IN_USER") || sessionStorage.getItem("ALW_STAR_LOGGED_IN_USER") || localStorage.getItem("ALW_LOGGED_IN_USER_V2");
+  let loggedInUser = null;
+  if (loggedInUserStrRaw) {
+    try {
+      loggedInUser = JSON.parse(loggedInUserStrRaw);
+    } catch(err) {}
+  }
+  const userAllowedEmirates = loggedInUser?.allowedEmirates || [];
+  const hasRegionalRestriction = loggedInUser?.role !== "Admin" && userAllowedEmirates.length > 0;
+
   const [completedSearch, setCompletedSearch] = useState("");
   const [emirateFilter, setEmirateFilter] = useState("All");
+
+  useEffect(() => {
+    if (hasRegionalRestriction && userAllowedEmirates.length > 0) {
+      if (emirateFilter !== "All" && !userAllowedEmirates.some((e) => e.toLowerCase() === emirateFilter.toLowerCase())) {
+        setEmirateFilter("All");
+      }
+    }
+  }, [loggedInUser, emirateFilter, hasRegionalRestriction, userAllowedEmirates]);
+
   const [activeReportDetails, setActiveReportDetails] = useState<ReportItem | null>(null);
   const [activeSystemTab, setActiveSystemTab] = useState<"service" | "engineering">("service");
 
@@ -71,7 +90,13 @@ export default function CustomServiceModule({ language, isDark, reports = [], on
     rawEngineeringData: er,
   }));
 
-  const combinedReports = [...reports, ...mappedEngineeringReports];
+  const filteredMappedEngineeringReports = hasRegionalRestriction
+    ? mappedEngineeringReports.filter((r) =>
+        userAllowedEmirates.some((e) => e.toLowerCase() === (r.emirate || "").toLowerCase())
+      )
+    : mappedEngineeringReports;
+
+  const combinedReports = [...reports, ...filteredMappedEngineeringReports];
 
   // Filter items (shows all reports including complete, but we enforce search strings)
   const filteredCompletedReports = combinedReports.filter(r => {
@@ -153,7 +178,12 @@ export default function CustomServiceModule({ language, isDark, reports = [], on
                 className={`border text-[11px] font-bold px-2 py-1.5 rounded-lg outline-none cursor-pointer focus:border-indigo-500 ${isDark ? "bg-slate-900 border-slate-600 text-slate-200" : "bg-white border-slate-350 text-slate-800"}`}
               >
                 <option value="All">{language === "bn" ? "সব এমিরেট" : "All Emirates"}</option>
-                {["Ajman", "Dubai", "Sharjah", "Umm Al Quwain", "Ras Al Khaimah", "Fujairah"].map(em => (
+                {(() => {
+                  const allEm = ["Ajman", "Dubai", "Sharjah", "Umm Al Quwain", "Ras Al Khaimah", "Fujairah", "Abu Dhabi", "Al Dhaid"];
+                  return hasRegionalRestriction
+                    ? allEm.filter((em) => userAllowedEmirates.some((e) => e.toLowerCase() === em.toLowerCase()))
+                    : allEm;
+                })().map((em) => (
                   <option key={em} value={em}>{em}</option>
                 ))}
               </select>

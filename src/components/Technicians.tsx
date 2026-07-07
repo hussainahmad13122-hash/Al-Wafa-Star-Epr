@@ -99,6 +99,9 @@ export default function Technicians({
       loggedInUser = JSON.parse(loggedInUserStrRaw);
     } catch(err) {}
   }
+  const userAllowedEmirates = loggedInUser?.allowedEmirates || [];
+  const hasRegionalRestriction = loggedInUser?.role !== "Admin" && userAllowedEmirates.length > 0;
+
   const perms = getCurrentUserPermissions();
   const canAdd = perms.canCreateTechnician ?? perms.canManageTechnicians;
   const canEdit = perms.canEditTechnician ?? perms.canManageTechnicians;
@@ -298,6 +301,18 @@ export default function Technicians({
   const [newClinicName, setNewClinicName] = useState("");
   const [newClinicEmirate, setNewClinicEmirate] = useState("Dubai");
   const [quickLinkEmirateFilter, setQuickLinkEmirateFilter] = useState("All");
+
+  useEffect(() => {
+    if (hasRegionalRestriction && userAllowedEmirates.length > 0) {
+      if (!userAllowedEmirates.some((e) => e.toLowerCase() === newClinicEmirate.toLowerCase())) {
+        setNewClinicEmirate(userAllowedEmirates[0]);
+      }
+      if (quickLinkEmirateFilter !== "All" && !userAllowedEmirates.some((e) => e.toLowerCase() === quickLinkEmirateFilter.toLowerCase())) {
+        setQuickLinkEmirateFilter("All");
+      }
+    }
+  }, [loggedInUser, newClinicEmirate, quickLinkEmirateFilter, hasRegionalRestriction, userAllowedEmirates]);
+
   const [isQuickLinkOpen, setIsQuickLinkOpen] = useState(false);
   const [deletedFacilities, setDeletedFacilities] = useState<string[]>(() => {
     try {
@@ -2176,15 +2191,12 @@ export default function Technicians({
                     className="w-full text-xs font-bold px-3 py-2 bg-slate-200 border-2 border-slate-250 rounded-lg text-slate-800 cursor-pointer focus:outline-none focus:border-[#2563EB] transition-colors"
                   >
                     <option value="All">All States (সমগ্র ইউএই)</option>
-                    {[
-                      "Dubai",
-                      "Sharjah",
-                      "Ajman",
-                      "Umm Al Quwain",
-                      "Ras Al Khaimah",
-                      "Fujairah",
-                      "Abu Dhabi",
-                    ].map((em) => (
+                    {(() => {
+                      const allEm = ["Dubai", "Sharjah", "Ajman", "Umm Al Quwain", "Ras Al Khaimah", "Fujairah", "Abu Dhabi"];
+                      return hasRegionalRestriction
+                        ? allEm.filter((em) => userAllowedEmirates.some((e) => e.toLowerCase() === em.toLowerCase()))
+                        : allEm;
+                    })().map((em) => (
                       <option key={em} value={em}>
                         {em}
                       </option>
@@ -2207,15 +2219,12 @@ export default function Technicians({
                         value={newClinicEmirate}
                         onChange={(e) => setNewClinicEmirate(e.target.value)}
                       >
-                        {[
-                          "Dubai",
-                          "Sharjah",
-                          "Ajman",
-                          "Umm Al Quwain",
-                          "Ras Al Khaimah",
-                          "Fujairah",
-                          "Abu Dhabi",
-                        ].map((em) => (
+                        {(() => {
+                          const allEm = ["Dubai", "Sharjah", "Ajman", "Umm Al Quwain", "Ras Al Khaimah", "Fujairah", "Abu Dhabi"];
+                          return hasRegionalRestriction
+                            ? allEm.filter((em) => userAllowedEmirates.some((e) => e.toLowerCase() === em.toLowerCase()))
+                            : allEm;
+                        })().map((em) => (
                           <option key={em} value={em}>
                             {em}
                           </option>

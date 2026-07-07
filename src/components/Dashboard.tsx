@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { AlWafaBannerLogo } from "./AlWafaBannerLogo";
 import AlWafaLogo from "./AlWafaLogo";
 import { ReportItem, LocationRegistryItem, STANDARD_FACILITIES, SupervisorRegistryItem, EMIRATE_MAPPING_FACILITIES, getCurrentUserPermissions } from "../types";
@@ -314,10 +314,21 @@ export default function Dashboard({
       loggedInUser = JSON.parse(loggedInUserStrRaw);
     } catch(err) {}
   }
+  const userAllowedEmirates = loggedInUser?.allowedEmirates || [];
+  const hasRegionalRestriction = loggedInUser?.role !== "Admin" && userAllowedEmirates.length > 0;
+
   const isVisitor = !getCurrentUserPermissions().canEditReport;
   // Local UI States for search and filtering
   const [completedSearch, setCompletedSearch] = useState("");
   const [emirateFilter, setEmirateFilter] = useState("All");
+
+  useEffect(() => {
+    if (hasRegionalRestriction && userAllowedEmirates.length > 0) {
+      if (emirateFilter !== "All" && !userAllowedEmirates.some((e) => e.toLowerCase() === emirateFilter.toLowerCase())) {
+        setEmirateFilter("All");
+      }
+    }
+  }, [loggedInUser, emirateFilter, hasRegionalRestriction, userAllowedEmirates]);
   const [activeReportDetails, setActiveReportDetails] = useState<ReportItem | null>(null);
   const [simulatedPrint, setSimulatedPrint] = useState(false);
   const [activeFolder, setActiveFolder] = useState<"completed" | "partial" | "unstarted">("completed");
@@ -1005,7 +1016,12 @@ export default function Dashboard({
                   className={`border text-[11px] font-bold px-2 py-1.5 rounded-lg outline-none cursor-pointer focus:border-indigo-500 ${themeMode === "dark" ? "bg-slate-900 border-slate-600 text-slate-200" : "bg-white border-slate-350 text-slate-800"}`}
                 >
                   <option value="All">{language === "bn" ? "সব এমিরেট" : "All Emirates"}</option>
-                  {["Ajman", "Dubai", "Sharjah", "Umm Al Quwain", "Ras Al Khaimah", "Fujairah"].map(em => (
+                  {(() => {
+                    const allEm = ["Ajman", "Dubai", "Sharjah", "Umm Al Quwain", "Ras Al Khaimah", "Fujairah", "Abu Dhabi", "Al Dhaid"];
+                    return hasRegionalRestriction
+                      ? allEm.filter((em) => userAllowedEmirates.some((e) => e.toLowerCase() === em.toLowerCase()))
+                      : allEm;
+                  })().map((em) => (
                     <option key={em} value={em}>{em}</option>
                   ))}
                 </select>
@@ -1547,8 +1563,8 @@ export default function Dashboard({
                     <span className="block font-black uppercase tracking-wider text-slate-900 mb-2 border-b border-dashed border-slate-300 pb-1">
                       SERVICE CHECKLISTS:
                     </span>
-                    <div className="grid grid-cols-3 gap-2">
-                      {["Basic", "Follow Up", "Call Back", "Replenishing", "Free", "Sample"].map((item) => {
+                    <div className="grid grid-cols-4 gap-2">
+                      {["Basic", "Follow Up", "Call Back", "One Time", "Replenishing", "Free", "Sample"].map((item) => {
                         const isChecked = activeReportDetails.categories?.some(c => c && typeof c === "string" && c.toLowerCase() === item.toLowerCase()) || 
                                           activeReportDetails.methods?.some(m => m && typeof m === "string" && m.toLowerCase() === item.toLowerCase());
                         return (
