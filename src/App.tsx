@@ -1450,6 +1450,27 @@ export default function App() {
     );
   }
 
+  const userAllowedEmirates = currentUser?.allowedEmirates || [];
+  const hasRegionalRestriction = currentUser?.role !== "Admin" && userAllowedEmirates.length > 0;
+
+  const filteredReports = hasRegionalRestriction
+    ? reports.filter((r) =>
+        userAllowedEmirates.some((e) => e.toLowerCase() === (r.emirate || "").toLowerCase())
+      )
+    : reports;
+
+  const filteredLocations = hasRegionalRestriction
+    ? locations.filter((l) =>
+        userAllowedEmirates.some((e) => e.toLowerCase() === (l.emirate || "").toLowerCase())
+      )
+    : locations;
+
+  const filteredSupervisors = hasRegionalRestriction
+    ? supervisors.filter((s) =>
+        userAllowedEmirates.some((e) => e.toLowerCase() === (s.emirate || "").toLowerCase())
+      )
+    : supervisors;
+
   return (
     <div
       id="app-shell-root-container"
@@ -1634,13 +1655,13 @@ export default function App() {
           {/* Render Active View Tab */}
           {currentTab === "dashboard" && (
             <Dashboard
-              reports={reports}
+              reports={filteredReports}
               language={language}
               setTab={setTab}
               onSelectReport={handleSelectReport}
               onUpdateReports={saveReports}
-              locations={locations}
-              supervisors={supervisors}
+              locations={filteredLocations}
+              supervisors={filteredSupervisors}
               themeMode={themeMode}
               onSetThemeMode={handleSetThemeMode}
               isFullscreenLayout={isFullscreenLayout}
@@ -1650,12 +1671,12 @@ export default function App() {
 
           {currentTab === "completed_registry" && (
             <CompletedRegistry
-              reports={reports}
+              reports={filteredReports}
               language={language}
               setTab={setTab}
               onSelectReport={handleSelectReport}
               onUpdateReports={saveReports}
-              supervisors={supervisors}
+              supervisors={filteredSupervisors}
               onEditReport={(report) => {
                 setEditingReport(report);
                 rawSetTab("master_form"); // use rawSetTab directly to prevent resetting editingReport inside the setTab wrapper
@@ -1666,7 +1687,7 @@ export default function App() {
           {currentTab === "locations" && (
             <LocationsRegistry
               language={language}
-              locations={locations}
+              locations={filteredLocations}
               setLocations={setLocations}
             />
           )}
@@ -1674,8 +1695,8 @@ export default function App() {
           {currentTab === "supervisors_directory" && (
             <SupervisorsRegistry
               language={language}
-              locations={locations}
-              supervisors={supervisors}
+              locations={filteredLocations}
+              supervisors={filteredSupervisors}
               setSupervisors={setSupervisors}
             />
           )}
@@ -1684,7 +1705,7 @@ export default function App() {
             <ClientDirectory
               onSelectClientToPrefill={handleSelectClientToPrefill}
               language={language}
-              reports={reports}
+              reports={filteredReports}
               onUpdateReports={saveReports}
             />
           )}
@@ -1694,7 +1715,8 @@ export default function App() {
               language={language}
               companyBrand={companyBrand}
               profileUser={profileUser}
-              locations={locations}
+              locations={filteredLocations}
+              loggedInUser={currentUser}
             />
           )}
 
@@ -1706,9 +1728,10 @@ export default function App() {
               prefilledClient={prefilledClient}
               language={language}
               setTab={setTab}
-              locations={locations}
+              locations={filteredLocations}
               setLocations={setLocations}
-              reports={reports}
+              reports={filteredReports}
+              loggedInUser={currentUser}
               onCancelEdit={() => {
                 setEditingReport(null);
                 setTab("completed_registry");
@@ -1727,7 +1750,7 @@ export default function App() {
           {currentTab === "ai_pest" && <AIPestDetection language={language} />}
 
           {currentTab === "client_portal" && (
-            <ClientPortalView reports={reports} />
+            <ClientPortalView reports={filteredReports} />
           )}
 
           {currentTab === "custom_option_1" && (
@@ -1742,7 +1765,7 @@ export default function App() {
             <CustomServiceModule
               language={language}
               isDark={themeMode === "dark"}
-              reports={reports}
+              reports={filteredReports}
               onEditReport={handleEditReport}
               onDeleteReport={handleDeleteReport}
             />
@@ -1751,9 +1774,9 @@ export default function App() {
           {currentTab === "custom_option_3" && (
             <Technicians
               language={language}
-              locations={locations}
-              supervisors={supervisors}
-              reports={reports}
+              locations={filteredLocations}
+              supervisors={filteredSupervisors}
+              reports={filteredReports}
               onUpdateReports={saveReports}
               onSelectClientToPrefill={handleSelectClientToPrefill}
             />

@@ -24,7 +24,7 @@ import {
   Droplet,
   ChevronDown
 } from "lucide-react";
-import { ReportItem, LocationRegistryItem, STANDARD_FACILITIES, EMIRATE_MAPPING_FACILITIES, getCurrentUserPermissions } from "../types";
+import { ReportItem, LocationRegistryItem, STANDARD_FACILITIES, EMIRATE_MAPPING_FACILITIES, getCurrentUserPermissions, AppUser } from "../types";
 import { saveDocument } from "../localDatabase";
 import { generateReportHTML, printHTMLContent } from "./ClientDirectory";
 
@@ -39,6 +39,7 @@ interface MasterFormProps {
   locations?: LocationRegistryItem[];
   setLocations?: React.Dispatch<React.SetStateAction<LocationRegistryItem[]>>;
   reports?: ReportItem[];
+  loggedInUser?: AppUser | null;
 }
 
 // Interactive Drawing Canvas for Digital Signatures
@@ -198,7 +199,8 @@ export default function MasterForm({
   setTab,
   locations = [],
   setLocations,
-  reports = []
+  reports = [],
+  loggedInUser
 }: MasterFormProps) {
   const [showNotification, setShowNotification] = useState(false);
   const [toast, setToast] = useState<{ message: string; type: "success" | "error" | "info" } | null>(null);
@@ -336,6 +338,21 @@ export default function MasterForm({
     localStorage.setItem("ALW_DELETED_FACILITIES", JSON.stringify(nextList));
   };
   const [forceUpdateToggle, setForceUpdateToggle] = useState(0);
+
+  const userAllowedEmirates = loggedInUser?.allowedEmirates || [];
+  const hasRegionalRestriction = loggedInUser?.role !== "Admin" && userAllowedEmirates.length > 0;
+
+  useEffect(() => {
+    if (hasRegionalRestriction && userAllowedEmirates.length > 0) {
+      if (!userAllowedEmirates.some((e) => e.toLowerCase() === emirate.toLowerCase())) {
+        setEmirate(userAllowedEmirates[0]);
+        setAddress(userAllowedEmirates[0]);
+      }
+      if (!userAllowedEmirates.some((e) => e.toLowerCase() === newClinicEmirate.toLowerCase())) {
+        setNewClinicEmirate(userAllowedEmirates[0]);
+      }
+    }
+  }, [loggedInUser, emirate, newClinicEmirate, hasRegionalRestriction, userAllowedEmirates]);
 
   // Check if clinical facility exists in database registry maps
   const facilityExists = facilityName.trim() !== "" && locations.some(
@@ -1757,7 +1774,12 @@ export default function MasterForm({
                     className="w-full text-[9px] font-bold px-1 py-1 bg-slate-200 border border-slate-300 rounded text-slate-800 cursor-pointer focus:outline-none focus:border-emerald-500 transition-colors"
                   >
                     <option value="All">All Emirates</option>
-                    {["Dubai", "Sharjah", "Ajman", "Umm Al Quwain", "Ras Al Khaimah", "Fujairah", "Abu Dhabi"].map(em => (
+                    {(() => {
+                      const allEm = ["Dubai", "Sharjah", "Ajman", "Umm Al Quwain", "Ras Al Khaimah", "Fujairah", "Abu Dhabi"];
+                      return hasRegionalRestriction
+                        ? allEm.filter((em) => userAllowedEmirates.some((e) => e.toLowerCase() === em.toLowerCase()))
+                        : allEm;
+                    })().map((em) => (
                       <option key={em} value={em}>{em}</option>
                     ))}
                   </select>
@@ -1778,7 +1800,12 @@ export default function MasterForm({
                         value={newClinicEmirate}
                         onChange={(e) => setNewClinicEmirate(e.target.value)}
                       >
-                        {["Dubai", "Sharjah", "Ajman", "Umm Al Quwain", "Ras Al Khaimah", "Fujairah", "Abu Dhabi"].map(em => (
+                        {(() => {
+                          const allEm = ["Dubai", "Sharjah", "Ajman", "Umm Al Quwain", "Ras Al Khaimah", "Fujairah", "Abu Dhabi"];
+                          return hasRegionalRestriction
+                            ? allEm.filter((em) => userAllowedEmirates.some((e) => e.toLowerCase() === em.toLowerCase()))
+                            : allEm;
+                        })().map((em) => (
                           <option key={em} value={em}>{em}</option>
                         ))}
                       </select>
@@ -2000,15 +2027,20 @@ export default function MasterForm({
                         {language === "bn" ? "লোকেশন সিলেক্ট করুন" : "Select UAE Emirates"}
                       </div>
                       
-                      {[
-                        { label: language === "bn" ? "দুবাই" : "Dubai", value: "Dubai" },
-                        { label: language === "bn" ? "শারজাহ" : "Sharjah", value: "Sharjah" },
-                        { label: language === "bn" ? "আবুধাবি" : "Abu Dhabi", value: "Abu Dhabi" },
-                        { label: language === "bn" ? "আজমান" : "Ajman", value: "Ajman" },
-                        { label: language === "bn" ? "রাস আল খাইমাহ" : "Ras Al Khaimah", value: "Ras Al Khaimah" },
-                        { label: language === "bn" ? "ফুজাইরাহ" : "Fujairah", value: "Fujairah" },
-                        { label: language === "bn" ? "উম্ম আল কুয়াইন" : "Umm Al Quwain", value: "Umm Al Quwain" }
-                      ].map((item) => (
+                      {(() => {
+                        const items = [
+                          { label: language === "bn" ? "দুবাই" : "Dubai", value: "Dubai" },
+                          { label: language === "bn" ? "শারজাহ" : "Sharjah", value: "Sharjah" },
+                          { label: language === "bn" ? "আবুধাবি" : "Abu Dhabi", value: "Abu Dhabi" },
+                          { label: language === "bn" ? "আজমান" : "Ajman", value: "Ajman" },
+                          { label: language === "bn" ? "রাস আল খাইমাহ" : "Ras Al Khaimah", value: "Ras Al Khaimah" },
+                          { label: language === "bn" ? "ফুজাইরাহ" : "Fujairah", value: "Fujairah" },
+                          { label: language === "bn" ? "উম্ম আল কুয়াইন" : "Umm Al Quwain", value: "Umm Al Quwain" }
+                        ];
+                        return hasRegionalRestriction
+                          ? items.filter((it) => userAllowedEmirates.some((e) => e.toLowerCase() === it.value.toLowerCase()))
+                          : items;
+                      })().map((item) => (
                         <button
                           key={item.value}
                           type="button"

@@ -58,16 +58,21 @@ export default function LocationsRegistry({
   const [emirateFilter, setEmirateFilter] = useState("ALL");
   const [saveStatus, setSaveStatus] = useState<string | null>(null);
 
-  const EMIRATE_LIST = [
-    "ALL",
-    "Abu Dhabi",
-    "Ajman",
-    "Sharjah",
-    "Dubai",
-    "Umm Al Quwain",
-    "Ras Al Khaimah",
-    "Fujairah",
-  ];
+  const userAllowedEmirates = loggedInUser?.allowedEmirates || [];
+  const hasRegionalRestriction = loggedInUser?.role !== "Admin" && userAllowedEmirates.length > 0;
+
+  const EMIRATE_LIST = hasRegionalRestriction
+    ? ["ALL", ...userAllowedEmirates]
+    : [
+        "ALL",
+        "Abu Dhabi",
+        "Ajman",
+        "Sharjah",
+        "Dubai",
+        "Umm Al Quwain",
+        "Ras Al Khaimah",
+        "Fujairah",
+      ];
 
   // Quick cell update handler
   const handleCellChange = (

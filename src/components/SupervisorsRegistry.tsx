@@ -93,7 +93,12 @@ export default function SupervisorsRegistry({
 
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
-  const EMIRATE_TABS = ["ALL", "Dubai", "Ajman", "Sharjah", "Umm Al Quwain"];
+  const userAllowedEmirates = loggedInUser?.allowedEmirates || [];
+  const hasRegionalRestriction = loggedInUser?.role !== "Admin" && userAllowedEmirates.length > 0;
+
+  const EMIRATE_TABS = hasRegionalRestriction
+    ? ["ALL", ...userAllowedEmirates]
+    : ["ALL", "Dubai", "Ajman", "Sharjah", "Umm Al Quwain", "Ras Al Khaimah", "Fujairah", "Al Dhaid"];
 
   // Handle cell text adjustments
   const handleUpdateField = (

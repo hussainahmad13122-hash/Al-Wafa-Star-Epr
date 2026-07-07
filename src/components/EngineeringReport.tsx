@@ -25,7 +25,7 @@ import {
   FlashlightOff,
   X,
 } from "lucide-react";
-import { AppLanguage, LocationRegistryItem } from "../types";
+import { AppLanguage, LocationRegistryItem, AppUser } from "../types";
 import { INITIAL_LOCATIONS_REGISTRY } from "./LocationsRegistry";
 import AlWafaLogo from "./AlWafaLogo";
 import { generateEngineeringHTML } from "./ClientDirectory";
@@ -375,6 +375,7 @@ interface EngineeringReportProps {
   locations?: LocationRegistryItem[];
   previewTargetReport?: any;
   onClosePreview?: () => void;
+  loggedInUser?: AppUser | null;
 }
 
 const chunkArray = <T,>(arr: T[], size: number): T[][] => {
@@ -393,6 +394,7 @@ export default function EngineeringReport({
   locations = [],
   previewTargetReport,
   onClosePreview,
+  loggedInUser,
 }: EngineeringReportProps) {
   const activeLocations =
     locations && locations.length > 0 ? locations : INITIAL_LOCATIONS_REGISTRY;
@@ -443,6 +445,15 @@ export default function EngineeringReport({
       return [];
     },
   );
+
+  const userAllowedEmirates = loggedInUser?.allowedEmirates || [];
+  const hasRegionalRestriction = loggedInUser?.role !== "Admin" && userAllowedEmirates.length > 0;
+
+  const displayReports = hasRegionalRestriction
+    ? savedReports.filter((r) =>
+        userAllowedEmirates.some((e) => e.toLowerCase() === (r.emirate || "").toLowerCase())
+      )
+    : savedReports;
 
   // Active view: "list" or "create" or "print-preview"
   const [activeSegment, setActiveSegment] = useState<
@@ -521,6 +532,14 @@ export default function EngineeringReport({
   });
   const [showCustomServicePopup, setShowCustomServicePopup] = useState(false);
   const [newCustomServiceInput, setNewCustomServiceInput] = useState("");
+
+  useEffect(() => {
+    if (hasRegionalRestriction && userAllowedEmirates.length > 0) {
+      if (!userAllowedEmirates.some((e) => e.toLowerCase() === selectedEmirate.toLowerCase())) {
+        setSelectedEmirate(userAllowedEmirates[0]);
+      }
+    }
+  }, [loggedInUser, selectedEmirate, hasRegionalRestriction, userAllowedEmirates]);
 
   useEffect(() => {
     localStorage.setItem(
@@ -2460,7 +2479,7 @@ export default function EngineeringReport({
           </div>
 
           {/* List display */}
-          {savedReports.length === 0 ? (
+          {displayReports.length === 0 ? (
             <div className="bg-slate-900/40 border border-slate-850 rounded-3xl p-16 text-center space-y-4 animate-fadeIn">
               <div className="w-16 h-16 bg-slate-950/60 rounded-full flex items-center justify-center mx-auto border border-slate-800">
                 <span className="text-2xl">📁</span>
@@ -2498,7 +2517,7 @@ export default function EngineeringReport({
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-blue-900/20">
-                    {savedReports.map((report, idx) => (
+                    {displayReports.map((report, idx) => (
                       <tr
                         key={`${report.id}-${idx}`}
                         className="hover:bg-[#1E293B]/50 transition-colors group"
@@ -2821,48 +2840,21 @@ export default function EngineeringReport({
                         onChange={(e) => setSelectedEmirate(e.target.value)}
                         className="w-full bg-[#1D4ED8] hover:bg-blue-700 border-2 border-blue-500 text-white font-extrabold rounded-xl py-2.5 px-3 text-xs outline-none cursor-pointer transition-colors h-[46px] uppercase font-sans"
                       >
-                        <option
-                          value="Dubai"
-                          className="bg-[#111827] text-slate-100 font-sans"
-                        >
-                          Dubai
-                        </option>
-                        <option
-                          value="Abu Dhabi"
-                          className="bg-[#111827] text-slate-100 font-sans"
-                        >
-                          Abu Dhabi
-                        </option>
-                        <option
-                          value="Sharjah"
-                          className="bg-[#111827] text-slate-100 font-sans"
-                        >
-                          Sharjah
-                        </option>
-                        <option
-                          value="Ajman"
-                          className="bg-[#111827] text-slate-100 font-sans"
-                        >
-                          Ajman
-                        </option>
-                        <option
-                          value="Umm Al Quwain"
-                          className="bg-[#111827] text-slate-100 font-sans"
-                        >
-                          Umm Al Quwain
-                        </option>
-                        <option
-                          value="Ras Al Khaimah"
-                          className="bg-[#111827] text-slate-100 font-sans"
-                        >
-                          Ras Al Khaimah
-                        </option>
-                        <option
-                          value="Fujairah"
-                          className="bg-[#111827] text-slate-100 font-sans"
-                        >
-                          Fujairah
-                        </option>
+                        {(() => {
+                          const allEm = ["Dubai", "Abu Dhabi", "Sharjah", "Ajman", "Umm Al Quwain", "Ras Al Khaimah", "Fujairah"];
+                          const allowed = hasRegionalRestriction
+                            ? allEm.filter((em) => userAllowedEmirates.some((e) => e.toLowerCase() === em.toLowerCase()))
+                            : allEm;
+                          return allowed.map((emi) => (
+                            <option
+                              key={emi}
+                              value={emi}
+                              className="bg-[#111827] text-slate-100 font-sans"
+                            >
+                              {emi}
+                            </option>
+                          ));
+                        })()}
                       </select>
                     </div>
                   </div>
@@ -2974,15 +2966,12 @@ export default function EngineeringReport({
                             onChange={(e) => setSelectedEmirate(e.target.value)}
                             className="col-span-5 bg-[#0B0F19] text-white border border-slate-700 rounded-xl px-1.5 py-1.5 text-xs outline-none cursor-pointer font-sans font-bold"
                           >
-                            {[
-                              "Dubai",
-                              "Abu Dhabi",
-                              "Sharjah",
-                              "Ajman",
-                              "Umm Al Quwain",
-                              "Ras Al Khaimah",
-                              "Fujairah",
-                            ].map((emi) => (
+                            {(() => {
+                              const allEm = ["Dubai", "Abu Dhabi", "Sharjah", "Ajman", "Umm Al Quwain", "Ras Al Khaimah", "Fujairah"];
+                              return hasRegionalRestriction
+                                ? allEm.filter((em) => userAllowedEmirates.some((e) => e.toLowerCase() === em.toLowerCase()))
+                                : allEm;
+                            })().map((emi) => (
                               <option
                                 key={emi}
                                 value={emi}
