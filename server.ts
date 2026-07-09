@@ -4,6 +4,7 @@ import dotenv from "dotenv";
 import fs from "fs";
 import { createServer as createViteServer } from "vite";
 import { GoogleGenAI, Type } from "@google/genai";
+import nodemailer from "nodemailer";
 
 dotenv.config();
 
@@ -654,6 +655,20 @@ function refundChemicals(chemicals: any[]) {
       const numericUsed = parseUsedQuantity(chem.used, found.unit);
       if (numericUsed > 0) {
         found.stock = parseFloat((found.stock + numericUsed).toFixed(3));
+        
+        let batches = found.batches ? [...found.batches] : [];
+        if (batches.length === 0) {
+          batches = [{
+            batch: found.batch || "N/A",
+            receivedDate: found.receivedDate || new Date().toISOString().split('T')[0],
+            stock: found.stock - numericUsed,
+            expiry: found.expiry || "2000 / 1000 / 500"
+          }];
+        }
+        if (batches.length > 0) {
+          batches[0].stock = parseFloat((batches[0].stock + numericUsed).toFixed(3));
+        }
+        found.batches = batches;
       }
     }
   });
@@ -666,7 +681,46 @@ function deductChemicals(chemicals: any[]) {
     if (found) {
       const numericUsed = parseUsedQuantity(chem.used, found.unit);
       if (numericUsed > 0) {
-        found.stock = Math.max(0, parseFloat((found.stock - numericUsed).toFixed(3)));
+        let batches = found.batches ? [...found.batches] : [];
+        if (batches.length === 0) {
+          batches = [{
+            batch: found.batch || "N/A",
+            receivedDate: found.receivedDate || new Date().toISOString().split('T')[0],
+            stock: found.stock,
+            expiry: found.expiry || "2000 / 1000 / 500"
+          }];
+        }
+
+        let remainingToDeduct = numericUsed;
+        const updatedBatches = [];
+
+        for (const batch of batches) {
+          if (remainingToDeduct <= 0) {
+            updatedBatches.push(batch);
+          } else if (batch.stock <= remainingToDeduct) {
+            remainingToDeduct = parseFloat((remainingToDeduct - batch.stock).toFixed(3));
+          } else {
+            const newStock = parseFloat((batch.stock - remainingToDeduct).toFixed(3));
+            updatedBatches.push({
+              ...batch,
+              stock: newStock
+            });
+            remainingToDeduct = 0;
+          }
+        }
+
+        const totalStock = parseFloat(updatedBatches.reduce((sum, b) => sum + b.stock, 0).toFixed(3));
+        found.stock = totalStock;
+        found.batches = updatedBatches;
+
+        if (updatedBatches.length > 0) {
+          found.batch = updatedBatches[0].batch;
+          found.receivedDate = updatedBatches[0].receivedDate;
+          found.expiry = updatedBatches[0].expiry || found.expiry;
+        } else {
+          found.batch = "N/A";
+          found.receivedDate = "N/A";
+        }
       }
       chem.remaining = `${found.stock} ${found.unit}`;
     }
@@ -958,6 +1012,161 @@ User inquiry: "${userPrompt || "Analyze this pest and state the medical facility
     source: "smart-simulation-engine",
     data: fallbackResponse
   });
+});
+
+// In-memory active OTP codes session storage for Admin security
+interface OTPStore {
+  otp: string;
+  email: string;
+  passwordPlain: string;
+  expiresAt: number;
+}
+const activeOTPs: Record<string, OTPStore> = {};
+
+// API Admin Request OTP with actual Gmail SMTP authentication
+app.post("/api/admin/request-otp", async (req, res) => {
+  try {
+    const { email, password } = req.body;
+    const targetEmail = "hussainahmad13122@gmail.com";
+
+    // Normalize email/username and verify it is indeed the admin
+    const normEmail = (email || "").trim().toLowerCase();
+    if (normEmail !== "admin" && normEmail !== targetEmail) {
+      return res.status(400).json({ 
+        success: false, 
+        message: "This login method is restricted to the administrator account." 
+      });
+    }
+
+    const trimmedPassword = (password || "").trim();
+    if (!trimmedPassword) {
+      return res.status(400).json({ 
+        success: false, 
+        message: "Password is required." 
+      });
+    }
+
+    // Generate a secure 4-digit OTP code
+    const otpCode = String(Math.floor(1000 + Math.random() * 9000));
+
+    // Try to send OTP via SMTP using user-provided password
+    // This serves as BOTH authentication and OTP delivery!
+    const transporter = nodemailer.createTransport({
+      service: "gmail",
+      auth: {
+        user: targetEmail,
+        pass: trimmedPassword
+      }
+    });
+
+    const mailOptions = {
+      from: `"Al Wafa Star ERP" <${targetEmail}>`,
+      to: targetEmail,
+      subject: "Al Wafa Star ERP - Admin Verification Code",
+      html: `
+        <div style="font-family: Arial, sans-serif; padding: 25px; color: #1e293b; background: #f8fafc; border-radius: 12px; max-width: 500px; margin: auto; border: 1px solid #e2e8f0;">
+          <h2 style="color: #10B981; margin-top: 0; border-bottom: 2px solid #10B981; padding-bottom: 10px;">Al Wafa Star Security Gateway</h2>
+          <p style="font-size: 14px; line-height: 1.5;">Hello Admin,</p>
+          <p style="font-size: 14px; line-height: 1.5;">Your 4-digit secure OTP verification code to log in is:</p>
+          <div style="text-align: center; margin: 25px 0;">
+            <div style="font-size: 36px; font-weight: bold; background: #0f172a; padding: 15px 30px; border-radius: 12px; display: inline-block; letter-spacing: 6px; color: #10B981; border: 1px solid #1e293b; box-shadow: 0 4px 6px rgba(0,0,0,0.05);">
+              ${otpCode}
+            </div>
+          </div>
+          <p style="font-size: 13px; color: #475569;">This verification code is only valid for <b>10 minutes</b>. Please do not share this code with anyone.</p>
+          <hr style="border: 0; border-top: 1px solid #e2e8f0; margin: 20px 0;" />
+          <p style="font-size: 11px; color: #64748b; text-align: center; margin-bottom: 0;">If you did not request this login code, please verify your Gmail password security immediately.</p>
+        </div>
+      `
+    };
+
+    await transporter.sendMail(mailOptions);
+
+    // Save in activeOTPs
+    const sessionId = Math.random().toString(36).substring(2, 15);
+    activeOTPs[sessionId] = {
+      otp: otpCode,
+      email: targetEmail,
+      passwordPlain: trimmedPassword,
+      expiresAt: Date.now() + 10 * 60 * 1000 // 10 minutes
+    };
+
+    res.json({ 
+      success: true, 
+      sessionId, 
+      message: "An OTP verification code has been successfully sent to hussainahmad13122@gmail.com." 
+    });
+
+  } catch (error: any) {
+    console.error("OTP send failed:", error);
+    const errorMsg = error?.message || "";
+    let friendlyMessage = "Failed to authenticate with Gmail or send verification code.";
+    if (errorMsg.includes("Username and Password not accepted") || errorMsg.includes("535")) {
+      friendlyMessage = "Incorrect Gmail password. If you have 2-Step Verification enabled, please use a Google App Password.";
+    } else if (errorMsg.includes("network") || errorMsg.includes("EAI_AGAIN") || errorMsg.includes("connect")) {
+      friendlyMessage = "Network/SMTP server unreachable. Please check your internet connection.";
+    }
+
+    res.status(401).json({ 
+      success: false, 
+      message: friendlyMessage,
+      debug: errorMsg
+    });
+  }
+});
+
+// API Admin Verify OTP
+app.post("/api/admin/verify-otp", (req, res) => {
+  try {
+    const { sessionId, otp } = req.body;
+    if (!sessionId || !otp) {
+      return res.status(400).json({ success: false, message: "Session ID and OTP code are required." });
+    }
+
+    const session = activeOTPs[sessionId];
+    if (!session) {
+      return res.status(400).json({ success: false, message: "Session not found or expired. Please request a new OTP." });
+    }
+
+    if (Date.now() > session.expiresAt) {
+      delete activeOTPs[sessionId];
+      return res.status(400).json({ success: false, message: "OTP has expired. Please request a new OTP." });
+    }
+
+    if (session.otp !== String(otp).trim()) {
+      return res.status(400).json({ success: false, message: "Incorrect OTP code. Please verify and try again." });
+    }
+
+    // Clear session upon successful validation
+    delete activeOTPs[sessionId];
+
+    // Synchronize or retrieve Admin in users.json
+    const users = readJsonFile<any[]>("users.json", []);
+    let adminUser = users.find(u => u.role === "Admin" || u.username === "hussainahmad13122@gmail.com");
+    if (!adminUser) {
+      adminUser = {
+        id: "user-admin",
+        username: "hussainahmad13122@gmail.com",
+        passwordPlain: session.passwordPlain,
+        role: "Admin"
+      };
+    } else {
+      adminUser.username = "hussainahmad13122@gmail.com";
+      adminUser.passwordPlain = session.passwordPlain;
+    }
+
+    // Save/Sync back to users.json
+    const filteredUsers = users.filter(u => u.id !== adminUser.id);
+    filteredUsers.push(adminUser);
+    writeJsonFile("users.json", filteredUsers);
+
+    res.json({ 
+      success: true, 
+      user: adminUser 
+    });
+  } catch (error: any) {
+    res.status(500).json({ success: false, error: error.message });
+  }
 });
 
 // API Get & Set Registered Logins
