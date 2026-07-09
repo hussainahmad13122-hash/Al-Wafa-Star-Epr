@@ -8,7 +8,9 @@ import {
   ShieldAlert,
   KeyRound,
   User,
-  CheckCircle2
+  CheckCircle2,
+  Mail,
+  ArrowLeft
 } from "lucide-react";
 import { AppLanguage, AppUser } from "../types";
 import AlWafaLogo from "./AlWafaLogo";
@@ -38,6 +40,13 @@ export default function LoginScreen({
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [isSuccessAnimated, setIsSuccessAnimated] = useState(false);
 
+  // OTP 2-Step verification states
+  const [step, setStep] = useState<"credentials" | "otp">("credentials");
+  const [sessionId, setSessionId] = useState("");
+  const [otpInput, setOtpInput] = useState("");
+  const [isSendingOtp, setIsSendingOtp] = useState(false);
+  const [isVerifyingOtp, setIsVerifyingOtp] = useState(false);
+
   // Initialize and retrieve registered users from localStorage
   const [registeredUsers, setRegisteredUsers] = useState<AppUser[]>(() => {
     const stored = localStorage.getItem("ALW_STAR_USERS");
@@ -49,7 +58,7 @@ export default function LoginScreen({
       }
     }
     const defaultUsers: AppUser[] = [
-      { id: "user-admin", username: "admin", passwordPlain: "admin123", role: "Admin" },
+      { id: "user-admin", username: "hussainahmad13122@gmail.com", passwordPlain: "admin123", role: "Admin" },
       { id: "user-moderator", username: "moderator", passwordPlain: "mod123", role: "Moderator" },
       { id: "user-visitor", username: "visitor", passwordPlain: "visitor123", role: "Visitor" }
     ];
@@ -101,7 +110,17 @@ export default function LoginScreen({
       footerNote: "Al Wafa Star ERP Professional Suite v2.5 | Multi-User Access Management System Enabled",
       adminRole: "Administrator",
       modRole: "Moderator",
-      visRole: "Visitor"
+      visRole: "Visitor",
+
+      otpTitle: "Admin 2-Step Verification",
+      otpDesc: "A 4-digit secure code has been sent to hussainahmad13122@gmail.com. Enter it below to unlock the administrator console.",
+      otpPlaceholder: "4-Digit OTP Code",
+      otpVerifyBtn: "Verify Code & Unlock",
+      otpBack: "Back to Login Screen",
+      otpSending: "Sending security code...",
+      otpSentSuccess: "OTP sent successfully! Please check your email inbox or spam folder.",
+      otpInvalid: "Invalid verification code. Please try again.",
+      otpResend: "Resend Verification Code",
     },
     bn: {
       protectedAccess: "সুরক্ষিত মাল্টি-রোল অ্যাক্সেস গেটওয়ের",
@@ -116,7 +135,17 @@ export default function LoginScreen({
       footerNote: "আল ওয়াফা স্টার ইআরপি সেলস অ্যান্ড অপারেশনস স্যুট | সর্বাধুনিক মাল্টি-ইউজার রোল সিস্টেম সক্রিয়",
       adminRole: "অ্যাডমিনিস্ট্রেটর",
       modRole: "মডারেটর",
-      visRole: "ভিজিটর"
+      visRole: "ভিজিটর",
+
+      otpTitle: "অ্যাডমিন ২-স্টেপ ভেরিফিকেশন",
+      otpDesc: "hussainahmad13122@gmail.com এ একটি ৪ সংখ্যার ওটিপি (OTP) পাঠানো হয়েছে। এডমিন প্যানেল আনলক করতে কোডটি নিচে লিখুন।",
+      otpPlaceholder: "৪ সংখ্যার ওটিপি কোড",
+      otpVerifyBtn: "কোড ভেরিফাই ও আনলক করুন",
+      otpBack: "লগইন পেজে ফিরুন",
+      otpSending: "নিরাপত্তা কোড পাঠানো হচ্ছে...",
+      otpSentSuccess: "ওটিপি কোড সফলভাবে পাঠানো হয়েছে! আপনার জিমেইল ইনবক্স অথবা স্প্যাম ফোল্ডার চেক করুন।",
+      otpInvalid: "ভুল ওটিপি কোড! অনুগ্রহ করে সঠিক কোড দিন।",
+      otpResend: "কোড আবার পাঠান",
     },
     ar: {
       protectedAccess: "دخول آمن متعدد الصلاحيات للنظام",
@@ -131,57 +160,151 @@ export default function LoginScreen({
       footerNote: "جناح الوفا ستار للمحترفين | نظام حماية وتوزيع الصلاحيات متعدد الأدوار",
       adminRole: "المسؤول العام",
       modRole: "المشرف",
-      visRole: "الزائر"
+      visRole: "الزائر",
+
+      otpTitle: "التحقق المزدوج للمسؤول",
+      otpDesc: "تم إرسال رمز أمان مكون من 4 أرقام إلى hussainahmad13122@gmail.com. أدخل الرمز أدناه لفتح لوحة المسؤول.",
+      otpPlaceholder: "رمز التحقق (OTP) المكون من 4 أرقام",
+      otpVerifyBtn: "تأكيد الرمز وفتح النظام",
+      otpBack: "العودة لصفحة الدخول",
+      otpSending: "جاري إرسال رمز الأمان...",
+      otpSentSuccess: "تم إرسال رمز التحقق بنجاح! يرجى التحقق من البريد الوارد أو البريد المزعج.",
+      otpInvalid: "رمز التحقق غير صحيح. يرجى المحاولة مرة أخرى.",
+      otpResend: "إعادة إرسال الرمز",
     }
   }[language];
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMsg(null);
 
     const normUser = usernameInput.trim().toLowerCase();
     const normPass = passwordInput.trim();
 
-    // 1. Match against registered users
-    let matchedUser = registeredUsers.find(
+    // Determine if user is attempting to log in as Admin
+    const isAdminLogin = normUser === "admin" || normUser === "hussainahmad13122@gmail.com";
+
+    if (isAdminLogin) {
+      if (!normPass) {
+        setErrorMsg(language === "bn" ? "পাসওয়ার্ড দেওয়া আবশ্যক।" : "Password is required.");
+        return;
+      }
+
+      setIsSendingOtp(true);
+      try {
+        const response = await fetch("/api/admin/request-otp", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ email: normUser, password: normPass })
+        });
+
+        const data = await response.json();
+        if (response.ok && data.success) {
+          setSessionId(data.sessionId);
+          setStep("otp");
+          setOtpInput("");
+          setErrorMsg(null);
+        } else {
+          setErrorMsg(data.message || t.errorIncorrect);
+        }
+      } catch (err) {
+        console.error("Error requesting admin OTP:", err);
+        setErrorMsg(
+          language === "bn" 
+            ? "সার্ভারের সাথে সংযোগ করা যায়নি। অফলাইনে থাকলে ইন্টারনেট কানেকশন চেক করুন।" 
+            : "Unable to connect to the server. Please check your internet connection."
+        );
+      } finally {
+        setIsSendingOtp(false);
+      }
+      return;
+    }
+
+    // 1. Match against registered users (Moderator, Visitor, etc.)
+    const matchedUser = registeredUsers.find(
       (u) => u.username.toLowerCase() === normUser && u.passwordPlain === normPass
     );
-
-    // 2. Fallbacks for standard passcode support (as admin)
-    const normAppPassword = (appPassword || "123456").trim();
-    const isLegacyPasscode = !normUser && (normPass === normAppPassword || normPass === "123456");
-
-    // Allow username "admin" with the custom appPassword/passcode too
-    if (!matchedUser && normUser === "admin") {
-      if (normPass === normAppPassword || normPass === "123456") {
-        matchedUser = registeredUsers.find((u) => u.role === "Admin") || {
-          id: "user-admin",
-          username: "admin",
-          passwordPlain: normPass,
-          role: "Admin"
-        };
-      }
-    }
 
     if (matchedUser) {
       setIsSuccessAnimated(true);
       setTimeout(() => {
         onLoginSuccess(matchedUser, rememberMe);
       }, 700);
-    } else if (isLegacyPasscode) {
-      // Create a virtual admin user
-      const legacyAdmin: AppUser = {
-        id: "user-legacy-admin",
-        username: "admin (legacy)",
-        passwordPlain: normPass,
-        role: "Admin"
-      };
-      setIsSuccessAnimated(true);
-      setTimeout(() => {
-        onLoginSuccess(legacyAdmin, rememberMe);
-      }, 700);
     } else {
       setErrorMsg(t.errorIncorrect);
+    }
+  };
+
+  const handleOtpSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setErrorMsg(null);
+
+    const trimmedOtp = otpInput.trim();
+    if (!trimmedOtp) {
+      setErrorMsg(language === "bn" ? "ওটিপি কোড দেওয়া আবশ্যক।" : "OTP Code is required.");
+      return;
+    }
+
+    setIsVerifyingOtp(true);
+    try {
+      const response = await fetch("/api/admin/verify-otp", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ sessionId, otp: trimmedOtp })
+      });
+
+      const data = await response.json();
+      if (response.ok && data.success && data.user) {
+        setIsSuccessAnimated(true);
+        setTimeout(() => {
+          onLoginSuccess(data.user, rememberMe);
+        }, 700);
+      } else {
+        setErrorMsg(data.message || t.otpInvalid);
+      }
+    } catch (err) {
+      console.error("Error verifying OTP:", err);
+      setErrorMsg(
+        language === "bn" 
+          ? "সার্ভারের সাথে সংযোগ করা যায়নি। অনুগ্রহ করে আবার চেষ্টা করুন।" 
+          : "Connection error. Please try again."
+      );
+    } finally {
+      setIsVerifyingOtp(false);
+    }
+  };
+
+  const handleResendOtp = async () => {
+    setErrorMsg(null);
+    setIsSendingOtp(true);
+    try {
+      const response = await fetch("/api/admin/request-otp", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: usernameInput, password: passwordInput })
+      });
+
+      const data = await response.json();
+      if (response.ok && data.success) {
+        setSessionId(data.sessionId);
+        setOtpInput("");
+        alert(
+          language === "bn" 
+            ? "একটি নতুন ওটিপি কোড জিমেইলে পাঠানো হয়েছে।" 
+            : "A new OTP code has been sent to your Gmail."
+        );
+      } else {
+        setErrorMsg(data.message || t.errorIncorrect);
+      }
+    } catch (err) {
+      console.error("Error resending OTP:", err);
+      setErrorMsg(
+        language === "bn" 
+          ? "ওটিপি পাঠাতে সমস্যা হয়েছে। ইন্টারনেট কানেকশন চেক করুন।" 
+          : "Failed to resend OTP. Please check your connection."
+      );
+    } finally {
+      setIsSendingOtp(false);
     }
   };
 
@@ -241,6 +364,8 @@ export default function LoginScreen({
             }`}>
               {isSuccessAnimated ? (
                 <Unlock className="w-8 h-8 animate-bounce" />
+              ) : step === "otp" ? (
+                <Mail className="w-8 h-8 text-emerald-400" />
               ) : (
                 <Lock className="w-8 h-8" />
               )}
@@ -255,102 +380,206 @@ export default function LoginScreen({
             </span>
           </div>
 
-          <div className="border-t border-slate-800/80 pt-4 space-y-1">
-            <h2 className="text-sm font-extrabold text-[#10B981]">
-              {t.protectedAccess}
-            </h2>
-            <p className="text-slate-400 text-[11px] leading-relaxed max-w-xs mx-auto">
-              {t.desc}
-            </p>
-          </div>
-
-          {/* Form */}
-          <form onSubmit={handleSubmit} className="space-y-4">
-            
-            {/* Username Input */}
-            <div className="relative">
-              <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-500 flex justify-center items-center">
-                <User className="w-4 h-4" />
-              </span>
-              <input
-                id="login-username-input"
-                type="text"
-                value={usernameInput}
-                onChange={(e) => {
-                  setUsernameInput(e.target.value);
-                  if (errorMsg) setErrorMsg(null);
-                }}
-                placeholder={t.userPlaceholder}
-                className="w-full bg-slate-950 border border-slate-800 text-slate-100 text-xs font-semibold rounded-xl pl-10 pr-4 py-3 outline-none focus:border-[#10B981] transition-all focus:ring-1 focus:ring-[#10B981]/20 shadow-inner"
-                autoFocus
-              />
-            </div>
-
-            {/* Password Input wrap */}
-            <div className="relative">
-              <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-500 flex justify-center items-center">
-                <KeyRound className="w-4 h-4" />
-              </span>
-              <input
-                id="login-passcode-input"
-                type={showPassword ? "text" : "password"}
-                value={passwordInput}
-                onChange={(e) => {
-                  setPasswordInput(e.target.value);
-                  if (errorMsg) setErrorMsg(null);
-                }}
-                placeholder={t.passPlaceholder}
-                className="w-full bg-slate-950 border border-slate-800 text-slate-100 text-xs font-bold font-mono tracking-widest placeholder:font-sans placeholder:tracking-normal rounded-xl pl-10 pr-10 py-3 outline-none focus:border-[#10B981] text-center transition-all focus:ring-1 focus:ring-[#10B981]/20 shadow-inner"
-              />
-              <button
-                type="button"
-                onClick={() => setShowPassword(!showPassword)}
-                className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-100 cursor-pointer flex justify-center items-center"
-              >
-                {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-              </button>
-            </div>
-
-            {/* Error notifications */}
-            {errorMsg && (
-              <div className="p-3 bg-red-950/30 border border-red-500/20 text-red-400 text-[10.5px] font-bold rounded-xl flex items-center justify-center gap-2 animate-fade-in">
-                <ShieldAlert className="w-4 h-4 shrink-0" />
-                <span>{errorMsg}</span>
+          {step === "credentials" ? (
+            <>
+              <div className="border-t border-slate-800/80 pt-4 space-y-1">
+                <h2 className="text-sm font-extrabold text-[#10B981]">
+                  {t.protectedAccess}
+                </h2>
+                <p className="text-slate-400 text-[11px] leading-relaxed max-w-xs mx-auto">
+                  {t.desc}
+                </p>
               </div>
-            )}
 
-            {/* Remember operational session check */}
-            <div className="flex items-center justify-between px-1 text-[11px]">
-              <label className="flex items-center gap-2 cursor-pointer text-slate-400 hover:text-slate-200">
-                <input
-                  type="checkbox"
-                  checked={rememberMe}
-                  onChange={(e) => setRememberMe(e.target.checked)}
-                  className="rounded border-slate-700 bg-slate-950 text-[#10B981] focus:ring-[#10B981] w-3.5 h-3.5 accent-[#10B981]"
-                />
-                <span>{t.remember}</span>
-              </label>
-            </div>
+              {/* Credentials Form */}
+              <form onSubmit={handleSubmit} className="space-y-4">
+                
+                {/* Username Input */}
+                <div className="relative">
+                  <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-500 flex justify-center items-center">
+                    <User className="w-4 h-4" />
+                  </span>
+                  <input
+                    id="login-username-input"
+                    type="text"
+                    value={usernameInput}
+                    onChange={(e) => {
+                      setUsernameInput(e.target.value);
+                      if (errorMsg) setErrorMsg(null);
+                    }}
+                    placeholder={t.userPlaceholder}
+                    className="w-full bg-slate-950 border border-slate-800 text-slate-100 text-xs font-semibold rounded-xl pl-10 pr-4 py-3 outline-none focus:border-[#10B981] transition-all focus:ring-1 focus:ring-[#10B981]/20 shadow-inner"
+                    autoFocus
+                  />
+                </div>
 
-            {/* Unlock click control button */}
-            <button
-              id="login-submit-button"
-              type="submit"
-              className="w-full bg-[#10B981] hover:bg-emerald-400 text-slate-950 font-extrabold py-3.5 rounded-xl transition duration-150 transform hover:scale-[1.01] active:scale-[0.99] flex items-center justify-center gap-2 cursor-pointer shadow-lg shadow-emerald-500/10 text-xs"
-            >
-              {isSuccessAnimated ? (
-                <>
-                  <CheckCircle2 className="w-4 h-4 animate-spin" />
-                  <span>Unlocking Suite...</span>
-                </>
-              ) : (
-                <>
-                  <Lock className="w-4 h-4" />
-                  <span>{t.verifyBtn}</span>
-                </>
-              )}
-            </button>
-          </form>
+                {/* Password Input wrap */}
+                <div className="relative">
+                  <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-500 flex justify-center items-center">
+                    <KeyRound className="w-4 h-4" />
+                  </span>
+                  <input
+                    id="login-passcode-input"
+                    type={showPassword ? "text" : "password"}
+                    value={passwordInput}
+                    onChange={(e) => {
+                      setPasswordInput(e.target.value);
+                      if (errorMsg) setErrorMsg(null);
+                    }}
+                    placeholder={t.passPlaceholder}
+                    className="w-full bg-slate-950 border border-slate-800 text-slate-100 text-xs font-bold font-mono tracking-widest placeholder:font-sans placeholder:tracking-normal rounded-xl pl-10 pr-10 py-3 outline-none focus:border-[#10B981] text-center transition-all focus:ring-1 focus:ring-[#10B981]/20 shadow-inner"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-100 cursor-pointer flex justify-center items-center"
+                  >
+                    {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  </button>
+                </div>
+
+                {/* Error notifications */}
+                {errorMsg && (
+                  <div className="p-3 bg-red-950/30 border border-red-500/20 text-red-400 text-[10.5px] font-bold rounded-xl flex items-center justify-center gap-2 animate-fade-in">
+                    <ShieldAlert className="w-4 h-4 shrink-0" />
+                    <span className="text-left">{errorMsg}</span>
+                  </div>
+                )}
+
+                {/* Remember operational session check */}
+                <div className="flex items-center justify-between px-1 text-[11px]">
+                  <label className="flex items-center gap-2 cursor-pointer text-slate-400 hover:text-slate-200">
+                    <input
+                      type="checkbox"
+                      checked={rememberMe}
+                      onChange={(e) => setRememberMe(e.target.checked)}
+                      className="rounded border-slate-700 bg-slate-950 text-[#10B981] focus:ring-[#10B981] w-3.5 h-3.5 accent-[#10B981]"
+                    />
+                    <span>{t.remember}</span>
+                  </label>
+                </div>
+
+                {/* Unlock click control button */}
+                <button
+                  id="login-submit-button"
+                  type="submit"
+                  disabled={isSendingOtp}
+                  className="w-full bg-[#10B981] hover:bg-emerald-400 text-slate-950 font-extrabold py-3.5 rounded-xl transition duration-150 transform hover:scale-[1.01] active:scale-[0.99] flex items-center justify-center gap-2 cursor-pointer shadow-lg shadow-emerald-500/10 text-xs disabled:opacity-50"
+                >
+                  {isSendingOtp ? (
+                    <>
+                      <CheckCircle2 className="w-4 h-4 animate-spin" />
+                      <span>{t.otpSending}</span>
+                    </>
+                  ) : isSuccessAnimated ? (
+                    <>
+                      <CheckCircle2 className="w-4 h-4 animate-spin" />
+                      <span>Unlocking Suite...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Lock className="w-4 h-4" />
+                      <span>{t.verifyBtn}</span>
+                    </>
+                  )}
+                </button>
+              </form>
+            </>
+          ) : (
+            <>
+              <div className="border-t border-slate-800/80 pt-4 space-y-1">
+                <h2 className="text-sm font-extrabold text-[#10B981]">
+                  {t.otpTitle}
+                </h2>
+                <p className="text-slate-400 text-[11px] leading-relaxed max-w-xs mx-auto">
+                  {t.otpDesc}
+                </p>
+              </div>
+
+              {/* OTP Input Form */}
+              <form onSubmit={handleOtpSubmit} className="space-y-4">
+                
+                {/* OTP Digit Input */}
+                <div className="relative">
+                  <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-500 flex justify-center items-center">
+                    <KeyRound className="w-4 h-4" />
+                  </span>
+                  <input
+                    id="login-otp-input"
+                    type="text"
+                    pattern="[0-9]*"
+                    maxLength={4}
+                    value={otpInput}
+                    onChange={(e) => {
+                      setOtpInput(e.target.value.replace(/\D/g, ""));
+                      if (errorMsg) setErrorMsg(null);
+                    }}
+                    placeholder={t.otpPlaceholder}
+                    className="w-full bg-slate-950 border border-slate-800 text-slate-100 text-lg font-bold tracking-[0.5em] text-center rounded-xl py-3 outline-none focus:border-[#10B981] transition-all focus:ring-1 focus:ring-[#10B981]/20 shadow-inner placeholder:tracking-normal placeholder:text-xs"
+                    autoFocus
+                  />
+                </div>
+
+                {/* Error notifications */}
+                {errorMsg && (
+                  <div className="p-3 bg-red-950/30 border border-red-500/20 text-red-400 text-[10.5px] font-bold rounded-xl flex items-center justify-center gap-2 animate-fade-in">
+                    <ShieldAlert className="w-4 h-4 shrink-0" />
+                    <span className="text-left">{errorMsg}</span>
+                  </div>
+                )}
+
+                {/* Controls */}
+                <div className="flex flex-col gap-2.5 pt-2">
+                  <button
+                    id="login-verify-otp-button"
+                    type="submit"
+                    disabled={isVerifyingOtp}
+                    className="w-full bg-[#10B981] hover:bg-emerald-400 text-slate-950 font-extrabold py-3.5 rounded-xl transition duration-150 transform hover:scale-[1.01] active:scale-[0.99] flex items-center justify-center gap-2 cursor-pointer shadow-lg shadow-emerald-500/10 text-xs disabled:opacity-50"
+                  >
+                    {isVerifyingOtp ? (
+                      <>
+                        <CheckCircle2 className="w-4 h-4 animate-spin" />
+                        <span>Verifying Code...</span>
+                      </>
+                    ) : isSuccessAnimated ? (
+                      <>
+                        <CheckCircle2 className="w-4 h-4 animate-spin" />
+                        <span>Success! Unlocking...</span>
+                      </>
+                    ) : (
+                      <>
+                        <Unlock className="w-4 h-4" />
+                        <span>{t.otpVerifyBtn}</span>
+                      </>
+                    )}
+                  </button>
+
+                  <div className="flex justify-between items-center px-1 text-[11px]">
+                    <button
+                      type="button"
+                      onClick={handleResendOtp}
+                      disabled={isSendingOtp}
+                      className="text-[#10B981] hover:text-emerald-400 font-bold transition duration-150 cursor-pointer disabled:opacity-50"
+                    >
+                      {t.otpResend}
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setStep("credentials");
+                        setErrorMsg(null);
+                      }}
+                      className="text-slate-400 hover:text-slate-200 transition duration-150 cursor-pointer flex items-center gap-1"
+                    >
+                      <ArrowLeft className="w-3.5 h-3.5" />
+                      <span>{t.otpBack}</span>
+                    </button>
+                  </div>
+                </div>
+              </form>
+            </>
+          )}
         </div>
       </main>
 

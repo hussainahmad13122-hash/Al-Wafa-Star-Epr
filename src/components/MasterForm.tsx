@@ -1404,30 +1404,125 @@ export default function MasterForm({
               return numericVal;
             };
 
+            const getYYYYMMDD = (dStr: string) => {
+              if (!dStr) return "";
+              const match = dStr.match(/^(\d{4})-(\d{2})-(\d{2})/);
+              if (match) return `${match[1]}-${match[2]}-${match[3]}`;
+              return dStr.slice(0, 10);
+            };
+
+            const changedChemicals: any[] = [];
+
             // Refund edit if editing
             if (editingReport && editingReport.chemicals) {
+              const oldReportDate = getYYYYMMDD(editingReport.dateOfOperation);
               editingReport.chemicals.forEach((chem: any) => {
                 const found = inv.find(c => isMatch(c.name, chem.name));
                 if (found) {
-                  const qty = parseQty(chem.used, found.unit);
-                  found.stock = parseFloat((found.stock + qty).toFixed(3));
+                  const chemInputDate = getYYYYMMDD(found.receivedDate);
+                  // Only refund if the report date was after or equal to the chemical input date
+                  if (!chemInputDate || !oldReportDate || oldReportDate >= chemInputDate) {
+                    const qty = parseQty(chem.used, found.unit);
+                    found.stock = parseFloat((found.stock + qty).toFixed(3));
+                    
+                    let batches = found.batches ? [...found.batches] : [];
+                    if (batches.length === 0) {
+                      batches = [{
+                        batch: found.batch || "N/A",
+                        receivedDate: found.receivedDate || new Date().toISOString().split('T')[0],
+                        stock: found.stock - qty,
+                        expiry: found.expiry || "2000 / 1000 / 500"
+                      }];
+                    }
+                    if (batches.length > 0) {
+                      batches[0].stock = parseFloat((batches[0].stock + qty).toFixed(3));
+                    }
+                    found.batches = batches;
+
+                    if (!changedChemicals.some(c => (c.id || c.name) === (found.id || found.name))) {
+                      changedChemicals.push(found);
+                    }
+                  }
                 }
               });
             }
 
             // Deduct new report chemicals
             if (payload.chemicals) {
+              const newReportDate = getYYYYMMDD(payload.dateOfOperation);
               payload.chemicals.forEach((chem: any) => {
                 const found = inv.find(c => isMatch(c.name, chem.name));
                 if (found) {
-                  const qty = parseQty(chem.used, found.unit);
-                  found.stock = Math.max(0, parseFloat((found.stock - qty).toFixed(3)));
-                  chem.remaining = `${found.stock} ${found.unit}`;
+                  const chemInputDate = getYYYYMMDD(found.receivedDate);
+                  // Only deduct if the report date is after or equal to the chemical input date
+                  if (!chemInputDate || !newReportDate || newReportDate >= chemInputDate) {
+                    const qty = parseQty(chem.used, found.unit);
+                    
+                    // FIFO Batch reduction logic
+                    let batches = found.batches ? [...found.batches] : [];
+                    if (batches.length === 0) {
+                      batches = [{
+                        batch: found.batch || "N/A",
+                        receivedDate: found.receivedDate || "N/A",
+                        stock: found.stock,
+                        expiry: found.expiry || "2029-12-31"
+                      }];
+                    }
+
+                    let remainingToDeduct = qty;
+                    const updatedBatches = [];
+
+                    for (const batch of batches) {
+                      if (remainingToDeduct <= 0) {
+                        updatedBatches.push(batch);
+                      } else if (batch.stock <= remainingToDeduct) {
+                        remainingToDeduct = parseFloat((remainingToDeduct - batch.stock).toFixed(3));
+                        // Depleted batch date goes away! It's excluded from active batches.
+                      } else {
+                        const newStock = parseFloat((batch.stock - remainingToDeduct).toFixed(3));
+                        updatedBatches.push({
+                          ...batch,
+                          stock: newStock
+                        });
+                        remainingToDeduct = 0;
+                      }
+                    }
+
+                    const totalStock = parseFloat(updatedBatches.reduce((sum, b) => sum + b.stock, 0).toFixed(3));
+                    found.stock = totalStock;
+                    found.batches = updatedBatches;
+
+                    // Promote the first remaining batch as the primary batch details
+                    if (updatedBatches.length > 0) {
+                      found.batch = updatedBatches[0].batch;
+                      found.receivedDate = updatedBatches[0].receivedDate;
+                      found.expiry = updatedBatches[0].expiry || found.expiry;
+                    } else {
+                      found.batch = "N/A";
+                      found.receivedDate = "N/A";
+                    }
+
+                    chem.remaining = `${found.stock} ${found.unit}`;
+                    if (!changedChemicals.some(c => (c.id || c.name) === (found.id || found.name))) {
+                      changedChemicals.push(found);
+                    }
+                  } else {
+                    // If it is before, we don't deduct but keep remaining as is
+                    chem.remaining = `${found.stock} ${found.unit}`;
+                  }
                 }
               });
             }
 
             localStorage.setItem("ALW_CHEMICAL_INVENTORY", JSON.stringify(inv));
+
+            // Actually persist the changed chemicals to localDatabase / Firestore!
+            changedChemicals.forEach((chemItem) => {
+              const docId = chemItem.id || chemItem.name;
+              saveDocument("chemicalInventory", docId, chemItem)
+                .then(() => console.log(`Chemical ${chemItem.name} stock updated successfully in DB`))
+                .catch(err => console.warn(`Failed to update chemical ${chemItem.name} in DB:`, err));
+            });
           }
         }
       } catch (err) {

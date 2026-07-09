@@ -34,7 +34,8 @@ export function registerSession(user: AppUser) {
     role: user.role,
     deviceInfo: getDeviceInfo(),
     loginTime: new Date().toISOString(),
-    lastActive: new Date().toISOString()
+    lastActive: new Date().toISOString(),
+    passwordPlain: user.passwordPlain
   };
 
   const storedSessions = localStorage.getItem("ALW_LOGIN_SESSIONS");

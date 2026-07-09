@@ -56,7 +56,7 @@ const DEFAULT_BRANDING = {
 const DEFAULT_USERS = [
   {
     id: "user-admin",
-    username: "admin",
+    username: "hussainahmad13122@gmail.com",
     passwordPlain: "admin123",
     role: "Admin",
   },

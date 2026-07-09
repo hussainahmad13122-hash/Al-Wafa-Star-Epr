@@ -9,11 +9,13 @@ import {
   QrCode, 
   CheckCircle,
   FileSpreadsheet,
+  Download,
   Trash2,
   X,
   Search,
   Lock,
   ChevronRight,
+  ChevronDown,
   Eye,
   Database,
   Building2,
@@ -48,22 +50,123 @@ export default function ChemicalInventory({ language, themeMode = "dark" }: Chem
   const [newChemDilution, setNewChemDilution] = useState("");
   const [newChemBatch, setNewChemBatch] = useState("");
   const [newChemExpiry, setNewChemExpiry] = useState("");
+  const [newChemHighAlert, setNewChemHighAlert] = useState("");
+  const [newChemMidAlert, setNewChemMidAlert] = useState("");
+  const [newChemLowAlert, setNewChemLowAlert] = useState("");
   const [newChemStock, setNewChemStock] = useState("");
   const [newChemUnit, setNewChemUnit] = useState("L");
+
+  // Registered chemical names catalog states
+  const [registeredChemicalNames, setRegisteredChemicalNames] = useState<string[]>(() => {
+    try {
+      const saved = localStorage.getItem("ALW_REGISTERED_CHEMICAL_NAMES");
+      if (saved) {
+        return JSON.parse(saved);
+      }
+    } catch (e) {}
+    return [
+      "COMMAND 2.5 MC",
+      "DELTACID speedy",
+      "MAGNUM GEL FOR ANT",
+      "NOCURAT PARAFFINATO Wax Blockc",
+      "TRIPLE POWER",
+      "11444",
+      "Fendona 1.5 SC"
+    ];
+  });
+  const [showNameSuggestions, setShowNameSuggestions] = useState(false);
+  const nameDropdownRef = React.useRef<HTMLDivElement | null>(null);
+
+  // Auto-sync registered list to localStorage
+  useEffect(() => {
+    localStorage.setItem("ALW_REGISTERED_CHEMICAL_NAMES", JSON.stringify(registeredChemicalNames));
+  }, [registeredChemicalNames]);
+
+  // Click outside to close name suggestions dropdown
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      const targetNode = event.target as Node;
+      if (!document.body.contains(targetNode)) {
+        // Target element was already removed from the DOM (e.g. deleted), ignore
+        return;
+      }
+      if (nameDropdownRef.current && !nameDropdownRef.current.contains(targetNode)) {
+        setShowNameSuggestions(false);
+        if (newChemName && newChemName.trim().length >= 2) {
+          const trimmed = newChemName.trim();
+          setRegisteredChemicalNames(prev => {
+            const exists = prev.some(n => n.toLowerCase() === trimmed.toLowerCase());
+            if (!exists) {
+              const updated = [...prev, trimmed];
+              localStorage.setItem("ALW_REGISTERED_CHEMICAL_NAMES", JSON.stringify(updated));
+              return updated;
+            }
+            return prev;
+          });
+        }
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+    };
+  }, [newChemName]);
+
+  const addRegisteredName = (name: string) => {
+    const trimmed = name.trim();
+    if (!trimmed) return;
+    setRegisteredChemicalNames(prev => {
+      const exists = prev.some(n => n.toLowerCase() === trimmed.toLowerCase());
+      if (!exists) {
+        const updated = [...prev, trimmed];
+        localStorage.setItem("ALW_REGISTERED_CHEMICAL_NAMES", JSON.stringify(updated));
+        return updated;
+      }
+      return prev;
+    });
+  };
+
+  // Parse newChemExpiry into High/Mid/Low alert levels when changed externally (such as from prefill)
+  useEffect(() => {
+    if (newChemExpiry && newChemExpiry.includes("/")) {
+      const parts = newChemExpiry.split("/").map(p => p.trim());
+      if (parts.length === 3) {
+        if (parts[0] !== newChemHighAlert) setNewChemHighAlert(parts[0]);
+        if (parts[1] !== newChemMidAlert) setNewChemMidAlert(parts[1]);
+        if (parts[2] !== newChemLowAlert) setNewChemLowAlert(parts[2]);
+      }
+    } else {
+      if (!newChemExpiry) {
+        setNewChemHighAlert("");
+        setNewChemMidAlert("");
+        setNewChemLowAlert("");
+      }
+    }
+  }, [newChemExpiry]);
   
   // Custom dialogs & notifications state
   const [deleteConfirmName, setDeleteConfirmName] = useState<string | null>(null);
   const [toastMessage, setToastMessage] = useState<{ text: string; type: "success" | "error" | "info" } | null>(null);
 
   // Chemical Received History Log spreadsheet state
-  const [historyLogs, setHistoryLogs] = useState<any[]>([]);
+  const [historyLogs, setHistoryLogs] = useState<any[]>(() => {
+    try {
+      const saved = localStorage.getItem("ALW_STAR_CHEMICAL_RECEIVED_LOGS");
+      return saved ? JSON.parse(saved) : [];
+    } catch (e) {
+      return [];
+    }
+  });
+  const [selectedMonthFilter, setSelectedMonthFilter] = useState("all");
   const [historySearch, setHistorySearch] = useState("");
   const [isHistoryModalOpen, setIsHistoryModalOpen] = useState(false);
+  const [logToDelete, setLogToDelete] = useState<any | null>(null);
 
   // Chemical Service Reports consumption log state
   const [reports, setReports] = useState<any[]>([]);
   const [isServiceReportModalOpen, setIsServiceReportModalOpen] = useState(false);
   const [serviceReportSearch, setServiceReportSearch] = useState("");
+  const [usageToDelete, setUsageToDelete] = useState<any | null>(null);
 
   // Chemical Requisition & Order Request State
   const [isRequisitionModalOpen, setIsRequisitionModalOpen] = useState(false);
@@ -387,9 +490,34 @@ export default function ChemicalInventory({ language, themeMode = "dark" }: Chem
     }, 4000);
   };
 
+  const clearForm = () => {
+    setNewChemName("");
+    setNewChemReceived("");
+    setNewChemDilution("");
+    setNewChemBatch("");
+    setNewChemExpiry("");
+    setNewChemHighAlert("");
+    setNewChemMidAlert("");
+    setNewChemLowAlert("");
+    setNewChemStock("");
+    setNewChemUnit("L");
+    setShowNameSuggestions(false);
+  };
+
   const handleNameChange = (val: string) => {
     setNewChemName(val);
-    if (!val) return;
+    if (!val) {
+      setNewChemReceived("");
+      setNewChemDilution("");
+      setNewChemBatch("");
+      setNewChemExpiry("");
+      setNewChemHighAlert("");
+      setNewChemMidAlert("");
+      setNewChemLowAlert("");
+      setNewChemStock("");
+      setNewChemUnit("L");
+      return;
+    }
     const trimmed = val.trim().toLowerCase();
     
     // Find matching chemical in currently fetched reserves
@@ -494,6 +622,7 @@ export default function ChemicalInventory({ language, themeMode = "dark" }: Chem
     chemicalName: string;
     amountUsed: string;
     batch: string;
+    reportId: string;
   }
 
   const usageEntries: UsageEntry[] = [];
@@ -510,7 +639,8 @@ export default function ChemicalInventory({ language, themeMode = "dark" }: Chem
           monthYear: monthYear,
           chemicalName: chem.name || "Unknown Chemical",
           amountUsed: chem.used || "0 mL",
-          batch: chem.batch || "N/A"
+          batch: chem.batch || "N/A",
+          reportId: rep.id || ""
         });
       });
     }
@@ -579,6 +709,55 @@ export default function ChemicalInventory({ language, themeMode = "dark" }: Chem
       language === "bn" 
         ? "সার্ভিস রিপোর্ট খরচ শিট (এক্সেল/CSV) সফলভাবে ডাউনলোড সম্পন্ন হয়েছে!" 
         : "Service Chemical Consumption file (Excel/CSV) successfully downloaded!",
+      "success"
+    );
+  };
+
+  // CSV download function for a specific month
+  const downloadMonthServiceReportCSV = (monthKey: string, entries: UsageEntry[]) => {
+    const headers = [
+      "Month",
+      "Hospital / Clinic Name",
+      "Date",
+      "Chemical Used",
+      "Amount Consumed",
+      "Batch No"
+    ];
+    
+    const rows = entries.map(entry => {
+      const monthVal = entry.monthYear.replace(/"/g, '""');
+      const facilityVal = entry.facilityName.replace(/"/g, '""');
+      const dateVal = entry.dateStr.replace(/"/g, '""');
+      const chemVal = entry.chemicalName.replace(/"/g, '""');
+      const amountVal = entry.amountUsed.replace(/"/g, '""');
+      const batchVal = entry.batch.replace(/"/g, '""');
+
+      return [
+        `"${monthVal}"`,
+        `"${facilityVal}"`,
+        `"${dateVal}"`,
+        `"${chemVal}"`,
+        `"${amountVal}"`,
+        `"${batchVal}"`
+      ];
+    });
+
+    const csvContent = [headers.join(","), ...rows.map(e => e.join(","))].join("\n");
+    const blob = new Blob([new Uint8Array([0xEF, 0xBB, 0xBF]), csvContent], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.setAttribute("href", url);
+    
+    const safeMonthKey = monthKey.replace(/[\s,]+/g, "_");
+    link.setAttribute("download", `Al_Wafa_Star_Chemical_Usage_${safeMonthKey}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+
+    showToast(
+      language === "bn" 
+        ? `${monthKey} মাসের কেমিক্যাল ব্যবহার রিপোর্ট সফলভাবে ডাউনলোড সম্পন্ন হয়েছে!` 
+        : `Chemical usage report for ${monthKey} successfully downloaded!`,
       "success"
     );
   };
@@ -652,7 +831,7 @@ export default function ChemicalInventory({ language, themeMode = "dark" }: Chem
       dilution: "Dilution Rate",
       remaining: "Remaining Stock",
       batch: "Batch No",
-      expiry: "Expiry Date",
+      expiry: "Stock Alerts (H/M/L)",
       restockTitle: "Bulk Chemical Restocking Station",
       qrScanTitle: "Chemical Received Date Logs",
       lowAlert: "Low Stock Alert: Reorder Required",
@@ -668,7 +847,7 @@ export default function ChemicalInventory({ language, themeMode = "dark" }: Chem
       dilution: "معدل التخفيف",
       remaining: "المخزون المتبقي",
       batch: "رقم الدفعة",
-      expiry: "تاريخ الانتهاء",
+      expiry: "تنبيهات المخزون (أقصى/متوسط/أدنى)",
       restockTitle: "تحديث وتزويد مخزون المواد",
       qrScanTitle: "سجل تواريخ استلام المواد",
       lowAlert: "تنبيه نقص المخزون: يرجى المزامنة وإعادة الطلب",
@@ -684,7 +863,7 @@ export default function ChemicalInventory({ language, themeMode = "dark" }: Chem
       dilution: "জলীয় মিশ্রণ হার",
       remaining: "অবশিষ্ট মজুদ",
       batch: "ব্যাচ নং",
-      expiry: "মেয়াদ চর্তুথী",
+      expiry: "স্টক অ্যালার্টস (উচ্চ/মাঝারি/কম)",
       restockTitle: "কেমিক্যাল রিস্টকিং স্টেশন",
       qrScanTitle: "কেমিক্যাল গ্রহণের রেকর্ড এবং ফাইল",
       lowAlert: "সতর্কতা: অতিসত্বর নতুন কেমিক্যাল স্টক অর্ডার করুন",
@@ -693,6 +872,207 @@ export default function ChemicalInventory({ language, themeMode = "dark" }: Chem
       unit: "ইউনিট"
     }
   }[language];
+  
+  // Helper to convert English digits to Bengali digits
+  const convertToBengaliDigits = (numStr: string | number) => {
+    const banglaDigits = ["০", "১", "২", "৩", "৪", "৫", "৬", "৭", "৮", "৯"];
+    return String(numStr).replace(/[0-9]/g, (digit) => banglaDigits[parseInt(digit, 10)]);
+  };
+
+  const formatMonthKey = (monthKey: string, lang: string) => {
+    if (!monthKey) return "";
+    const [year, monthNum] = monthKey.split("-");
+    const monthNamesEn = [
+      "January", "February", "March", "April", "May", "June",
+      "July", "August", "September", "October", "November", "December"
+    ];
+    const monthNamesBn = [
+      "জানুয়ারি", "ফেব্রুয়ারি", "মার্চ", "এপ্রিল", "মে", "জুন",
+      "জুলাই", "আগস্ট", "সেপ্টেম্বর", "অক্টোবর", "নভেম্বর", "ডিসেম্বর"
+    ];
+    const idx = parseInt(monthNum, 10) - 1;
+    if (idx >= 0 && idx < 12) {
+      const monthName = lang === "bn" ? monthNamesBn[idx] : monthNamesEn[idx];
+      const displayYear = lang === "bn" ? convertToBengaliDigits(year) : year;
+      return `${monthName} ${displayYear}`;
+    }
+    return monthKey;
+  };
+
+  // Extract unique months from historyLogs
+  const getUniqueMonths = (): string[] => {
+    const months = historyLogs.map(log => {
+      const dateStr = log.date || log.receivedDate || "";
+      if (!dateStr) return "";
+      let year = "";
+      let monthNum = "";
+      if (dateStr.includes("-")) {
+        const parts = dateStr.split("-");
+        year = parts[0];
+        monthNum = parts[1];
+      } else if (dateStr.includes("/")) {
+        const parts = dateStr.split("/");
+        if (parts.length === 3) {
+          if (parts[2].length === 4) {
+            year = parts[2];
+            monthNum = parts[1];
+          } else if (parts[0].length === 4) {
+            year = parts[0];
+            monthNum = parts[1];
+          }
+        }
+      }
+      if (year && monthNum) {
+        return `${year}-${monthNum.padStart(2, "0")}`;
+      }
+      return "";
+    }).filter((x): x is string => !!x);
+
+    return Array.from(new Set<string>(months)).sort((a: string, b: string) => b.localeCompare(a));
+  };
+
+  const getChemicalUnit = (log: any): string => {
+    if (!log) return "L";
+    const nameLower = (log.name || "").toLowerCase().trim();
+    
+    // Check if we have the chemical in our inventory list and use its unit
+    const matched = chemicals.find(c => c.name.toLowerCase().trim() === nameLower);
+    if (matched && matched.unit) {
+      return matched.unit;
+    }
+
+    // Default intelligent fallbacks
+    if (
+      nameLower.includes("deltacide") || 
+      nameLower.includes("triple power") || 
+      nameLower.includes("provecta") || 
+      nameLower.includes("liquid") || 
+      nameLower.includes("solution") || 
+      nameLower.includes("fendona") || 
+      nameLower.includes("solfac")
+    ) {
+      return "L";
+    }
+    if (nameLower.includes("gel") || nameLower.includes("powder") || nameLower.includes("insecticide") || nameLower.includes("larvicide")) {
+      return "g";
+    }
+    if (nameLower.includes("wax") || nameLower.includes("block") || nameLower.includes("blocks")) {
+      return "kg";
+    }
+    if (nameLower.includes("machine") || nameLower.includes("station") || nameLower.includes("trap")) {
+      return "Pcs";
+    }
+    
+    return log.unit || "L";
+  };
+
+  const seedDefaultReceivedLogs = async () => {
+    const defaultLogs = [
+      {
+        id: "rec-seed-1",
+        name: "DELTACIDE SPEEDY",
+        date: "2026-06-10",
+        batch: "BATCH-88219",
+        stock: 50,
+        unit: "L",
+        expiry: "100 / 50 / 25",
+        dilution: "1:100"
+      },
+      {
+        id: "rec-seed-2",
+        name: "TRIPLE POWER",
+        date: "2026-06-12",
+        batch: "BATCH-11029",
+        stock: 40,
+        unit: "L",
+        expiry: "80 / 40 / 20",
+        dilution: "1:200"
+      },
+      {
+        id: "rec-seed-3",
+        name: "PROVECTA",
+        date: "2026-06-15",
+        batch: "BATCH-99411",
+        stock: 20,
+        unit: "L",
+        expiry: "40 / 20 / 10",
+        dilution: "1:50"
+      },
+      {
+        id: "rec-seed-4",
+        name: "CHOCKROACH GEL",
+        date: "2026-06-18",
+        batch: "BATCH-44023",
+        stock: 30,
+        unit: "g",
+        expiry: "60 / 30 / 15",
+        dilution: "Ready to use"
+      },
+      {
+        id: "rec-seed-5",
+        name: "ANT GEL",
+        date: "2026-06-20",
+        batch: "BATCH-10992",
+        stock: 25,
+        unit: "g",
+        expiry: "50 / 25 / 10",
+        dilution: "Ready to use"
+      },
+      {
+        id: "rec-seed-6",
+        name: "SNAKE REPELLENT",
+        date: "2026-06-25",
+        batch: "BATCH-30112",
+        stock: 15,
+        unit: "Pcs",
+        expiry: "30 / 15 / 5",
+        dilution: "Ready to use"
+      },
+      {
+        id: "rec-seed-7",
+        name: "WAX BLOCKS",
+        date: "2026-06-28",
+        batch: "BATCH-22018",
+        stock: 100,
+        unit: "kg",
+        expiry: "200 / 100 / 50",
+        dilution: "N/A"
+      },
+      {
+        id: "rec-seed-8",
+        name: "DELTACIDE SPEEDY",
+        date: "2026-07-01",
+        batch: "BATCH-88219",
+        stock: 20,
+        unit: "L",
+        expiry: "100 / 50 / 25",
+        dilution: "1:100"
+      },
+      {
+        id: "rec-seed-9",
+        name: "TRIPLE POWER",
+        date: "2026-07-03",
+        batch: "BATCH-11029",
+        stock: 15,
+        unit: "L",
+        expiry: "80 / 40 / 20",
+        dilution: "1:200"
+      },
+      {
+        id: "rec-seed-10",
+        name: "PROVECTA",
+        date: "2026-07-05",
+        batch: "BATCH-99411",
+        stock: 10,
+        unit: "L",
+        expiry: "40 / 20 / 10",
+        dilution: "1:50"
+      }
+    ];
+    setHistoryLogs(defaultLogs);
+    localStorage.setItem("ALW_STAR_CHEMICAL_RECEIVED_LOGS", JSON.stringify(defaultLogs));
+    await saveStoreValue("chemicalReceivedLogs", defaultLogs);
+  };
 
   const fetchInventory = () => {
     // Handled in real-time by subscriptions
@@ -707,12 +1087,28 @@ export default function ChemicalInventory({ language, themeMode = "dark" }: Chem
       }
     });
 
-    // 2. Subscribe to Requisitions / History logs from Firestore store in real-time
+    // 2. Subscribe to Requisitions from Firestore store in real-time
     const unsubscribeRequisitions = subscribeStoreValue<any[]>("chemicalRequisitions", [], (data) => {
       if (data && data.length > 0) {
-        setHistoryLogs(data);
         setSavedRequisitions(data);
         localStorage.setItem("ALW_STAR_SAVED_REQUISITIONS", JSON.stringify(data));
+      }
+    });
+
+    // 2b. Subscribe to Chemical Received Logs from Firestore store in real-time
+    const unsubscribeReceivedLogs = subscribeStoreValue<any[]>("chemicalReceivedLogs", [], (data) => {
+      if (data && data.length > 0) {
+        setHistoryLogs(data);
+        localStorage.setItem("ALW_STAR_CHEMICAL_RECEIVED_LOGS", JSON.stringify(data));
+      } else {
+        // If empty on server, check if we have them locally
+        const saved = localStorage.getItem("ALW_STAR_CHEMICAL_RECEIVED_LOGS");
+        if (saved && JSON.parse(saved).length > 0) {
+          setHistoryLogs(JSON.parse(saved));
+        } else {
+          // Seed defaults
+          seedDefaultReceivedLogs();
+        }
       }
     });
 
@@ -726,6 +1122,7 @@ export default function ChemicalInventory({ language, themeMode = "dark" }: Chem
     return () => {
       unsubscribeChemicals();
       unsubscribeRequisitions();
+      unsubscribeReceivedLogs();
       unsubscribeReports();
     };
   }, []);
@@ -737,28 +1134,49 @@ export default function ChemicalInventory({ language, themeMode = "dark" }: Chem
       "Chemical Name", 
       "Batch No", 
       "Quantity Received", 
-      "Unit", 
-      "Expiry Date", 
-      "Dilution Rate"
+      "Unit"
     ];
     
-    const rows = historyLogs.map(log => {
+    // Filter by selected month first if any
+    const filteredLogs = historyLogs.filter(log => {
+      if (selectedMonthFilter === "all") return true;
+      const dateStr = log.date || log.receivedDate || "";
+      if (!dateStr) return false;
+      let year = "";
+      let monthNum = "";
+      if (dateStr.includes("-")) {
+        const parts = dateStr.split("-");
+        year = parts[0];
+        monthNum = parts[1];
+      } else if (dateStr.includes("/")) {
+        const parts = dateStr.split("/");
+        if (parts.length === 3) {
+          if (parts[2].length === 4) {
+            year = parts[2];
+            monthNum = parts[1];
+          } else if (parts[0].length === 4) {
+            year = parts[0];
+            monthNum = parts[1];
+          }
+        }
+      }
+      const logMonthKey = `${year}-${monthNum.padStart(2, "0")}`;
+      return logMonthKey === selectedMonthFilter;
+    });
+
+    const rows = filteredLogs.map(log => {
       const dateVal = log.date || log.receivedDate || "";
       const nameVal = (log.name || "").replace(/"/g, '""');
       const batchVal = (log.batch || "").replace(/"/g, '""');
       const stockVal = log.stock;
-      const unitVal = log.unit || "L";
-      const expiryVal = log.expiry || "N/A";
-      const dilutionVal = (log.dilution || "N/A").replace(/"/g, '""');
+      const unitVal = getChemicalUnit(log);
 
       return [
         `"${dateVal}"`,
         `"${nameVal}"`,
         `"${batchVal}"`,
         stockVal,
-        `"${unitVal}"`,
-        `"${expiryVal}"`,
-        `"${dilutionVal}"`
+        `"${unitVal}"`
       ];
     });
 
@@ -768,7 +1186,9 @@ export default function ChemicalInventory({ language, themeMode = "dark" }: Chem
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
     link.setAttribute("href", url);
-    link.setAttribute("download", `Chemical_Received_History_Report_${new Date().toISOString().split('T')[0]}.csv`);
+    
+    const monthSuffix = selectedMonthFilter !== "all" ? `_${selectedMonthFilter}` : "";
+    link.setAttribute("download", `Chemical_Received_History_Report${monthSuffix}_${new Date().toISOString().split('T')[0]}.csv`);
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -802,66 +1222,114 @@ export default function ChemicalInventory({ language, themeMode = "dark" }: Chem
       return;
     }
 
-    try {
-      const targetId = newChemName.trim().replace(/[^a-zA-Z0-9_-]/g, "_");
-      
-      const newChemData: any = { 
-        id: targetId,
-        name: newChemName,
-        receivedDate: newChemReceived || new Date().toISOString().split('T')[0],
-        dilution: newChemDilution || "N/A",
-        batch: newChemBatch || "N/A",
-        expiry: newChemExpiry || "2029-12-31",
-        stock: parseFloat(newChemStock) || 0,
-        unit: newChemUnit || "L",
-        alertThreshold: 1.0
-      };
+      try {
+        // Auto-add to registered catalog of names
+        addRegisteredName(newChemName);
 
-      // Update local state offline-first on screen instantly
-      let updatedChems: ChemicalRef[];
-      const existingChem = chemicals.find(c => c.name.toLowerCase() === newChemName.toLowerCase());
-      if (existingChem) {
-        newChemData.stock = parseFloat((existingChem.stock + parseFloat(newChemStock)).toFixed(3));
-        updatedChems = chemicals.map(c => c.name.toLowerCase() === newChemName.toLowerCase() ? { ...existingChem, ...newChemData } : c);
-        setChemicals(updatedChems);
-        localStorage.setItem("ALW_CHEMICAL_INVENTORY", JSON.stringify(updatedChems));
-        showToast(
-          language === "bn" ? `আগে থেকে থাকা "${newChemName}" কেমিক্যালের মজুদ বৃদ্ধি করা হয়েছে!` : `Successfully increased stock for existing chemical "${newChemName}"!`,
-          "success"
-        );
-      } else {
-        updatedChems = [newChemData, ...chemicals];
-        setChemicals(updatedChems);
-        localStorage.setItem("ALW_CHEMICAL_INVENTORY", JSON.stringify(updatedChems));
-        showToast(
-          language === "bn" ? `নতুন কেমিক্যাল সফলভাবে যুক্ত করা হয়েছে: ${newChemName}!` : `Successfully added new chemical: ${newChemName}!`,
-          "success"
-        );
-      }
+        const targetId = newChemName.trim().replace(/[^a-zA-Z0-9_-]/g, "_");
+        
+        const customExpiryVal = (newChemHighAlert.trim() && newChemMidAlert.trim() && newChemLowAlert.trim())
+          ? `${newChemHighAlert.trim()} / ${newChemMidAlert.trim()} / ${newChemLowAlert.trim()}`
+          : "2000 / 1000 / 500";
 
-      // Sync Firestore
-      saveDocument("chemicalInventory", newChemName, {
-        id: newChemName.replace(/[^a-zA-Z0-9_-]/g, "_"),
-        name: newChemName,
-        receivedDate: newChemReceived || new Date().toISOString().split('T')[0],
-        dilution: newChemDilution || "N/A",
-        batch: newChemBatch || "N/A",
-        expiry: newChemExpiry || "2029-12-31",
-        stock: parseFloat(newChemStock) || 0,
-        unit: newChemUnit || "L",
-        alertThreshold: 1.0
-      })
-      .then(() => fetchInventory())
-      .catch(err => {
-        console.warn("Failed to sync new chemical to Firestore:", err);
-      });
+        const newChemData: any = { 
+          id: targetId,
+          name: newChemName,
+          receivedDate: newChemReceived || new Date().toISOString().split('T')[0],
+          dilution: newChemDilution || "N/A",
+          batch: newChemBatch || "N/A",
+          expiry: customExpiryVal,
+          stock: parseFloat(newChemStock) || 0,
+          unit: newChemUnit || "L",
+          alertThreshold: 1.0
+        };
+  
+        // Update local state offline-first on screen instantly
+        let updatedChems: ChemicalRef[];
+        const existingChem = chemicals.find(c => c.name.toLowerCase() === newChemName.toLowerCase());
+        if (existingChem) {
+          let existingBatches = existingChem.batches ? [...existingChem.batches] : [];
+          if (existingBatches.length === 0) {
+            existingBatches = [{
+              batch: existingChem.batch || "N/A",
+              receivedDate: existingChem.receivedDate || new Date().toISOString().split('T')[0],
+              stock: existingChem.stock,
+              expiry: existingChem.expiry
+            }];
+          }
+          const newBatchItem = {
+            batch: newChemBatch || "N/A",
+            receivedDate: newChemReceived || new Date().toISOString().split('T')[0],
+            stock: parseFloat(newChemStock) || 0,
+            expiry: customExpiryVal
+          };
+          existingBatches.push(newBatchItem);
 
-      setNewChemName("");
-      setNewChemReceived("");
-      setNewChemDilution("");
-      setNewChemBatch("");
-      setNewChemExpiry("");
-      setNewChemStock("");
+          newChemData.stock = parseFloat((existingChem.stock + parseFloat(newChemStock)).toFixed(3));
+          newChemData.batch = existingBatches[0].batch;
+          newChemData.receivedDate = existingBatches[0].receivedDate;
+          newChemData.expiry = existingBatches[0].expiry || customExpiryVal;
+          newChemData.batches = existingBatches;
+          newChemData.dilution = existingChem.dilution || newChemData.dilution;
+          newChemData.unit = existingChem.unit || newChemData.unit;
+
+          updatedChems = chemicals.map(c => c.name.toLowerCase() === newChemName.toLowerCase() ? { ...existingChem, ...newChemData } : c);
+          setChemicals(updatedChems);
+          localStorage.setItem("ALW_CHEMICAL_INVENTORY", JSON.stringify(updatedChems));
+          showToast(
+            language === "bn" ? `আগে থেকে থাকা "${newChemName}" কেমিক্যালের মজুদ বৃদ্ধি করা হয়েছে!` : `Successfully increased stock for existing chemical "${newChemName}"!`,
+            "success"
+          );
+        } else {
+          newChemData.batches = [{
+            batch: newChemBatch || "N/A",
+            receivedDate: newChemReceived || new Date().toISOString().split('T')[0],
+            stock: parseFloat(newChemStock) || 0,
+            expiry: customExpiryVal
+          }];
+          updatedChems = [newChemData, ...chemicals];
+          setChemicals(updatedChems);
+          localStorage.setItem("ALW_CHEMICAL_INVENTORY", JSON.stringify(updatedChems));
+          showToast(
+            language === "bn" ? `নতুন কেমিক্যাল সফলভাবে যুক্ত করা হয়েছে: ${newChemName}!` : `Successfully added new chemical: ${newChemName}!`,
+            "success"
+          );
+        }
+  
+        // Sync Firestore
+        saveDocument("chemicalInventory", newChemName, newChemData)
+        .then(() => fetchInventory())
+        .catch(err => {
+          console.warn("Failed to sync new chemical to Firestore:", err);
+        });
+
+        // Add a permanent received log entry
+        const newLogEntry = {
+          id: `rec-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+          name: newChemName,
+          date: newChemReceived || new Date().toISOString().split('T')[0],
+          batch: newChemBatch || "N/A",
+          stock: parseFloat(newChemStock) || 0,
+          unit: newChemUnit || "L",
+          expiry: customExpiryVal,
+          dilution: newChemDilution || "N/A"
+        };
+        const updatedLogs = [newLogEntry, ...historyLogs];
+        setHistoryLogs(updatedLogs);
+        localStorage.setItem("ALW_STAR_CHEMICAL_RECEIVED_LOGS", JSON.stringify(updatedLogs));
+        saveStoreValue("chemicalReceivedLogs", updatedLogs).catch(err => {
+          console.warn("Failed to sync new received log to Firestore:", err);
+        });
+  
+        setNewChemName("");
+        setNewChemReceived("");
+        setNewChemDilution("");
+        setNewChemBatch("");
+        setNewChemExpiry("");
+        setNewChemHighAlert("");
+        setNewChemMidAlert("");
+        setNewChemLowAlert("");
+        setNewChemStock("");
     } catch (e) {
       console.warn("Error adding chemical locally:", e);
     }
@@ -898,6 +1366,300 @@ export default function ChemicalInventory({ language, themeMode = "dark" }: Chem
       );
     } catch (e) {
       console.warn("REST API delete failed for chemical, deleted locally:", e);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleDeleteBatch = async (chemName: string, batchIndex: number) => {
+    if (!canEdit) {
+      showToast(
+        language === "bn" ? "ব্যাচ মুছে ফেলার অনুমতি নেই!" : "Permission denied to delete batch!",
+        "error"
+      );
+      return;
+    }
+
+    try {
+      setLoading(true);
+
+      const chem = chemicals.find(c => c.name === chemName);
+      if (!chem) return;
+
+      const oldBatches = chem.batches ? [...chem.batches] : [];
+      if (batchIndex < 0 || batchIndex >= oldBatches.length) return;
+
+      // Filter out the deleted batch
+      const updatedBatches = oldBatches.filter((_, idx) => idx !== batchIndex);
+
+      // Recalculate total stock by summing up all remaining batches
+      const totalStock = parseFloat(updatedBatches.reduce((acc, curr) => acc + (parseFloat(curr.stock) || 0), 0).toFixed(3));
+
+      // Update the chemical data
+      const updatedChemData = {
+        ...chem,
+        batches: updatedBatches,
+        stock: totalStock,
+      };
+
+      // If there are still batches, update primary fields from the first batch
+      if (updatedBatches.length > 0) {
+        updatedChemData.batch = updatedBatches[0].batch;
+        updatedChemData.receivedDate = updatedBatches[0].receivedDate;
+        updatedChemData.expiry = updatedBatches[0].expiry || chem.expiry;
+      } else {
+        updatedChemData.stock = 0;
+      }
+
+      // Offline-First: update state and localStorage immediately
+      const updatedChems = chemicals.map(c => c.name === chemName ? { ...c, ...updatedChemData } : c);
+      setChemicals(updatedChems);
+      localStorage.setItem("ALW_CHEMICAL_INVENTORY", JSON.stringify(updatedChems));
+
+      // Sync to Firestore
+      await saveDocument("chemicalInventory", chemName, updatedChemData);
+      fetchInventory();
+
+      showToast(
+        language === "bn" ? `ব্যাচটি সফলভাবে মুছে ফেলা হয়েছে!` : `Successfully deleted the batch!`,
+        "success"
+      );
+    } catch (e) {
+      console.warn("REST API delete failed for batch:", e);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleDeleteHistoryLog = async (logId: string) => {
+    if (!canDelete) {
+      showToast(
+        language === "bn" ? "রেকর্ড মুছে ফেলার অনুমতি নেই!" : "Permission denied to delete history log!",
+        "error"
+      );
+      return;
+    }
+
+    try {
+      setLoading(true);
+
+      const targetLog = historyLogs.find(log => log.id === logId);
+      if (!targetLog) return;
+
+      // 1. Remove from historyLogs list
+      const updatedLogs = historyLogs.filter(log => log.id !== logId);
+      setHistoryLogs(updatedLogs);
+      localStorage.setItem("ALW_STAR_CHEMICAL_RECEIVED_LOGS", JSON.stringify(updatedLogs));
+      await saveStoreValue("chemicalReceivedLogs", updatedLogs);
+
+      // 2. Undo from chemicalInventory (deduct stock and remove/update batch)
+      const chemName = targetLog.name;
+      const chem = chemicals.find(c => c.name.toLowerCase() === chemName.toLowerCase());
+      if (chem) {
+        let batches = chem.batches ? [...chem.batches] : [];
+        if (batches.length === 0) {
+          batches = [{
+            batch: chem.batch || "N/A",
+            receivedDate: chem.receivedDate || "N/A",
+            stock: chem.stock,
+            expiry: chem.expiry || "2029-12-31"
+          }];
+        }
+
+        // Find the batch in this chemical that corresponds to the log
+        const logBatchNo = targetLog.batch || "N/A";
+        const logDate = targetLog.date || targetLog.receivedDate;
+        const logStock = parseFloat(targetLog.stock) || 0;
+
+        // Find exact or closest matching batch
+        let batchIndex = batches.findIndex(b => b.batch === logBatchNo && b.receivedDate === logDate);
+        if (batchIndex === -1) {
+          // Fallback to match by batch number only
+          batchIndex = batches.findIndex(b => b.batch === logBatchNo);
+        }
+
+        if (batchIndex !== -1) {
+          const matchedBatch = batches[batchIndex];
+          const newBatchStock = parseFloat((matchedBatch.stock - logStock).toFixed(3));
+          if (newBatchStock <= 0) {
+            batches.splice(batchIndex, 1);
+          } else {
+            batches[batchIndex] = {
+              ...matchedBatch,
+              stock: newBatchStock
+            };
+          }
+        }
+
+        const totalStock = parseFloat(batches.reduce((acc, curr) => acc + (parseFloat(curr.stock) || 0), 0).toFixed(3));
+        
+        if (totalStock <= 0 && batches.length === 0) {
+          const updatedChems = chemicals.filter(c => c.name.toLowerCase() !== chemName.toLowerCase());
+          setChemicals(updatedChems);
+          localStorage.setItem("ALW_CHEMICAL_INVENTORY", JSON.stringify(updatedChems));
+          await deleteDocument("chemicalInventory", chem.name);
+        } else {
+          const updatedChemData = {
+            ...chem,
+            batches: batches,
+            stock: totalStock
+          };
+
+          if (batches.length > 0) {
+            updatedChemData.batch = batches[0].batch;
+            updatedChemData.receivedDate = batches[0].receivedDate;
+            updatedChemData.expiry = batches[0].expiry || chem.expiry;
+          } else {
+            updatedChemData.stock = 0;
+          }
+
+          const updatedChems = chemicals.map(c => c.name.toLowerCase() === chemName.toLowerCase() ? { ...c, ...updatedChemData } : c);
+          setChemicals(updatedChems);
+          localStorage.setItem("ALW_CHEMICAL_INVENTORY", JSON.stringify(updatedChems));
+          await saveDocument("chemicalInventory", chem.name, updatedChemData);
+        }
+      }
+
+      showToast(
+        language === "bn" ? `প্রাপ্তি রেকর্ডটি সফলভাবে মুছে ফেলা হয়েছে!` : `Successfully deleted the received record!`,
+        "success"
+      );
+    } catch (e) {
+      console.warn("Delete history log failed:", e);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleDeleteUsageEntry = async (entry: UsageEntry) => {
+    if (!canDelete) {
+      showToast(
+        language === "bn" ? "ব্যবহার রেকর্ড মুছে ফেলার অনুমতি নেই!" : "Permission denied to delete chemical usage!",
+        "error"
+      );
+      return;
+    }
+
+    try {
+      setLoading(true);
+
+      const reportId = entry.reportId;
+      const targetRep = reports.find(r => r.id === reportId);
+      if (!targetRep) {
+        showToast(
+          language === "bn" ? "সংশ্লিষ্ট সার্ভিস রিপোর্ট পাওয়া যায়নি!" : "Associated service report not found!",
+          "error"
+        );
+        return;
+      }
+
+      // 1. Filter out the chemical from report's chemicals array
+      const oldChems = targetRep.chemicals ? [...targetRep.chemicals] : [];
+      const chemIndex = oldChems.findIndex(c => 
+        (c.name || "").toLowerCase() === entry.chemicalName.toLowerCase() && 
+        (c.used || "").toLowerCase() === entry.amountUsed.toLowerCase() &&
+        (c.batch || "N/A") === entry.batch
+      );
+
+      if (chemIndex === -1) {
+        showToast(
+          language === "bn" ? "কেমিক্যালের রেকর্ডটি রিপোর্টে খুঁজে পাওয়া যায়নি!" : "Chemical record not found in report!",
+          "error"
+        );
+        return;
+      }
+
+      oldChems.splice(chemIndex, 1);
+
+      const updatedRep = {
+        ...targetRep,
+        chemicals: oldChems
+      };
+
+      await saveDocument("serviceReports", reportId, updatedRep);
+
+      // 2. Refund the stock of this chemical in chemicalInventory
+      const chem = chemicals.find(c => c.name.toLowerCase() === entry.chemicalName.toLowerCase());
+      if (chem) {
+        const targetUnit = (chem.unit || "L").toLowerCase();
+        
+        const parseQtyHelper = (usedStr: string, tUnit: string) => {
+          if (!usedStr) return 0;
+          const numericVal = parseFloat(usedStr);
+          if (isNaN(numericVal)) return 0;
+          const clean = usedStr.toLowerCase().trim();
+          let srcUnit = "";
+          if (clean.includes("ml")) srcUnit = "ml";
+          else if (clean.includes("l")) srcUnit = "l";
+          else if (clean.includes("kg")) srcUnit = "kg";
+          else if (clean.includes("g") || clean.includes("gm") || clean.includes("gram")) srcUnit = "g";
+          else srcUnit = tUnit === "l" && numericVal >= 1.0 && numericVal <= 1000 ? "ml" : tUnit;
+          
+          if (srcUnit === tUnit) return numericVal;
+          if (srcUnit === "ml" && tUnit === "l") return numericVal / 1000;
+          if (srcUnit === "l" && tUnit === "ml") return numericVal * 1000;
+          if (srcUnit === "g" && tUnit === "kg") return numericVal / 1000;
+          if (srcUnit === "kg" && tUnit === "g") return numericVal * 1000;
+          return numericVal;
+        };
+
+        const refundQty = parseQtyHelper(entry.amountUsed, targetUnit);
+
+        let batches = chem.batches ? [...chem.batches] : [];
+        if (batches.length === 0) {
+          batches = [{
+            batch: chem.batch || "N/A",
+            receivedDate: chem.receivedDate || "N/A",
+            stock: chem.stock,
+            expiry: chem.expiry || "2029-12-31"
+          }];
+        }
+
+        const targetBatchNo = entry.batch || "N/A";
+        let batchIndex = batches.findIndex(b => b.batch === targetBatchNo);
+
+        if (batchIndex !== -1) {
+          const matchedBatch = batches[batchIndex];
+          batches[batchIndex] = {
+            ...matchedBatch,
+            stock: parseFloat((matchedBatch.stock + refundQty).toFixed(3))
+          };
+        } else {
+          batches.push({
+            batch: targetBatchNo,
+            receivedDate: targetRep.dateOfOperation || targetRep.startDate || new Date().toISOString().split('T')[0],
+            stock: refundQty,
+            expiry: chem.expiry || "2029-12-31"
+          });
+        }
+
+        const totalStock = parseFloat(batches.reduce((acc, curr) => acc + (parseFloat(curr.stock) || 0), 0).toFixed(3));
+
+        const updatedChemData = {
+          ...chem,
+          batches: batches,
+          stock: totalStock
+        };
+
+        if (batches.length > 0) {
+          updatedChemData.batch = batches[0].batch;
+          updatedChemData.receivedDate = batches[0].receivedDate;
+          updatedChemData.expiry = batches[0].expiry || chem.expiry;
+        }
+
+        const updatedChems = chemicals.map(c => c.name.toLowerCase() === entry.chemicalName.toLowerCase() ? { ...c, ...updatedChemData } : c);
+        setChemicals(updatedChems);
+        localStorage.setItem("ALW_CHEMICAL_INVENTORY", JSON.stringify(updatedChems));
+
+        await saveDocument("chemicalInventory", chem.name, updatedChemData);
+      }
+
+      showToast(
+        language === "bn" ? `ব্যবহার রেকর্ডটি সফলভাবে মুছে ফেলা হয়েছে এবং মজুদ ফেরত দেওয়া হয়েছে!` : `Successfully deleted chemical usage and refunded stock!`,
+        "success"
+      );
+    } catch (e) {
+      console.warn("Delete chemical usage failed:", e);
     } finally {
       setLoading(false);
     }
@@ -964,18 +1726,28 @@ export default function ChemicalInventory({ language, themeMode = "dark" }: Chem
                   <tr className={`border-b select-none font-mono text-[10px] uppercase tracking-wider font-extrabold ${isDark ? "bg-slate-800 border-slate-700 text-slate-100" : "bg-slate-200 border-slate-300 text-slate-900"}`}>
                     <th className={`p-3 border-r ${isDark ? "border-slate-700 text-slate-100" : "border-slate-300 text-slate-900"}`}>{t.chemName}</th>
                     <th className={`p-3 border-r ${isDark ? "border-slate-700 text-slate-100" : "border-slate-300 text-slate-900"}`}>{t.receivedDate}</th>
-                    <th className={`p-3 border-r ${isDark ? "border-slate-700 text-slate-100" : "border-slate-300 text-slate-900"}`}>{t.dilution}</th>
                     <th className={`p-3 border-r ${isDark ? "border-slate-700 text-slate-100" : "border-slate-300 text-slate-900"}`}>{t.batch}</th>
                     <th className={`p-3 border-r ${isDark ? "border-slate-700 text-slate-100" : "border-slate-300 text-slate-900"}`}>{t.remaining}</th>
-                    <th className={`p-3 border-r text-right ${isDark ? "border-slate-700 text-slate-100" : "border-slate-300 text-slate-900"}`}>{t.expiry}</th>
                     <th className={`p-3 text-center ${isDark ? "text-slate-100" : "text-slate-900"}`}>{language === "bn" ? "অ্যাকশন" : "Actions"}</th>
                   </tr>
                 </thead>
                 <tbody className={`divide-y font-semibold ${isDark ? "divide-slate-800 text-slate-300" : "divide-slate-200 text-slate-700"}`}>
                   {chemicals.map((chem, index) => {
-                    const threshold = chem.alertThreshold || 1.0;
-                    const isLow = chem.stock <= threshold;
-                    const isMedium = chem.stock > threshold && chem.stock <= threshold * 4;
+                    let highThresh = 4.0;
+                    let midThresh = 1.0;
+                    let lowThresh = 1.0;
+                    
+                    if (chem.expiry && chem.expiry.includes("/")) {
+                      const parts = chem.expiry.split("/").map(p => parseFloat(p.trim()));
+                      if (parts.length === 3 && !parts.some(isNaN)) {
+                        highThresh = parts[0];
+                        midThresh = parts[1];
+                        lowThresh = parts[2];
+                      }
+                    }
+
+                    const isLow = chem.stock < lowThresh;
+                    const isMedium = chem.stock >= lowThresh && chem.stock < highThresh;
                     
                     // Color statuses with strong high contrast for light/dark mode
                     let statusBg = isDark ? "bg-emerald-500/15" : "bg-emerald-50";
@@ -998,6 +1770,17 @@ export default function ChemicalInventory({ language, themeMode = "dark" }: Chem
                       dotColor = "bg-amber-500";
                     }
 
+                    const allActiveBatches = (chem.batches || [])
+                      .map((b: any, originalIndex: number) => ({ ...b, originalIndex }))
+                      .filter((b: any) => b.stock > 0);
+
+                    const firstBatch = allActiveBatches.length > 0 ? allActiveBatches[0] : null;
+                    const activeExtraBatches = allActiveBatches.slice(1);
+
+                    const firstBatchStock = firstBatch ? firstBatch.stock : chem.stock;
+                    const firstBatchDate = firstBatch ? firstBatch.receivedDate : (chem.receivedDate || "N/A");
+                    const firstBatchNo = firstBatch ? firstBatch.batch : (chem.batch || "N/A");
+
                     return (
                       <tr 
                         id={`chem-row-${chem.name}`} 
@@ -1007,37 +1790,77 @@ export default function ChemicalInventory({ language, themeMode = "dark" }: Chem
                         } ${isLow ? (isDark ? "bg-red-950/20" : "bg-red-50/30") : ""}`}
                       >
                         <td className={`p-3 border-r ${isDark ? "border-slate-800" : "border-slate-300"}`}>
-                          <div className="flex flex-col">
+                          <div className="flex flex-col justify-start">
                             <span className={`font-bold ${isDark ? "text-white" : "text-slate-950 font-extrabold"}`}>{chem.name}</span>
                             {isLow && (
                               <span className="text-[9px] text-red-500 uppercase font-mono mt-0.5 animate-pulse font-extrabold">⚠️ {language === "bn" ? "রি-অর্ডার প্রয়োজন!" : "Low Stock alert!"}</span>
                             )}
                           </div>
                         </td>
-                        <td className={`p-3 font-mono border-r font-extrabold ${isDark ? "border-slate-800 text-slate-200" : "border-slate-300 text-slate-900"}`}>{chem.receivedDate || "N/A"}</td>
-                        <td className={`p-3 font-mono border-r font-extrabold ${isDark ? "border-slate-800 text-slate-200" : "border-slate-300 text-slate-900"}`}>{chem.dilution}</td>
+                        <td className={`p-3 font-mono border-r font-extrabold ${isDark ? "border-slate-800 text-slate-200" : "border-slate-300 text-slate-900"}`}>
+                          <div className="flex flex-col gap-1.5 justify-start">
+                            <div className="h-6 flex items-center">
+                              <span>{firstBatchDate}</span>
+                            </div>
+                            {activeExtraBatches.map((b, bi) => (
+                              <div key={bi} className="h-6 flex items-center">
+                                <span className={`text-[10px] font-bold ${isDark ? "text-teal-400" : "text-teal-700"}`}>
+                                  + {b.receivedDate}
+                                </span>
+                              </div>
+                            ))}
+                          </div>
+                        </td>
                         <td className={`p-3 border-r ${isDark ? "border-slate-800" : "border-slate-300"}`}>
-                          <span className={`font-mono px-1.5 py-0.5 rounded border font-extrabold ${isDark ? "bg-slate-800 border-slate-700 text-slate-100" : "bg-slate-100 border-slate-300 text-slate-900"}`}>
-                            {chem.batch}
-                          </span>
+                          <div className="flex flex-col gap-1.5 items-start justify-start">
+                            <div className="h-6 flex items-center">
+                              <span className={`font-mono px-1.5 py-0.5 rounded border font-extrabold ${isDark ? "bg-slate-800 border-slate-700 text-slate-100" : "bg-slate-100 border-slate-300 text-slate-900"}`}>
+                                {firstBatchNo}
+                              </span>
+                            </div>
+                            {activeExtraBatches.map((b, bi) => (
+                              <div key={bi} className="h-6 flex items-center gap-1.5">
+                                <span className={`font-mono text-[9px] px-1 py-0.5 rounded border ${isDark ? "bg-slate-900/50 border-slate-800/80 text-slate-400" : "bg-slate-50 border-slate-200 text-slate-600"}`}>
+                                  {b.batch}
+                                </span>
+                                <button
+                                  type="button"
+                                  onClick={() => handleDeleteBatch(chem.name, b.originalIndex)}
+                                  className="p-0.5 rounded-md text-rose-500 hover:text-rose-400 hover:bg-rose-500/10 cursor-pointer active:scale-90 transition-all flex items-center justify-center shrink-0"
+                                  title={language === "bn" ? "ব্যাচটি মুছুন" : "Delete this batch"}
+                                >
+                                  <X className="w-3 h-3 stroke-[2.5px]" />
+                                </button>
+                              </div>
+                            ))}
+                          </div>
                         </td>
                         <td className={`p-3 border-r ${isDark ? "border-slate-800" : "border-slate-300"}`}>
                           <div className="flex flex-col gap-1.5 justify-start">
-                            <span className={`${statusTextCls} font-mono text-xs`}>
-                              {chem.stock} {chem.unit}
-                            </span>
-                            <span className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[9px] w-fit font-bold border ${statusBg} ${statusTextCls} ${statusBorder}`}>
-                              <span className={`w-1.5 h-1.5 rounded-full ${dotColor}`} />
-                              <span>{statusLabel}</span>
-                            </span>
+                            <div className="h-6 flex items-center">
+                              <span className={`${statusTextCls} font-mono text-xs`}>
+                                {firstBatchStock} {chem.unit}
+                              </span>
+                            </div>
+                            {activeExtraBatches.map((b, bi) => (
+                              <div key={bi} className="h-6 flex items-center">
+                                <span className={`text-[10px] font-bold ${isDark ? "text-indigo-400" : "text-indigo-600"} font-mono`}>
+                                  + {b.stock} {chem.unit}
+                                </span>
+                              </div>
+                            ))}
+                            <div className="mt-1">
+                              <span className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[9px] w-fit font-bold border ${statusBg} ${statusTextCls} ${statusBorder}`}>
+                                <span className={`w-1.5 h-1.5 rounded-full ${dotColor}`} />
+                                <span>{statusLabel}</span>
+                              </span>
+                            </div>
                           </div>
-                        </td>
-                        <td className={`p-3 text-right font-mono border-r font-extrabold ${isDark ? "border-slate-800 text-slate-200" : "border-slate-300 text-slate-900"}`}>
-                          {chem.expiry}
                         </td>
                         <td className="p-3 text-center">
                           <button
                             title={language === "bn" ? "মুছে ফেলুন" : "Delete chemical"}
+                            type="button"
                             onClick={() => handleDeleteChemical(chem.name)}
                             className="md:opacity-0 md:group-hover:opacity-100 md:pointer-events-none md:group-hover:pointer-events-auto transition-all duration-200 p-1.5 text-rose-500 hover:text-rose-400 hover:bg-rose-500/10 rounded-lg cursor-pointer inline-flex items-center justify-center active:scale-95"
                           >
@@ -1074,22 +1897,116 @@ export default function ChemicalInventory({ language, themeMode = "dark" }: Chem
             </h3>
             
             <form onSubmit={handleAddNewChemSubmit} className="space-y-3 text-xs font-semibold">
-              <div className="space-y-1">
+              <div className="space-y-1 relative" ref={nameDropdownRef}>
                 <label className={`block ${isDark ? "text-slate-300" : "text-slate-700"}`}>Name</label>
-                <input
-                  type="text"
-                  required
-                  placeholder="e.g. Fendona 1.5 SC"
-                  value={newChemName}
-                  onChange={(e) => handleNameChange(e.target.value)}
-                  list="name-suggestions"
-                  className={`w-full font-bold placeholder:font-medium rounded-xl py-2 px-3 outline-none border transition-all ${isDark ? "bg-[#0E172B] border-slate-700 text-white placeholder:text-slate-600 focus:border-indigo-500" : "bg-white border-slate-300 text-slate-900 placeholder:text-slate-400 focus:border-indigo-550"}`}
-                />
-                <datalist id="name-suggestions">
-                  {chemicals.map((c) => (
-                    <option key={c.name} value={c.name} />
-                  ))}
-                </datalist>
+                <div className="relative flex items-center">
+                  <input
+                    type="text"
+                    required
+                    placeholder="e.g. Fendona 1.5 SC"
+                    value={newChemName}
+                    onChange={(e) => {
+                      handleNameChange(e.target.value);
+                      setShowNameSuggestions(true);
+                    }}
+                    onFocus={() => setShowNameSuggestions(true)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault();
+                        if (newChemName.trim()) {
+                          addRegisteredName(newChemName);
+                        }
+                      }
+                    }}
+                    className={`w-full font-bold placeholder:font-medium rounded-xl py-2 pl-3 pr-16 outline-none border transition-all ${isDark ? "bg-[#0E172B] border-slate-700 text-white placeholder:text-slate-600 focus:border-indigo-500" : "bg-white border-slate-300 text-slate-900 placeholder:text-slate-400 focus:border-indigo-550"}`}
+                  />
+                  {newChemName && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        clearForm();
+                      }}
+                      className="absolute right-9 p-1 rounded-full text-slate-400 hover:text-slate-600 dark:hover:text-white hover:bg-slate-200/50 dark:hover:bg-slate-700/50 cursor-pointer transition-all flex items-center justify-center active:scale-90"
+                      title={language === "bn" ? "সব মুছুন" : "Clear field"}
+                    >
+                      <X className="w-3.5 h-3.5 stroke-[2.5px]" />
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => setShowNameSuggestions(!showNameSuggestions)}
+                    className="absolute right-3 p-1 text-slate-400 hover:text-slate-600 dark:hover:text-white hover:bg-slate-200/50 dark:hover:bg-slate-700/50 rounded-full cursor-pointer transition-all flex items-center justify-center active:scale-90"
+                    title={language === "bn" ? "তালিকা দেখান" : "Toggle suggestions list"}
+                  >
+                    <ChevronDown className={`w-4 h-4 transition-transform duration-200 ${showNameSuggestions ? "rotate-180" : ""}`} />
+                  </button>
+                </div>
+                
+                {/* Custom Name Dropdown / Suggestions with Add/Delete controls (Always White/Beige Box per uploaded image) */}
+                {showNameSuggestions && (
+                  <div className="absolute z-50 left-0 top-[calc(100%+8px)] w-80 max-h-76 overflow-y-auto rounded-[22px] bg-[#ECEFE4] p-4 shadow-[0_15px_45px_rgba(0,0,0,0.3)] border border-[#C5CAB6] transition-all before:content-[''] before:absolute before:-top-1.5 before:left-8 before:w-3 before:h-3 before:bg-[#ECEFE4] before:rotate-45 [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:bg-[#A2A992] [&::-webkit-scrollbar-thumb]:rounded-full">
+                    
+                    {/* Elegantly Crafted Header */}
+                    {(() => {
+                      const filtered = registeredChemicalNames.filter(n => 
+                        !newChemName || n.toLowerCase().includes(newChemName.toLowerCase())
+                      );
+                      
+                      return (
+                        <>
+                          <div className="flex items-center justify-between pb-2 mb-2 border-b border-[#D2D8C3] select-none">
+                            <span className="text-[10px] uppercase font-bold tracking-wider text-[#5A634E] flex items-center gap-1.5">
+                              <FlaskConical className="w-3.5 h-3.5 text-indigo-600 shrink-0" />
+                              {language === "bn" ? "রেজিস্টার্ড কেমিক্যাল" : "Registered Catalog"}
+                            </span>
+                            <span className="text-[10px] px-2 py-0.5 rounded-full bg-[#D7DCCE] text-[#4A533D] font-mono font-bold">
+                              {filtered.length}
+                            </span>
+                          </div>
+
+                          <div className="space-y-1 max-h-48 overflow-y-auto pr-0.5 [&::-webkit-scrollbar]:w-1 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:bg-slate-400/20 [&::-webkit-scrollbar-thumb]:rounded-full">
+                            {filtered.length === 0 ? (
+                              <div className="p-4 text-center text-[#6A725D] text-xs font-bold">
+                                {language === "bn" ? "কোনো নাম পাওয়া যায়নি" : "No registered names found"}
+                              </div>
+                            ) : (
+                              filtered.map((name, idx) => (
+                                <div 
+                                  key={idx}
+                                  onClick={() => {
+                                    handleNameChange(name);
+                                    setShowNameSuggestions(false);
+                                  }}
+                                  className="w-full text-left px-3 py-2 rounded-xl cursor-pointer font-bold text-xs text-[#3D4533] hover:text-[#1D2217] hover:bg-[#D5DAC9] transition-all duration-150 select-none truncate"
+                                >
+                                  {name}
+                                </div>
+                              ))
+                            )}
+                          </div>
+
+                          {/* Add typed name directly to the catalog */}
+                          {newChemName.trim() && !registeredChemicalNames.some(n => n.toLowerCase() === newChemName.trim().toLowerCase()) && (
+                            <div className="mt-2.5 pt-2 border-t border-dashed border-[#C4CBBA]">
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  addRegisteredName(newChemName);
+                                }}
+                                className="w-full flex items-center justify-center gap-2 py-2 px-3 rounded-xl text-xs font-bold border border-emerald-600/20 bg-emerald-600/10 text-emerald-800 hover:bg-emerald-600/20 hover:border-emerald-600/30 active:scale-[0.98] transition-all cursor-pointer"
+                              >
+                                <Plus className="w-4 h-4 text-emerald-700" />
+                                <span>
+                                  {language === "bn" ? `"${newChemName}" কে তালিকায় যুক্ত করুন` : `Add "${newChemName}" to list`}
+                                </span>
+                              </button>
+                            </div>
+                          )}
+                        </>
+                      );
+                    })()}
+                  </div>
+                )}
               </div>
               <div className="space-y-1">
                 <label className={`block ${isDark ? "text-slate-300" : "text-slate-700"}`}>{language === "bn" ? "গ্রহণের তারিখ" : "Received Date"}</label>
@@ -1101,41 +2018,20 @@ export default function ChemicalInventory({ language, themeMode = "dark" }: Chem
                 />
               </div>
               <div className="space-y-1">
-                <label className={`block ${isDark ? "text-slate-300" : "text-slate-700"}`}>Expiry Date</label>
+                <label className={`block ${isDark ? "text-slate-300" : "text-slate-700"}`}>Batch No</label>
                 <input
-                  type="date"
-                  value={newChemExpiry}
-                  onChange={(e) => setNewChemExpiry(e.target.value)}
+                  type="text"
+                  placeholder="e.g. X1-99"
+                  value={newChemBatch}
+                  onChange={(e) => handleBatchNoChange(e.target.value)}
+                  list="batch-suggestions"
                   className={`w-full font-bold placeholder:font-medium rounded-xl py-2 px-3 outline-none border transition-all ${isDark ? "bg-[#0E172B] border-slate-700 text-white placeholder:text-slate-605 focus:border-indigo-500" : "bg-white border-slate-300 text-slate-900 placeholder:text-slate-400 focus:border-indigo-550"}`}
                 />
-              </div>
-              <div className="flex gap-2">
-                <div className="space-y-1 flex-1">
-                  <label className={`block ${isDark ? "text-slate-300" : "text-slate-700"}`}>Dilution Rate</label>
-                  <input
-                    type="text"
-                    placeholder="e.g. 10ml / 1L"
-                    value={newChemDilution}
-                    onChange={(e) => setNewChemDilution(e.target.value)}
-                    className={`w-full font-bold placeholder:font-medium rounded-xl py-2 px-3 outline-none border transition-all ${isDark ? "bg-[#0E172B] border-slate-700 text-white placeholder:text-slate-605 focus:border-indigo-500" : "bg-white border-slate-300 text-slate-900 placeholder:text-slate-400 focus:border-indigo-550"}`}
-                  />
-                </div>
-                <div className="space-y-1 flex-1">
-                  <label className={`block ${isDark ? "text-slate-300" : "text-slate-700"}`}>Batch No</label>
-                  <input
-                    type="text"
-                    placeholder="e.g. X1-99"
-                    value={newChemBatch}
-                    onChange={(e) => handleBatchNoChange(e.target.value)}
-                    list="batch-suggestions"
-                    className={`w-full font-bold placeholder:font-medium rounded-xl py-2 px-3 outline-none border transition-all ${isDark ? "bg-[#0E172B] border-slate-700 text-white placeholder:text-slate-605 focus:border-indigo-500" : "bg-white border-slate-300 text-slate-900 placeholder:text-slate-400 focus:border-indigo-550"}`}
-                  />
-                  <datalist id="batch-suggestions">
-                    {chemicals.map((c) => (
-                      c.batch && c.batch !== "N/A" ? <option key={c.batch} value={c.batch} /> : null
-                    ))}
-                  </datalist>
-                </div>
+                <datalist id="batch-suggestions">
+                  {chemicals.map((c) => (
+                    c.batch && c.batch !== "N/A" ? <option key={c.batch} value={c.batch} /> : null
+                  ))}
+                </datalist>
               </div>
               <div className="flex gap-2">
                 <div className="space-y-1 flex-[2]">
@@ -1296,7 +2192,7 @@ export default function ChemicalInventory({ language, themeMode = "dark" }: Chem
 
       {/* Custom Delete Confirmation Modal */}
       {deleteConfirmName && (
-        <div className="fixed inset-0 bg-slate-950/70 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+        <div className="fixed inset-0 bg-slate-950/70 backdrop-blur-sm flex items-center justify-center z-[100] p-4">
           <div className={`p-6 rounded-2xl max-w-sm w-full border shadow-2xl transition-all scale-100 ${isDark ? "bg-[#1E293B] border-slate-705 text-white" : "bg-white border-slate-200 text-slate-900"}`}>
             <div className="flex items-center gap-3 text-rose-500 mb-3">
               <AlertOctagon className="w-6 h-6 animate-pulse shrink-0" />
@@ -1323,6 +2219,82 @@ export default function ChemicalInventory({ language, themeMode = "dark" }: Chem
                   const name = deleteConfirmName;
                   setDeleteConfirmName(null);
                   executeDeleteChemical(name);
+                }}
+                className="px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold rounded-xl shadow-md transition-colors"
+              >
+                {language === "bn" ? "হ্যাঁ, মুছে ফেলুন" : "Yes, Delete"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {logToDelete && (
+        <div className="fixed inset-0 bg-slate-950/70 backdrop-blur-sm flex items-center justify-center z-[100] p-4">
+          <div className={`p-6 rounded-2xl max-w-sm w-full border shadow-2xl transition-all scale-100 ${isDark ? "bg-[#1E293B] border-slate-705 text-white" : "bg-white border-slate-200 text-slate-900"}`}>
+            <div className="flex items-center gap-3 text-rose-500 mb-3">
+              <AlertOctagon className="w-6 h-6 animate-pulse shrink-0" />
+              <h4 className="font-bold text-sm tracking-tight">
+                {language === "bn" ? "রেকর্ড মুছে ফেলার নিশ্চিতকরণ" : "Confirm Record Deletion"}
+              </h4>
+            </div>
+            <p className="text-xs leading-relaxed mb-6 text-slate-400">
+              {language === "bn" 
+                ? `আপনি কি সত্যিই "${logToDelete.name}" কেমিক্যালের এই প্রাপ্তি রেকর্ডটি মুছে ফেলতে চান? এটি মুছে ফেললে বর্তমান স্টক থেকে পরিমাণটি বিয়োগ করা হবে।`
+                : `Are you sure you want to delete this received record for "${logToDelete.name}"? This will subtract the received stock from the current inventory.`}
+            </p>
+            <div className="flex gap-2.5 justify-end">
+              <button
+                type="button"
+                onClick={() => setLogToDelete(null)}
+                className={`px-4 py-2 rounded-xl text-xs font-bold border transition-colors ${isDark ? "bg-slate-800 border-slate-700 text-slate-300 hover:bg-slate-700" : "bg-slate-100 border-slate-300 text-slate-700 hover:bg-slate-250"}`}
+              >
+                {language === "bn" ? "বাতিল" : "Cancel"}
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  const logId = logToDelete.id;
+                  setLogToDelete(null);
+                  handleDeleteHistoryLog(logId);
+                }}
+                className="px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold rounded-xl shadow-md transition-colors"
+              >
+                {language === "bn" ? "হ্যাঁ, মুছে ফেলুন" : "Yes, Delete"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {usageToDelete && (
+        <div className="fixed inset-0 bg-slate-950/70 backdrop-blur-sm flex items-center justify-center z-[100] p-4">
+          <div className={`p-6 rounded-2xl max-w-sm w-full border shadow-2xl transition-all scale-100 ${isDark ? "bg-[#1E293B] border-slate-705 text-white" : "bg-white border-slate-200 text-slate-900"}`}>
+            <div className="flex items-center gap-3 text-rose-500 mb-3">
+              <AlertOctagon className="w-6 h-6 animate-pulse shrink-0" />
+              <h4 className="font-bold text-sm tracking-tight">
+                {language === "bn" ? "ব্যবহার মুছে ফেলার নিশ্চিতকরণ" : "Confirm Usage Deletion"}
+              </h4>
+            </div>
+            <p className="text-xs leading-relaxed mb-6 text-slate-400">
+              {language === "bn" 
+                ? `আপনি কি সত্যিই "${usageToDelete.chemicalName}" কেমিক্যালের এই ব্যবহারের রেকর্ডটি মুছে ফেলতে চান? এটি মুছে ফেললে কেমিক্যাল স্টক ফেরত দেওয়া হবে।`
+                : `Are you sure you want to delete this usage record for "${usageToDelete.chemicalName}"? This will refund the consumed stock back to inventory.`}
+            </p>
+            <div className="flex gap-2.5 justify-end">
+              <button
+                type="button"
+                onClick={() => setUsageToDelete(null)}
+                className={`px-4 py-2 rounded-xl text-xs font-bold border transition-colors ${isDark ? "bg-slate-800 border-slate-700 text-slate-300 hover:bg-slate-700" : "bg-slate-100 border-slate-300 text-slate-700 hover:bg-slate-250"}`}
+              >
+                {language === "bn" ? "বাতিল" : "Cancel"}
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  const entry = usageToDelete;
+                  setUsageToDelete(null);
+                  handleDeleteUsageEntry(entry);
                 }}
                 className="px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold rounded-xl shadow-md transition-colors"
               >
@@ -1367,7 +2339,7 @@ export default function ChemicalInventory({ language, themeMode = "dark" }: Chem
 
             {/* Modal Body & Filtering */}
             <div className={`p-4 sm:p-5 space-y-4 flex-1 overflow-y-auto ${isDark ? "bg-[#0F172A]" : "bg-white"}`}>
-              <div className="flex flex-col sm:flex-row gap-3 items-stretch sm:items-center justify-between">
+              <div className="flex flex-col md:flex-row gap-3 items-stretch md:items-center justify-between">
                 
                 {/* Search Bar */}
                 <div className="relative flex-1">
@@ -1385,6 +2357,29 @@ export default function ChemicalInventory({ language, themeMode = "dark" }: Chem
                         : "bg-white border-slate-400 text-slate-900 placeholder:text-slate-500 focus:border-indigo-600 focus:ring-1 focus:ring-indigo-600 font-bold"
                     }`}
                   />
+                </div>
+
+                {/* Month Dropdown Selector */}
+                <div className="flex items-center gap-2">
+                  <span className={`text-[11px] font-extrabold whitespace-nowrap ${isDark ? "text-slate-300" : "text-slate-600"}`}>
+                    {language === "bn" ? "মাস অনুযায়ী ফিল্টার:" : "Filter Month:"}
+                  </span>
+                  <select
+                    value={selectedMonthFilter}
+                    onChange={(e) => setSelectedMonthFilter(e.target.value)}
+                    className={`text-xs font-bold rounded-xl py-2 px-3 outline-none border transition-all ${
+                      isDark 
+                        ? "bg-[#0E172B] border-slate-700 text-white focus:border-indigo-500" 
+                        : "bg-white border-slate-300 text-slate-900 focus:border-indigo-600 font-bold"
+                    }`}
+                  >
+                    <option value="all">{language === "bn" ? "সব মাস (All)" : "All Months"}</option>
+                    {getUniqueMonths().map(mKey => (
+                      <option key={mKey} value={mKey}>
+                        {formatMonthKey(mKey, language)}
+                      </option>
+                    ))}
+                  </select>
                 </div>
 
                 {/* CSV Download Button in Sheets */}
@@ -1411,21 +2406,43 @@ export default function ChemicalInventory({ language, themeMode = "dark" }: Chem
                         <th className={`py-2.5 px-3 border-r min-w-[110px] ${isDark ? "border-slate-700" : "border-slate-300"}`}>{language === "bn" ? "গ্রহণের তারিখ" : "Date Received"}</th>
                         <th className={`py-2.5 px-3 border-r min-w-[160px] ${isDark ? "border-slate-700" : "border-slate-300"}`}>{language === "bn" ? "কেমিক্যালের নাম" : "Chemical Name"}</th>
                         <th className={`py-2.5 px-3 border-r min-w-[90px] ${isDark ? "border-slate-700" : "border-slate-300"}`}>{language === "bn" ? "ব্যাচ নং" : "Batch No"}</th>
-                        <th className={`py-2.5 px-3 border-r text-center min-w-[100px] ${isDark ? "border-slate-700" : "border-slate-300"}`}>{language === "bn" ? "পরিমাণ" : "Qty Received"}</th>
-                        <th className={`py-2.5 px-3 border-r min-w-[110px] ${isDark ? "border-slate-700" : "border-slate-300"}`}>{language === "bn" ? "মেয়াদ চর্তুথী" : "Expiry Date"}</th>
-                        <th className="py-2.5 px-3 min-w-[110px]">{language === "bn" ? "জলীয় মিশ্রণ হার" : "Dilution Rate"}</th>
+                        <th className={`py-2.5 px-3 text-center min-w-[100px] border-r ${isDark ? "border-slate-700" : "border-slate-300"}`}>{language === "bn" ? "পরিমাণ" : "Qty Received"}</th>
+                        <th className="py-2.5 px-3 text-center w-12"></th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-150 dark:divide-slate-850 font-mono text-[11px]">
                       {historyLogs
                         .filter(log => {
-                          if (!historySearch) return true;
                           const q = historySearch.toLowerCase();
-                          return (
+                          const matchesSearch = !historySearch || (
                             (log.name || "").toLowerCase().includes(q) ||
                             (log.date || "").toLowerCase().includes(q) ||
                             (log.batch || "").toLowerCase().includes(q)
                           );
+
+                          if (selectedMonthFilter === "all") return matchesSearch;
+                          const dateStr = log.date || log.receivedDate || "";
+                          if (!dateStr) return false;
+                          let year = "";
+                          let monthNum = "";
+                          if (dateStr.includes("-")) {
+                            const parts = dateStr.split("-");
+                            year = parts[0];
+                            monthNum = parts[1];
+                          } else if (dateStr.includes("/")) {
+                            const parts = dateStr.split("/");
+                            if (parts.length === 3) {
+                              if (parts[2].length === 4) {
+                                year = parts[2];
+                                monthNum = parts[1];
+                              } else if (parts[0].length === 4) {
+                                year = parts[0];
+                                monthNum = parts[1];
+                              }
+                            }
+                          }
+                          const logMonthKey = `${year}-${monthNum.padStart(2, "0")}`;
+                          return matchesSearch && logMonthKey === selectedMonthFilter;
                         })
                         .map((log, index) => (
                           <tr 
@@ -1438,22 +2455,53 @@ export default function ChemicalInventory({ language, themeMode = "dark" }: Chem
                             <td className={`py-3 px-3 border-r font-extrabold whitespace-nowrap ${isDark ? "border-slate-800 text-teal-400" : "border-slate-300 text-teal-700"}`}>{log.date || log.receivedDate || "N/A"}</td>
                             <td className={`py-3 px-3 font-sans font-bold border-r max-w-[200px] truncate ${isDark ? "border-slate-800 text-white" : "border-slate-300 text-slate-900"}`}>{log.name}</td>
                             <td className={`py-3 px-3 border-r font-extrabold ${isDark ? "border-slate-800 text-slate-300" : "border-slate-300 text-slate-800"}`}>{log.batch || "N/A"}</td>
-                            <td className={`py-3 px-3 text-center border-r font-extrabold ${isDark ? "border-slate-800 text-indigo-400" : "border-slate-300 text-indigo-700"}`}>{log.stock} <span className="text-[9px] text-[#94A3B8] lowercase">{log.unit || "L"}</span></td>
-                            <td className={`py-3 px-3 border-r font-extrabold whitespace-nowrap ${isDark ? "border-slate-800 text-rose-400" : "border-slate-300 text-rose-700"}`}>{log.expiry || "N/A"}</td>
-                            <td className={`py-3 px-3 font-extrabold ${isDark ? "text-slate-300" : "text-slate-800"}`}>{log.dilution || "N/A"}</td>
+                            <td className={`py-3 px-3 text-center font-extrabold border-r ${isDark ? "border-slate-800 text-indigo-400" : "border-slate-300 text-indigo-700"}`}>{log.stock} <span className="text-[9px] text-[#94A3B8] lowercase">{getChemicalUnit(log)}</span></td>
+                            <td className="py-3 px-3 text-center">
+                              <button
+                                type="button"
+                                onClick={() => setLogToDelete(log)}
+                                className="p-1 rounded-lg text-rose-500 hover:text-rose-600 hover:bg-rose-500/10 transition-all cursor-pointer inline-flex items-center justify-center"
+                                title={language === "bn" ? "মুছে ফেলুন" : "Delete"}
+                              >
+                                <X className="w-4 h-4 stroke-[2.5]" />
+                              </button>
+                            </td>
                           </tr>
                         ))}
                       {historyLogs.filter(log => {
-                        if (!historySearch) return true;
                         const q = historySearch.toLowerCase();
-                        return (
+                        const matchesSearch = !historySearch || (
                           (log.name || "").toLowerCase().includes(q) ||
                           (log.date || "").toLowerCase().includes(q) ||
                           (log.batch || "").toLowerCase().includes(q)
                         );
+
+                        if (selectedMonthFilter === "all") return matchesSearch;
+                        const dateStr = log.date || log.receivedDate || "";
+                        if (!dateStr) return false;
+                        let year = "";
+                        let monthNum = "";
+                        if (dateStr.includes("-")) {
+                          const parts = dateStr.split("-");
+                          year = parts[0];
+                          monthNum = parts[1];
+                        } else if (dateStr.includes("/")) {
+                          const parts = dateStr.split("/");
+                          if (parts.length === 3) {
+                            if (parts[2].length === 4) {
+                              year = parts[2];
+                              monthNum = parts[1];
+                            } else if (parts[0].length === 4) {
+                              year = parts[0];
+                              monthNum = parts[1];
+                            }
+                          }
+                        }
+                        const logMonthKey = `${year}-${monthNum.padStart(2, "0")}`;
+                        return matchesSearch && logMonthKey === selectedMonthFilter;
                       }).length === 0 && (
                         <tr>
-                          <td colSpan={7} className={`p-8 text-center font-bold font-sans text-xs ${isDark ? "text-slate-300 bg-slate-900/40" : "text-slate-800 bg-slate-100/40"}`}>
+                          <td colSpan={6} className={`p-8 text-center font-bold font-sans text-xs ${isDark ? "text-slate-300 bg-slate-900/40" : "text-slate-800 bg-slate-100/40"}`}>
                             {language === "bn" ? "কোন তথ্য খুঁজে পাওয়া যায় নি।" : "No matches found. Try modifying your search criteria."}
                           </td>
                         </tr>
@@ -1570,12 +2618,26 @@ export default function ChemicalInventory({ language, themeMode = "dark" }: Chem
                       return (
                         <div key={monthKey} className="space-y-2">
                           {/* Month Heading */}
-                          <div className="flex items-center gap-2 px-1">
-                            <Calendar className="w-4 h-4 text-violet-500" />
-                            <h4 className={`text-xs font-extrabold uppercase tracking-wider ${isDark ? "text-slate-200" : "text-slate-900"}`}>
-                              {monthKey} ({monthEntries.length} {language === "bn" ? "টি ব্যবহার" : "usages"})
-                            </h4>
-                            <div className={`flex-1 h-px ml-2 ${isDark ? "bg-slate-800" : "bg-slate-300"}`} />
+                          <div className="flex items-center justify-between gap-2 px-1">
+                            <div className="flex items-center gap-2">
+                              <Calendar className="w-4 h-4 text-violet-500" />
+                              <h4 className={`text-xs font-extrabold uppercase tracking-wider ${isDark ? "text-slate-200" : "text-slate-900"}`}>
+                                {monthKey} ({monthEntries.length} {language === "bn" ? "টি ব্যবহার" : "usages"})
+                              </h4>
+                            </div>
+                            <div className="flex items-center gap-2 flex-1">
+                              <div className={`flex-1 h-px ml-2 ${isDark ? "bg-slate-800" : "bg-slate-300"}`} />
+                              <button
+                                type="button"
+                                onClick={() => downloadMonthServiceReportCSV(monthKey, monthEntries)}
+                                className="px-3 py-1 bg-violet-600 hover:bg-violet-700 text-white text-[10px] font-black rounded-lg flex items-center gap-1.5 transition-all active:scale-95 cursor-pointer whitespace-nowrap shadow-sm hover:shadow-md"
+                              >
+                                <Download className="w-3 h-3 shrink-0" />
+                                <span>
+                                  {language === "bn" ? `${monthKey} ডাউনলোড করুন` : `Download ${monthKey}`}
+                                </span>
+                              </button>
+                            </div>
                           </div>
 
                           {/* Table Container */}
@@ -1588,7 +2650,8 @@ export default function ChemicalInventory({ language, themeMode = "dark" }: Chem
                                     <th className={`py-2 px-3 border-r min-w-[200px] ${isDark ? "border-slate-700" : "border-slate-300"}`}>{language === "bn" ? "হসপিটাল / ক্লিনিক এর নাম" : "Hospital / Clinic Name"}</th>
                                     <th className={`py-2 px-3 border-r min-w-[95px] ${isDark ? "border-slate-700" : "border-slate-300"}`}>{language === "bn" ? "ডেট" : "Date"}</th>
                                     <th className={`py-2 px-3 border-r min-w-[200px] ${isDark ? "border-slate-700" : "border-slate-300"}`}>{language === "bn" ? "ব্যবহৃত কেমিক্যাল এবং পরিমাণ" : "Chemical Used & Consumed"}</th>
-                                    <th className="py-2 px-3 min-w-[90px]">{language === "bn" ? "ব্যাচ নং" : "Batch No"}</th>
+                                    <th className={`py-2 px-3 min-w-[90px] border-r ${isDark ? "border-slate-700" : "border-slate-300"}`}>{language === "bn" ? "ব্যাচ নং" : "Batch No"}</th>
+                                    <th className="py-2 px-3 text-center w-12"></th>
                                   </tr>
                                 </thead>
                                 <tbody className={`divide-y font-semibold ${isDark ? "divide-slate-800 text-slate-300" : "divide-slate-200 text-slate-700"}`}>
@@ -1642,8 +2705,20 @@ export default function ChemicalInventory({ language, themeMode = "dark" }: Chem
                                       </td>
 
                                       {/* Batch No */}
-                                      <td className={`py-3 px-3 font-mono text-[11px] font-extrabold ${isDark ? "text-slate-300" : "text-slate-900"}`}>
+                                      <td className={`py-3 px-3 font-mono text-[11px] font-extrabold border-r ${isDark ? "border-slate-800 text-slate-300" : "border-slate-300 text-slate-900"}`}>
                                         {entry.batch}
+                                      </td>
+
+                                      {/* Action Column */}
+                                      <td className="py-3 px-3 text-center">
+                                        <button
+                                          type="button"
+                                          onClick={() => setUsageToDelete(entry)}
+                                          className="p-1 rounded-lg text-rose-500 hover:text-rose-600 hover:bg-rose-500/10 transition-all cursor-pointer inline-flex items-center justify-center"
+                                          title={language === "bn" ? "মুছে ফেলুন" : "Delete"}
+                                        >
+                                          <X className="w-4 h-4 stroke-[2.5]" />
+                                        </button>
                                       </td>
                                     </tr>
                                   ))}
@@ -1965,17 +3040,47 @@ export default function ChemicalInventory({ language, themeMode = "dark" }: Chem
 
                       if (!matchedChem || isNewBatch) {
                         const targetId = trimmedName.replace(/[^a-zA-Z0-9_-]/g, "_");
-                        const newChemData = {
+                        const newChemData: any = {
                           id: targetId,
                           name: trimmedName,
                           receivedDate: matchedChem ? (matchedChem.receivedDate || "N/A") : new Date().toISOString().split('T')[0],
                           dilution: matchedChem ? (matchedChem.dilution || "N/A") : "N/A",
                           batch: trimmedBatch,
                           expiry: matchedChem ? (matchedChem.expiry || "2029-12-31") : "2029-12-31",
-                          stock: 0,
+                          stock: matchedChem ? matchedChem.stock : 0,
                           unit: reqInputUnit,
-                          alertThreshold: 1.0
+                          alertThreshold: 1.0,
+                          batches: matchedChem ? (matchedChem.batches || []) : []
                         };
+
+                        if (isNewBatch && matchedChem) {
+                          // Seed initial batches if empty
+                          if (newChemData.batches.length === 0) {
+                            newChemData.batches = [{
+                              batch: matchedChem.batch || "N/A",
+                              receivedDate: matchedChem.receivedDate || new Date().toISOString().split('T')[0],
+                              stock: matchedChem.stock,
+                              expiry: matchedChem.expiry
+                            }];
+                          }
+                          const batchExists = newChemData.batches.some((b: any) => b.batch === trimmedBatch);
+                          if (!batchExists) {
+                            newChemData.batches.push({
+                              batch: trimmedBatch,
+                              receivedDate: new Date().toISOString().split('T')[0],
+                              stock: 0,
+                              expiry: matchedChem.expiry || "2029-12-31"
+                            });
+                          }
+                        } else if (!matchedChem) {
+                          newChemData.batches = [{
+                            batch: trimmedBatch,
+                            receivedDate: new Date().toISOString().split('T')[0],
+                            stock: 0,
+                            expiry: "2029-12-31"
+                          }];
+                        }
+
                         saveDocument("chemicalInventory", trimmedName, newChemData)
                         .then(() => fetchInventory())
                         .catch(err => {
@@ -2854,7 +3959,7 @@ export default function ChemicalInventory({ language, themeMode = "dark" }: Chem
 
       {/* Custom Delete Confirmation Modal */}
       {deleteConfirmName && (
-        <div className="fixed inset-0 bg-slate-950/70 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+        <div className="fixed inset-0 bg-slate-950/70 backdrop-blur-sm flex items-center justify-center z-[100] p-4">
           <div className={`p-6 rounded-2xl max-w-sm w-full border shadow-2xl transition-all scale-100 ${isDark ? "bg-[#1E293B] border-slate-700 text-white" : "bg-white border-slate-200 text-slate-900"}`}>
             <div className="flex items-center gap-3 text-rose-500 mb-3">
               <AlertOctagon className="w-6 h-6 animate-pulse shrink-0" />

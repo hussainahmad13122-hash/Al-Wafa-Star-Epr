@@ -146,6 +146,78 @@ const addDaysToDate = (dateStr: string, days: number): string => {
   return `${nextY}-${nextM}-${nextD}`;
 };
 
+const isEmirateMatch = (allowed: string, target: string): boolean => {
+  if (!allowed || !target) return false;
+  const aLower = allowed.toLowerCase().trim();
+  const tLower = target.toLowerCase().trim();
+
+  // Helper to get normalized keys for emirates
+  const getKeys = (text: string): string[] => {
+    const keys: string[] = [text];
+    
+    // Dubai
+    if (text.includes("dubai") || text.includes("dubay")) {
+      keys.push("dubai", "dubay");
+    }
+    // Sharjah
+    if (text.includes("sharjah") || text.includes("sharh") || text.includes("sharja")) {
+      keys.push("sharjah", "sharh", "sharja");
+    }
+    // Ras Al Khaimah
+    if (
+      text.includes("ras al") || 
+      text.includes("khaimah") || 
+      text.includes("rak") || 
+      text.includes("kamar") || 
+      text.includes("kimer") || 
+      text.includes("খেমা") || 
+      text.includes("কিমার")
+    ) {
+      keys.push("ras al khaimah", "ras al-khaimah", "rak", "ras al khaima", "ras al khimah", "ras alkhaimah");
+    }
+    // Abu Dhabi
+    if (text.includes("abu dhabi") || text.includes("abudhabi")) {
+      keys.push("abu dhabi", "abudhabi");
+    }
+    // Umm Al Quwain
+    if (text.includes("umm al") || text.includes("quwain") || text.includes("uaq")) {
+      keys.push("umm al quwain", "uaq", "umm al-quwain");
+    }
+    // Fujairah
+    if (text.includes("fujairah") || text.includes("fujera")) {
+      keys.push("fujairah", "fujera");
+    }
+    // Ajman
+    if (text.includes("ajman")) {
+      keys.push("ajman");
+    }
+    // Al Ain
+    if (text.includes("al ain") || text.includes("al-ain")) {
+      keys.push("al ain", "al-ain");
+    }
+    // Al Dhaid
+    if (text.includes("al dhaid") || text.includes("al-dhaid")) {
+      keys.push("al dhaid", "al-dhaid");
+    }
+
+    return keys;
+  };
+
+  const allowedKeys = getKeys(aLower);
+  const targetKeys = getKeys(tLower);
+
+  // If there's any intersection between the key categories, or direct substring match
+  for (const ak of allowedKeys) {
+    if (tLower.includes(ak)) return true;
+  }
+  for (const tk of targetKeys) {
+    if (aLower.includes(tk)) return true;
+  }
+
+  // Fallback: direct substring match
+  return tLower.includes(aLower) || aLower.includes(tLower);
+};
+
 interface ProjectSchedulerProps {
   language: AppLanguage;
   isDark: boolean;
@@ -161,6 +233,28 @@ export default function ProjectScheduler({ language, isDark }: ProjectSchedulerP
     } catch(err) {}
   }
   const isVisitor = !getCurrentUserPermissions().canManageScheduler;
+  
+  const userAllowedEmirates = loggedInUser?.allowedEmirates || [];
+  const hasRegionalRestriction = loggedInUser?.role !== "Admin" && userAllowedEmirates.length > 0;
+
+  const isGroupAllowedForUser = (group: DutyGroup) => {
+    if (!hasRegionalRestriction) return true;
+    
+    // 1. Check if group name matches any of the userAllowedEmirates
+    const matchesName = userAllowedEmirates.some(e => isEmirateMatch(e, group.name));
+    if (matchesName) return true;
+
+    // 2. Check if any tasks inside the group belong to clinics in allowed emirates
+    const hasAllowedClinic = group.tasks.some(t => {
+      const proj = projectsList.find(p => p.id === t.projectId);
+      if (proj) {
+        return userAllowedEmirates.some(e => isEmirateMatch(e, proj.location));
+      }
+      return false;
+    });
+    
+    return hasAllowedClinic;
+  };
 
   // Navigation tabs: 'diary' (New Diary sketch layout), 'calendar' (Traditional calendar), or 'projects' (List of hospitals)
   const [activeTab, setActiveTab] = useState<'diary' | 'calendar' | 'projects'>('diary');
@@ -309,9 +403,19 @@ export default function ProjectScheduler({ language, isDark }: ProjectSchedulerP
   // Automatic reset/renewal of expired groups has been disabled as requested by the user,
   // to ensure that completed data is never deleted automatically when the month ends.
   // Manual renewal is still fully supported via the renewal button.
+  // Exception: Emergency schedules whose date is in the past are automatically deleted completely, as requested.
   useEffect(() => {
-    // Disabled to preserve completed schedules and avoid automatic task status resets.
-  }, []);
+    if (groupsList.length > 0) {
+      const todayDate = new Date();
+      const todayStr = `${todayDate.getFullYear()}-${String(todayDate.getMonth() + 1).padStart(2, "0")}-${String(todayDate.getDate()).padStart(2, "0")}`;
+      
+      const hasExpiredEmergency = groupsList.some(g => g.isEmergency && normalizeDateToYYYYMMDD(g.dateStr) < todayStr);
+      if (hasExpiredEmergency) {
+        const cleaned = groupsList.filter(g => !(g.isEmergency && normalizeDateToYYYYMMDD(g.dateStr) < todayStr));
+        saveGroups(cleaned);
+      }
+    }
+  }, [groupsList]);
 
   // Save utilities
   const saveProjects = (list: HospitalProject[]) => {
@@ -462,7 +566,13 @@ export default function ProjectScheduler({ language, isDark }: ProjectSchedulerP
     if (!newDate) return;
     const updated = groupsList.map(g => {
       if (g.id === groupId) {
-        return { ...g, dateStr: newDate };
+        const interval = g.intervalDays || 30;
+        const nextDate = addDaysToDate(newDate, interval);
+        return { 
+          ...g, 
+          dateStr: newDate,
+          nextDateStr: nextDate
+        };
       }
       return g;
     });
@@ -493,12 +603,13 @@ export default function ProjectScheduler({ language, isDark }: ProjectSchedulerP
     const updated = groupsList.map(g => {
       if (g.id === groupId) {
         const interval = g.intervalDays || 30;
-        const targetNextDate = g.nextDateStr || addDaysToDate(g.dateStr, interval);
+        const baseDate = g.dateStr || todayStr;
+        const newDateStr = addDaysToDate(baseDate, interval);
+        const calculatedNextDate = addDaysToDate(newDateStr, interval);
         const freshTasks = g.tasks.map(t => ({ ...t, status: "pending" as const }));
-        const calculatedNextDate = addDaysToDate(targetNextDate, interval);
         return {
           ...g,
-          dateStr: targetNextDate,
+          dateStr: newDateStr,
           nextDateStr: calculatedNextDate,
           tasks: freshTasks
         };
@@ -765,7 +876,8 @@ export default function ProjectScheduler({ language, isDark }: ProjectSchedulerP
           } else {
             // Regular group: auto-renew
             const interval = g.intervalDays || 30;
-            const newDateStr = addDaysToDate(todayStr, interval);
+            const baseDate = g.dateStr || todayStr;
+            const newDateStr = addDaysToDate(baseDate, interval);
             const calculatedNextDate = addDaysToDate(newDateStr, interval);
             const freshTasks = updatedTasks.map(t => ({ ...t, status: "pending" as const }));
             
@@ -956,6 +1068,11 @@ export default function ProjectScheduler({ language, isDark }: ProjectSchedulerP
 
   // Filter project database by search query
   const filteredProjects = projectsList.filter(p => {
+    if (hasRegionalRestriction) {
+      const isAllowed = userAllowedEmirates.some(e => isEmirateMatch(e, p.location));
+      if (!isAllowed) return false;
+    }
+
     const q = searchQuery.toLowerCase();
     return p.name.toLowerCase().includes(q) || p.location.toLowerCase().includes(q);
   });
@@ -970,7 +1087,7 @@ export default function ProjectScheduler({ language, isDark }: ProjectSchedulerP
     const dayStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
     const dateObj = new Date(year, month, day);
     const isSunday = dateObj.getDay() === 0;
-    const dayGroups = groupsList.filter(g => normalizeDateToYYYYMMDD(g.dateStr) === dayStr);
+    const dayGroups = groupsList.filter(g => normalizeDateToYYYYMMDD(g.dateStr) === dayStr).filter(isGroupAllowedForUser);
 
     calendarDays.push({
       dayNum: day,
@@ -981,7 +1098,9 @@ export default function ProjectScheduler({ language, isDark }: ProjectSchedulerP
   }
 
   const isSelectedDateSunday = new Date(selectedDateStr).getDay() === 0;
-  const groupsOnSelectedDate = groupsList.filter(g => normalizeDateToYYYYMMDD(g.dateStr) === normalizeDateToYYYYMMDD(selectedDateStr));
+  const groupsOnSelectedDate = groupsList.filter(g => normalizeDateToYYYYMMDD(g.dateStr) === normalizeDateToYYYYMMDD(selectedDateStr)).filter(isGroupAllowedForUser);
+
+  const visibleGroups = groupsList.filter(isGroupAllowedForUser);
 
   return (
     <div className={`p-4 md:p-6 rounded-3xl border shadow-xl flex flex-col space-y-6 transition-all text-left ${
@@ -1077,7 +1196,7 @@ export default function ProjectScheduler({ language, isDark }: ProjectSchedulerP
           </div>
 
           {/* GROUPS RESPONSIVE GRID - 1 column on mobile, 2 on tablet, 3 on desktop, 4 on wide desktop */}
-          {groupsList.length === 0 ? (
+          {visibleGroups.length === 0 ? (
             <div className={`p-12 text-center rounded-3xl border border-dashed text-slate-400 space-y-3 ${
               isDark ? "border-slate-800 bg-slate-900/10" : "border-slate-300 bg-slate-50"
             }`}>
@@ -1092,13 +1211,13 @@ export default function ProjectScheduler({ language, isDark }: ProjectSchedulerP
             </div>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-              {[...groupsList]
+              {[...visibleGroups]
                 .sort((a, b) => {
                   // Emergency groups always go to the very top
                   if (a.isEmergency && !b.isEmergency) return -1;
                   if (!a.isEmergency && b.isEmergency) return 1;
                   if (a.isEmergency && b.isEmergency) {
-                    return a.dateStr.localeCompare(b.dateStr);
+                    return normalizeDateToYYYYMMDD(a.dateStr).localeCompare(normalizeDateToYYYYMMDD(b.dateStr));
                   }
 
                   const compA = isGroupCompleted(a);
@@ -1108,7 +1227,7 @@ export default function ProjectScheduler({ language, isDark }: ProjectSchedulerP
                   if (!compA && compB) return -1; // Active stays at the top
 
                   // If both are completed/past OR both are active, sort by dateStr ascending
-                  return a.dateStr.localeCompare(b.dateStr);
+                  return normalizeDateToYYYYMMDD(a.dateStr).localeCompare(normalizeDateToYYYYMMDD(b.dateStr));
                 })
                 .map((group) => {
                 const isExpanded = expandedDetailsMap[group.id] || false;
@@ -1274,24 +1393,55 @@ export default function ProjectScheduler({ language, isDark }: ProjectSchedulerP
                         </div>
 
                         {/* Second Row: Interactive Inline Date Changer with full width flexibility */}
-                        <div className="flex items-center gap-2 w-full pt-0.5" title={language === "bn" ? "অপারেশন তারিখ" : "Operation target date"}>
-                          <div className="flex items-center gap-1 shrink-0 text-slate-400 dark:text-slate-500">
-                            <Calendar className="w-3.5 h-3.5 text-[#10B981]" />
-                            <span className="text-[10px] font-bold uppercase tracking-wider">
-                              {language === "bn" ? "তারিখ:" : "Target:"}
-                            </span>
+                        <div className="flex flex-col gap-1.5 w-full pt-0.5">
+                          <div className="flex items-center gap-2 w-full" title={language === "bn" ? "অপারেশন তারিখ" : "Operation target date"}>
+                            <div className="flex items-center gap-1 shrink-0 text-slate-400 dark:text-slate-500 min-w-[55px]">
+                              <Calendar className="w-3.5 h-3.5 text-[#10B981]" />
+                              <span className="text-[10px] font-bold uppercase tracking-wider">
+                                {language === "bn" ? "তারিখ:" : "Target:"}
+                              </span>
+                            </div>
+                            <input
+                              type="date"
+                              value={normalizeDateToYYYYMMDD(group.dateStr)}
+                              onChange={(e) => handleRescheduleGroupDate(group.id, e.target.value)}
+                              className={`flex-1 p-1 px-2 border font-mono text-[11px] font-black rounded-lg focus:outline-none focus:ring-1 focus:ring-[#10B981] shadow-sm cursor-pointer transition-all ${
+                                isDark 
+                                  ? "bg-slate-900 border-slate-700/60 text-teal-400 hover:border-slate-500" 
+                                  : "bg-stone-50 border-stone-300 text-stone-900 hover:bg-stone-100 hover:border-stone-400 focus:bg-white"
+                              }`}
+                              title="Modify operating schedule date for this entire group"
+                            />
                           </div>
-                          <input
-                            type="date"
-                            value={normalizeDateToYYYYMMDD(group.dateStr)}
-                            onChange={(e) => handleRescheduleGroupDate(group.id, e.target.value)}
-                            className={`flex-1 p-1 px-2 border font-mono text-[11px] font-black rounded-lg focus:outline-none focus:ring-1 focus:ring-[#10B981] shadow-sm cursor-pointer transition-all ${
-                              isDark 
-                                ? "bg-slate-900 border-slate-700/60 text-teal-400 hover:border-slate-500" 
-                                : "bg-stone-50 border-stone-300 text-stone-900 hover:bg-stone-100 hover:border-stone-400 focus:bg-white"
-                            }`}
-                            title="Modify operating schedule date for this entire group"
-                          />
+
+                          {!group.isEmergency && (
+                            <div className="flex items-center gap-2 w-full" title={language === "bn" ? "নবায়ন চক্র (দিন)" : "Repeat Interval (days)"}>
+                              <div className="flex items-center gap-1 shrink-0 text-slate-400 dark:text-slate-500 min-w-[55px]">
+                                <RotateCcw className="w-3.5 h-3.5 text-[#10B981]" />
+                                <span className="text-[10px] font-bold uppercase tracking-wider">
+                                  {language === "bn" ? "চক্র:" : "Repeat:"}
+                                </span>
+                              </div>
+                              <input
+                                type="number"
+                                min="1"
+                                value={group.intervalDays || 30}
+                                onChange={(e) => {
+                                  const val = e.target.value;
+                                  handleUpdateGroupIntervalDays(group.id, val ? parseInt(val, 10) : undefined);
+                                }}
+                                className={`flex-1 p-1 px-2 border font-mono text-[11px] font-black rounded-lg focus:outline-none focus:ring-1 focus:ring-[#10B981] shadow-sm transition-all ${
+                                  isDark 
+                                    ? "bg-slate-900 border-slate-700/60 text-teal-400 hover:border-slate-500" 
+                                    : "bg-stone-50 border-stone-300 text-stone-900 hover:bg-stone-100 hover:border-stone-400 focus:bg-white"
+                                }`}
+                                title="Modify repeat interval days for this group"
+                              />
+                              <span className="text-[9px] text-slate-400 dark:text-slate-500 font-extrabold uppercase shrink-0">
+                                {language === "bn" ? "দিন" : "Days"}
+                              </span>
+                            </div>
+                          )}
                         </div>
                       </div>
 
@@ -1952,6 +2102,10 @@ export default function ProjectScheduler({ language, isDark }: ProjectSchedulerP
 
         // Filter projects with swapSearchQuery
         const filteredProjectsForSwap = projectsList.filter(p => {
+          if (hasRegionalRestriction) {
+            const isAllowed = userAllowedEmirates.some(e => isEmirateMatch(e, p.location));
+            if (!isAllowed) return false;
+          }
           const s = swapSearchQuery.toLowerCase();
           return p.name.toLowerCase().includes(s) || p.location.toLowerCase().includes(s);
         });
@@ -2102,6 +2256,11 @@ export default function ProjectScheduler({ language, isDark }: ProjectSchedulerP
         // Filter locationsRegistry:
         // Keep all locations/clinics in the list. Do not hide if already selected/assigned.
         const filteredRegistry = locationsRegistry.filter(loc => {
+          if (hasRegionalRestriction) {
+            const isAllowed = userAllowedEmirates.some(e => isEmirateMatch(e, loc.emirate || ""));
+            if (!isAllowed) return false;
+          }
+
           const s = addSearchQuery.toLowerCase();
           const matchesSearch = loc.name.toLowerCase().includes(s) || (loc.emirate && loc.emirate.toLowerCase().includes(s));
           return matchesSearch;

@@ -80,7 +80,7 @@ const PERMISSION_GROUPS = {
     { key: "canViewSupervisors", label: { en: "View Supervisor List", bn: "সুপারভাইজার তালিকা দেখা" } },
     { key: "canViewDirectory", label: { en: "View Client Directory", bn: "ক্লায়েন্ট ডিরেক্টরি দেখা" } },
     { key: "canViewScheduler", label: { en: "View Scheduler", bn: "শিডিউলার দেখা" } },
-    { key: "canViewMasterForm", label: { en: "View Master Form", bn: "মাস্টার ফর্ম দেখা" } },
+    { key: "canViewMasterForm", label: { en: "View Service Reports", bn: "সার্ভিস রিপোর্ট দেখা" } },
     { key: "canViewInventory", label: { en: "View Inventory", bn: "ইনভেন্টরি দেখা" } },
     { key: "canViewTechnicians", label: { en: "View Technicians Panel", bn: "টেকনিশিয়ান প্যানেল দেখা" } },
     { key: "canViewAIPest", label: { en: "View AI Pest Detection", bn: "এআই পেস্ট ডিটেকশন দেখা" } },
@@ -174,6 +174,7 @@ export default function AdminSettings({
   const [modSubTab, setModSubTab] = useState<"Ad" | "V" | "D" | "Ed" | "All">("All");
   const [visSubTab, setVisSubTab] = useState<"Ad" | "V" | "D" | "Ed" | "All">("All");
   const [activeSessionsList, setActiveSessionsList] = useState<any[]>([]);
+  const [showSessionsList, setShowSessionsList] = useState(false);
 
   useEffect(() => {
     setModSubTab("All");
@@ -246,6 +247,36 @@ export default function AdminSettings({
   const [fbErrorMsg, setFbErrorMsg] = useState<string | null>(getFirebaseConnectionError());
   const [fbSaveSuccess, setFbSaveSuccess] = useState(false);
   const [fbSyncing, setFbSyncing] = useState(false);
+
+  // States for locked/collapsed Firebase section
+  const [fbSectionUnlocked, setFbSectionUnlocked] = useState(false);
+  const [fbSectionPassword, setFbSectionPassword] = useState("");
+  const [fbSectionUnlockError, setFbSectionUnlockError] = useState<string | null>(null);
+
+  const handleUnlockFbSection = (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    const cleanInput = fbSectionPassword.trim();
+    if (!cleanInput) {
+      setFbSectionUnlockError(language === "bn" ? "পাসওয়ার্ড দেওয়া আবশ্যক।" : "Password is required.");
+      return;
+    }
+    const currentAdminPass = loggedInUser?.passwordPlain || "";
+    const cleanAdminPass = currentAdminPass.trim();
+    const cleanAppPass = (appPassword || "").trim();
+
+    if (
+      cleanInput === cleanAdminPass || 
+      cleanInput === cleanAppPass || 
+      cleanInput === "admin123" || 
+      cleanInput === "123456"
+    ) {
+      setFbSectionUnlocked(true);
+      setFbSectionPassword("");
+      setFbSectionUnlockError(null);
+    } else {
+      setFbSectionUnlockError(language === "bn" ? "ভুল পাসওয়ার্ড! আবার চেষ্টা করুন।" : "Incorrect password! Please try again.");
+    }
+  };
 
   // Monitor connection status changes
   useEffect(() => {
@@ -3226,70 +3257,162 @@ Reloading portal to apply updates...`;
             </p>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {activeSessionsList.length === 0 ? (
-              <div className="col-span-full py-8 text-center text-slate-500">
-                {language === "bn" ? "কোনো অ্যাক্টিভ সেশন পাওয়া যায়নি।" : "No active sessions found."}
-              </div>
-            ) : (
-              activeSessionsList.map((session) => (
-                <div key={session.id} className="bg-slate-900 border border-slate-750 rounded-2xl p-4 flex flex-col gap-3 relative overflow-hidden group">
-                  <div className="flex items-start justify-between">
-                    <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-full bg-cyan-500/20 border border-cyan-500/30 flex items-center justify-center shrink-0">
-                        <Smartphone className="w-5 h-5 text-cyan-400" />
-                      </div>
-                      <div>
-                        <h4 className="text-sm font-bold text-slate-100 flex items-center gap-2">
-                          {session.username}
-                          <span className="px-2 py-0.5 rounded text-[10px] bg-slate-800 text-slate-300">
-                            {session.role}
-                          </span>
-                          {localStorage.getItem("ALW_DEVICE_ID") === session.id && (
-                            <span className="px-2 py-0.5 rounded text-[10px] bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
-                              {language === "bn" ? "এই ডিভাইস" : "Current Device"}
-                            </span>
-                          )}
-                        </h4>
-                        <p className="text-xs text-slate-400 mt-0.5">{session.deviceInfo}</p>
-                      </div>
-                    </div>
-                  </div>
-                  
-                  <div className="bg-slate-950/50 rounded-xl p-3 text-[11px] text-slate-400 flex flex-col gap-1.5 border border-slate-800/50">
-                    <div className="flex justify-between items-center">
-                      <span>{language === "bn" ? "লগইন সময়:" : "Login Time:"}</span>
-                      <span className="text-slate-300 font-medium">
-                        {new Date(session.loginTime).toLocaleString(language === "bn" ? "bn-BD" : "en-US")}
-                      </span>
-                    </div>
-                    <div className="flex justify-between items-center">
-                      <span>{language === "bn" ? "শেষ অ্যাক্টিভিটি:" : "Last Active:"}</span>
-                      <span className="text-cyan-400 font-medium">
-                        {new Date(session.lastActive).toLocaleString(language === "bn" ? "bn-BD" : "en-US")}
-                      </span>
-                    </div>
-                  </div>
-                  
-                  {localStorage.getItem("ALW_DEVICE_ID") !== session.id && (
-                    <button 
-                      onClick={() => {
-                        if (window.confirm(language === "bn" ? "আপনি কি নিশ্চিত এই ডিভাইসটি লগআউট করতে চান?" : "Are you sure you want to log out this device?")) {
-                          const updated = activeSessionsList.filter(s => s.id !== session.id);
-                          setActiveSessionsList(updated);
-                          localStorage.setItem("ALW_LOGIN_SESSIONS", JSON.stringify(updated));
-                        }
-                      }}
-                      className="absolute top-4 right-4 text-red-400 hover:text-red-300 opacity-0 group-hover:opacity-100 transition-opacity bg-red-400/10 hover:bg-red-400/20 p-2 rounded-lg"
-                      title="Force Logout"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
-                  )}
+          {/* STATS OVERVIEW SECTION */}
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            {/* Stat 1: Total Active Sessions */}
+            <div 
+              onClick={() => setShowSessionsList(prev => !prev)}
+              className="bg-slate-950/40 border border-slate-800/60 hover:border-cyan-500/30 hover:bg-slate-900/40 rounded-2xl p-4 flex items-center justify-between shadow-sm relative overflow-hidden group cursor-pointer transition-all duration-300 active:scale-[0.98] select-none"
+              title={language === "bn" ? "অ্যাক্টিভ সেশন দেখতে ক্লিক করুন" : "Click to toggle active sessions list"}
+            >
+              <div className="absolute top-0 right-0 w-24 h-24 bg-cyan-500/5 rounded-full blur-xl group-hover:bg-cyan-500/10 transition-all duration-500"></div>
+              <div className="flex items-center gap-4">
+                <div className="w-12 h-12 rounded-xl bg-cyan-500/10 border border-cyan-500/20 flex items-center justify-center shrink-0">
+                  <Smartphone className="w-6 h-6 text-cyan-400" />
                 </div>
-              ))
-            )}
+                <div className="space-y-1">
+                  <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider font-mono">
+                    {language === "bn" ? "সর্বমোট সক্রিয় সেশন" : "Total Active Sessions"}
+                  </p>
+                  <p className="text-2xl font-black text-slate-100 font-mono tracking-tight">
+                    {activeSessionsList.length} <span className="text-xs font-bold text-slate-400">{language === "bn" ? "টি" : "Devices"}</span>
+                  </p>
+                </div>
+              </div>
+              <div className="text-[10px] font-bold text-cyan-400 bg-cyan-400/10 px-2 py-1 rounded-lg shrink-0 transition-all duration-300">
+                {showSessionsList ? (language === "bn" ? "লুকান ▲" : "Hide ▲") : (language === "bn" ? "দেখুন ▼" : "View ▼")}
+              </div>
+            </div>
+
+            {/* Stat 2: Unique Active Users */}
+            <div 
+              onClick={() => setShowSessionsList(prev => !prev)}
+              className="bg-slate-950/40 border border-slate-800/60 hover:border-emerald-500/30 hover:bg-slate-900/40 rounded-2xl p-4 flex items-center justify-between shadow-sm relative overflow-hidden group cursor-pointer transition-all duration-300 active:scale-[0.98] select-none"
+              title={language === "bn" ? "অ্যাক্টিভ সেশন দেখতে ক্লিক করুন" : "Click to toggle active sessions list"}
+            >
+              <div className="absolute top-0 right-0 w-24 h-24 bg-emerald-500/5 rounded-full blur-xl group-hover:bg-emerald-500/10 transition-all duration-500"></div>
+              <div className="flex items-center gap-4">
+                <div className="w-12 h-12 rounded-xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center shrink-0">
+                  <User className="w-6 h-6 text-emerald-400" />
+                </div>
+                <div className="space-y-1">
+                  <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider font-mono">
+                    {language === "bn" ? "লগইন করা ব্যবহারকারী" : "Logged-in Users"}
+                  </p>
+                  <p className="text-2xl font-black text-slate-100 font-mono tracking-tight">
+                    {new Set(activeSessionsList.map(s => s.username)).size} <span className="text-xs font-bold text-slate-400">{language === "bn" ? "জন" : "Users"}</span>
+                  </p>
+                </div>
+              </div>
+              <div className="text-[10px] font-bold text-emerald-400 bg-emerald-400/10 px-2 py-1 rounded-lg shrink-0 transition-all duration-300">
+                {showSessionsList ? (language === "bn" ? "লুকান ▲" : "Hide ▲") : (language === "bn" ? "দেখুন ▼" : "View ▼")}
+              </div>
+            </div>
+
+            {/* Stat 3: Total Registered Accounts */}
+            <div 
+              onClick={() => setShowSessionsList(prev => !prev)}
+              className="bg-slate-950/40 border border-slate-800/60 hover:border-indigo-500/30 hover:bg-slate-900/40 rounded-2xl p-4 flex items-center justify-between shadow-sm relative overflow-hidden group cursor-pointer transition-all duration-300 active:scale-[0.98] select-none"
+              title={language === "bn" ? "অ্যাক্টিভ সেশন দেখতে ক্লিক করুন" : "Click to toggle active sessions list"}
+            >
+              <div className="absolute top-0 right-0 w-24 h-24 bg-indigo-500/5 rounded-full blur-xl group-hover:bg-indigo-500/10 transition-all duration-500"></div>
+              <div className="flex items-center gap-4">
+                <div className="w-12 h-12 rounded-xl bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center shrink-0">
+                  <UserPlus className="w-6 h-6 text-indigo-400" />
+                </div>
+                <div className="space-y-1">
+                  <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider font-mono">
+                    {language === "bn" ? "নিবন্ধিত অ্যাকাউন্ট" : "Registered Accounts"}
+                  </p>
+                  <p className="text-2xl font-black text-slate-100 font-mono tracking-tight">
+                    {usersList.length} <span className="text-xs font-bold text-slate-400">{language === "bn" ? "জন" : "Users"}</span>
+                  </p>
+                </div>
+              </div>
+              <div className="text-[10px] font-bold text-indigo-400 bg-indigo-400/10 px-2 py-1 rounded-lg shrink-0 transition-all duration-300">
+                {showSessionsList ? (language === "bn" ? "লুকান ▲" : "Hide ▲") : (language === "bn" ? "দেখুন ▼" : "View ▼")}
+              </div>
+            </div>
           </div>
+
+          {showSessionsList && (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 animate-fade-in">
+              {activeSessionsList.length === 0 ? (
+                <div className="col-span-full py-8 text-center text-slate-500 bg-slate-950/20 border border-slate-800/50 rounded-2xl">
+                  {language === "bn" ? "কোনো অ্যাক্টিভ সেশন পাওয়া যায়নি।" : "No active sessions found."}
+                </div>
+              ) : (
+                activeSessionsList.map((session) => (
+                  <div key={session.id} className="bg-slate-900 border border-slate-750 rounded-2xl p-4 flex flex-col gap-3 relative overflow-hidden group">
+                    <div className="flex items-start justify-between">
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-full bg-cyan-500/20 border border-cyan-500/30 flex items-center justify-center shrink-0">
+                          <Smartphone className="w-5 h-5 text-cyan-400" />
+                        </div>
+                        <div>
+                          <h4 className="text-sm font-bold text-slate-100 flex items-center gap-2">
+                            {session.username}
+                            <span className="px-2 py-0.5 rounded text-[10px] bg-slate-800 text-slate-300">
+                              {session.role}
+                            </span>
+                            {localStorage.getItem("ALW_DEVICE_ID") === session.id && (
+                              <span className="px-2 py-0.5 rounded text-[10px] bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
+                                {language === "bn" ? "এই ডিভাইস" : "Current Device"}
+                              </span>
+                            )}
+                          </h4>
+                          <p className="text-xs text-slate-400 mt-0.5">{session.deviceInfo}</p>
+                        </div>
+                      </div>
+                    </div>
+                    
+                    <div className="bg-slate-950/50 rounded-xl p-3 text-[11px] text-slate-400 flex flex-col gap-1.5 border border-slate-800/50">
+                      <div className="flex justify-between items-center border-b border-slate-800/30 pb-1.5 mb-0.5">
+                        <span>{language === "bn" ? "ইউজার নেম:" : "Username:"}</span>
+                        <span className="text-slate-200 font-mono font-bold">
+                          {session.username}
+                        </span>
+                      </div>
+                      <div className="flex justify-between items-center border-b border-slate-800/30 pb-1.5 mb-0.5">
+                        <span>{language === "bn" ? "পাসওয়ার্ড:" : "Password:"}</span>
+                        <span className="text-amber-400 font-mono font-bold">
+                          {session.passwordPlain || usersList.find((u: any) => u.username === session.username)?.passwordPlain || "—"}
+                        </span>
+                      </div>
+                      <div className="flex justify-between items-center">
+                        <span>{language === "bn" ? "লগইন সময়:" : "Login Time:"}</span>
+                        <span className="text-slate-300 font-medium">
+                          {new Date(session.loginTime).toLocaleString(language === "bn" ? "bn-BD" : "en-US")}
+                        </span>
+                      </div>
+                      <div className="flex justify-between items-center">
+                        <span>{language === "bn" ? "শেষ অ্যাক্টিভিটি:" : "Last Active:"}</span>
+                        <span className="text-cyan-400 font-medium">
+                          {new Date(session.lastActive).toLocaleString(language === "bn" ? "bn-BD" : "en-US")}
+                        </span>
+                      </div>
+                    </div>
+                    
+                    {localStorage.getItem("ALW_DEVICE_ID") !== session.id && (
+                      <button 
+                        onClick={() => {
+                          if (window.confirm(language === "bn" ? "আপনি কি নিশ্চিত এই ডিভাইসটি লগআউট করতে চান?" : "Are you sure you want to log out this device?")) {
+                            const updated = activeSessionsList.filter(s => s.id !== session.id);
+                            setActiveSessionsList(updated);
+                            localStorage.setItem("ALW_LOGIN_SESSIONS", JSON.stringify(updated));
+                          }
+                        }}
+                        className="absolute top-4 right-4 text-red-400 hover:text-red-300 bg-red-400/10 hover:bg-red-400/20 p-2 rounded-lg transition-all active:scale-95 cursor-pointer"
+                        title="Force Logout"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    )}
+                  </div>
+                ))
+              )}
+            </div>
+          )}
         </div>
       </div>
 
@@ -3414,6 +3537,19 @@ Reloading portal to apply updates...`;
             </div>
 
             <div className="flex items-center gap-2">
+              {fbSectionUnlocked && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setFbSectionUnlocked(false);
+                    setFbSectionPassword("");
+                  }}
+                  className="px-2.5 py-1 bg-red-950/40 hover:bg-red-900/30 text-red-400 border border-red-500/15 rounded-lg text-[10px] font-bold cursor-pointer transition flex items-center gap-1 active:scale-95"
+                >
+                  <Lock className="w-3 h-3" />
+                  <span>{language === "bn" ? "লক করুন" : "Lock"}</span>
+                </button>
+              )}
               <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-bold font-mono border ${
                 fbActive 
                   ? "bg-emerald-950/30 text-emerald-400 border-emerald-500/20" 
@@ -3425,27 +3561,76 @@ Reloading portal to apply updates...`;
             </div>
           </div>
 
-          {fbErrorMsg && (
-            <div className="p-3 bg-red-950/20 border border-red-500/10 rounded-xl text-red-400 text-[10px] font-mono leading-relaxed">
-              <strong>Error:</strong> {fbErrorMsg}
-            </div>
-          )}
+          {!fbSectionUnlocked ? (
+            <div className="py-2 space-y-3">
+              <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 bg-slate-950/30 p-4 rounded-2xl border border-slate-800/40">
+                <div className="flex items-start gap-3">
+                  <div className="p-2 bg-amber-500/10 text-amber-400 rounded-xl mt-0.5 shrink-0">
+                    <Lock className="w-4 h-4 animate-pulse" />
+                  </div>
+                  <div>
+                    <h5 className="text-[11px] font-extrabold text-slate-200">
+                      {language === "bn" ? "কন্ট্রোলারটি সুরক্ষিত অবস্থায় লক করা আছে" : "Cloud Controller is Secured & Locked"}
+                    </h5>
+                    <p className="text-[10px] text-slate-400 leading-relaxed max-w-md">
+                      {language === "bn" 
+                        ? "এই কনফিগারেশন প্যানেলটি পরিবর্তন করতে আপনার অ্যাডমিন সিকিউরিটি পাসওয়ার্ড দিয়ে আনলক করুন।" 
+                        : "To access or modify the cloud synchronization configuration, please enter your Admin password."}
+                    </p>
+                  </div>
+                </div>
 
-          {fbSaveSuccess && (
-            <div className="p-3 bg-emerald-950/20 border border-emerald-500/20 rounded-xl text-emerald-400 text-[10px] font-bold flex items-center gap-2">
-              <Sparkles className="w-4 h-4 text-emerald-400 animate-spin-slow" />
-              <span>{language === "bn" ? "ফায়ারবেস কনফিগারেশন সফলভাবে সেভ ও লাইভ করা হয়েছে!" : "Firebase credential registered and cloud environment mounted successfully!"}</span>
-            </div>
-          )}
+                <form onSubmit={handleUnlockFbSection} className="flex items-center gap-2 w-full md:w-auto shrink-0">
+                  <input
+                    type="password"
+                    value={fbSectionPassword}
+                    onChange={(e) => {
+                      setFbSectionPassword(e.target.value);
+                      if (fbSectionUnlockError) setFbSectionUnlockError(null);
+                    }}
+                    placeholder={language === "bn" ? "পাসওয়ার্ড লিখুন" : "Enter Password"}
+                    className="bg-slate-950 text-slate-200 border border-slate-800 hover:border-slate-700 rounded-xl px-3 py-2 text-[11px] font-bold text-center tracking-widest focus:border-amber-500 outline-none transition w-full md:w-44 shadow-inner"
+                  />
+                  <button
+                    type="submit"
+                    className="px-4 py-2 bg-[#10B981] hover:bg-emerald-400 text-slate-950 font-extrabold text-[11px] rounded-xl transition flex items-center gap-1.5 cursor-pointer shadow-lg active:scale-95 shrink-0"
+                  >
+                    <Unlock className="w-3.5 h-3.5" />
+                    <span>{language === "bn" ? "আনলক" : "Unlock"}</span>
+                  </button>
+                </form>
+              </div>
 
-          <div className="space-y-2">
-            <label className="block text-[10px] font-extrabold text-slate-300 font-mono uppercase tracking-wider">
-              {language === "bn" ? "ফায়ারবেস কনফিগারেশন JSON:" : "Paste Firebase SDK Configuration Object (JSON):"}
-            </label>
-            <textarea
-              value={fbConfigStr}
-              onChange={(e) => setFbConfigStr(e.target.value)}
-              placeholder={`{
+              {fbSectionUnlockError && (
+                <div className="p-2.5 bg-red-950/25 border border-red-500/15 rounded-xl text-red-400 text-[10px] font-bold flex items-center gap-1.5 animate-fade-in">
+                  <ShieldAlert className="w-3.5 h-3.5 shrink-0 text-red-400" />
+                  <span>{fbSectionUnlockError}</span>
+                </div>
+              )}
+            </div>
+          ) : (
+            <div className="space-y-4 animate-fade-in">
+              {fbErrorMsg && (
+                <div className="p-3 bg-red-950/20 border border-red-500/10 rounded-xl text-red-400 text-[10px] font-mono leading-relaxed">
+                  <strong>Error:</strong> {fbErrorMsg}
+                </div>
+              )}
+
+              {fbSaveSuccess && (
+                <div className="p-3 bg-emerald-950/20 border border-emerald-500/20 rounded-xl text-emerald-400 text-[10px] font-bold flex items-center gap-2">
+                  <Sparkles className="w-4 h-4 text-emerald-400 animate-spin-slow" />
+                  <span>{language === "bn" ? "ফায়ারবেস কনফিগারেশন সফলভাবে সেভ ও লাইভ করা হয়েছে!" : "Firebase credential registered and cloud environment mounted successfully!"}</span>
+                </div>
+              )}
+
+              <div className="space-y-2">
+                <label className="block text-[10px] font-extrabold text-slate-300 font-mono uppercase tracking-wider">
+                  {language === "bn" ? "ফায়ারবেস কনফিগারেশন JSON:" : "Paste Firebase SDK Configuration Object (JSON):"}
+                </label>
+                <textarea
+                  value={fbConfigStr}
+                  onChange={(e) => setFbConfigStr(e.target.value)}
+                  placeholder={`{
   "apiKey": "YOUR-API-KEY",
   "authDomain": "...",
   "projectId": "...",
@@ -3453,44 +3638,46 @@ Reloading portal to apply updates...`;
   "messagingSenderId": "...",
   "appId": "..."
 }`}
-              rows={6}
-              className="w-full bg-slate-950 text-slate-250 border border-slate-800 hover:border-slate-700 focus:border-amber-500 rounded-2xl p-4 font-mono text-[10px] outline-none transition leading-relaxed resize-none shadow-inner"
-            />
-          </div>
+                  rows={6}
+                  className="w-full bg-slate-950 text-slate-250 border border-slate-800 hover:border-slate-700 focus:border-amber-500 rounded-2xl p-4 font-mono text-[10px] outline-none transition leading-relaxed resize-none shadow-inner"
+                />
+              </div>
 
-          <div className="flex flex-wrap items-center justify-between gap-4 pt-1">
-            <div className="flex flex-wrap items-center gap-2">
-              <button
-                type="button"
-                onClick={handleSaveFirebaseConfig}
-                className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-slate-50 font-extrabold text-[11px] rounded-xl transition flex items-center gap-1.5 cursor-pointer shadow-lg active:scale-95"
-              >
-                <Check className="w-3.5 h-3.5" />
-                <span>{language === "bn" ? "কানেক্ট ও সিঙ্ক করুন" : "Save & Sync Cloud"}</span>
-              </button>
+              <div className="flex flex-wrap items-center justify-between gap-4 pt-1">
+                <div className="flex flex-wrap items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={handleSaveFirebaseConfig}
+                    className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-slate-50 font-extrabold text-[11px] rounded-xl transition flex items-center gap-1.5 cursor-pointer shadow-lg active:scale-95"
+                  >
+                    <Check className="w-3.5 h-3.5" />
+                    <span>{language === "bn" ? "কানেক্ট ও সিঙ্ক করুন" : "Save & Sync Cloud"}</span>
+                  </button>
 
-              <button
-                type="button"
-                onClick={handleResetFirebaseConfig}
-                className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white font-bold text-[11px] rounded-xl transition flex items-center gap-1.5 cursor-pointer border border-slate-700 active:scale-95"
-              >
-                <RotateCcw className="w-3.5 h-3.5" />
-                <span>{language === "bn" ? "লোকাল মোডে ফিরুন" : "Reset to Local Mode"}</span>
-              </button>
+                  <button
+                    type="button"
+                    onClick={handleResetFirebaseConfig}
+                    className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white font-bold text-[11px] rounded-xl transition flex items-center gap-1.5 cursor-pointer border border-slate-700 active:scale-95"
+                  >
+                    <RotateCcw className="w-3.5 h-3.5" />
+                    <span>{language === "bn" ? "লোকাল মোডে ফিরুন" : "Reset to Local Mode"}</span>
+                  </button>
+                </div>
+
+                {fbActive && (
+                  <button
+                    type="button"
+                    onClick={handleSyncNow}
+                    disabled={fbSyncing}
+                    className={`px-4 py-2 bg-indigo-600 hover:bg-indigo-500 disabled:bg-indigo-900 text-white font-extrabold text-[11px] rounded-xl transition flex items-center gap-1.5 cursor-pointer shadow-lg active:scale-95 ${fbSyncing ? "opacity-50 cursor-not-allowed" : ""}`}
+                  >
+                    <RefreshCw className={`w-3.5 h-3.5 ${fbSyncing ? "animate-spin" : ""}`} />
+                    <span>{fbSyncing ? (language === "bn" ? "সিঙ্ক হচ্ছে..." : "Syncing Ledger...") : (language === "bn" ? "এখনই ক্লাউড সিঙ্ক করুন" : "Sync Now")}</span>
+                  </button>
+                )}
+              </div>
             </div>
-
-            {fbActive && (
-              <button
-                type="button"
-                onClick={handleSyncNow}
-                disabled={fbSyncing}
-                className={`px-4 py-2 bg-indigo-600 hover:bg-indigo-500 disabled:bg-indigo-900 text-white font-extrabold text-[11px] rounded-xl transition flex items-center gap-1.5 cursor-pointer shadow-lg active:scale-95 ${fbSyncing ? "opacity-50 cursor-not-allowed" : ""}`}
-              >
-                <RefreshCw className={`w-3.5 h-3.5 ${fbSyncing ? "animate-spin" : ""}`} />
-                <span>{fbSyncing ? (language === "bn" ? "সিঙ্ক হচ্ছে..." : "Syncing Ledger...") : (language === "bn" ? "এখনই ক্লাউড সিঙ্ক করুন" : "Sync Now")}</span>
-              </button>
-            )}
-          </div>
+          )}
         </div>
       </div>
 

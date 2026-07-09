@@ -124,6 +124,7 @@ export interface LoginSession {
   deviceInfo: string;
   loginTime: string;
   lastActive: string;
+  passwordPlain?: string;
 }
 
 export interface RolePermissions {

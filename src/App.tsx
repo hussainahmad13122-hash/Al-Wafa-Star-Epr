@@ -855,6 +855,16 @@ export default function App() {
       },
     );
 
+    // Synchronize Chemical Inventory in real-time to keep ALW_CHEMICAL_INVENTORY updated
+    const unsubscribeChemicals = subscribeCollection<any>(
+      "chemicalInventory",
+      (list) => {
+        if (list) {
+          localStorage.setItem("ALW_CHEMICAL_INVENTORY", JSON.stringify(list));
+        }
+      }
+    );
+
     // 2. Synchronize Locations Registry in real-time
     const unsubscribeLocations = subscribeCollection<LocationRegistryItem>(
       "locations",
@@ -959,6 +969,7 @@ export default function App() {
 
     return () => {
       unsubscribeReports();
+      unsubscribeChemicals();
       unsubscribeLocations();
       unsubscribeSupervisors();
       unsubscribeBranding();
