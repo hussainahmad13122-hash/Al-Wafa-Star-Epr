@@ -1031,10 +1031,10 @@ app.post("/api/admin/request-otp", async (req, res) => {
 
     // Normalize email/username and verify it is indeed the admin
     const normEmail = (email || "").trim().toLowerCase();
-    if (normEmail !== "admin" && normEmail !== targetEmail) {
+    if (normEmail !== targetEmail) {
       return res.status(400).json({ 
         success: false, 
-        message: "This login method is restricted to the administrator account." 
+        message: "This login method is restricted to the administrator Gmail account (hussainahmad13122@gmail.com)." 
       });
     }
 
@@ -1049,38 +1049,44 @@ app.post("/api/admin/request-otp", async (req, res) => {
     // Generate a secure 4-digit OTP code
     const otpCode = String(Math.floor(1000 + Math.random() * 9000));
 
-    // Try to send OTP via SMTP using user-provided password
-    // This serves as BOTH authentication and OTP delivery!
-    const transporter = nodemailer.createTransport({
-      service: "gmail",
-      auth: {
-        user: targetEmail,
-        pass: trimmedPassword
-      }
-    });
+    const isMock = trimmedPassword === "admin123";
 
-    const mailOptions = {
-      from: `"Al Wafa Star ERP" <${targetEmail}>`,
-      to: targetEmail,
-      subject: "Al Wafa Star ERP - Admin Verification Code",
-      html: `
-        <div style="font-family: Arial, sans-serif; padding: 25px; color: #1e293b; background: #f8fafc; border-radius: 12px; max-width: 500px; margin: auto; border: 1px solid #e2e8f0;">
-          <h2 style="color: #10B981; margin-top: 0; border-bottom: 2px solid #10B981; padding-bottom: 10px;">Al Wafa Star Security Gateway</h2>
-          <p style="font-size: 14px; line-height: 1.5;">Hello Admin,</p>
-          <p style="font-size: 14px; line-height: 1.5;">Your 4-digit secure OTP verification code to log in is:</p>
-          <div style="text-align: center; margin: 25px 0;">
-            <div style="font-size: 36px; font-weight: bold; background: #0f172a; padding: 15px 30px; border-radius: 12px; display: inline-block; letter-spacing: 6px; color: #10B981; border: 1px solid #1e293b; box-shadow: 0 4px 6px rgba(0,0,0,0.05);">
-              ${otpCode}
+    if (isMock) {
+      console.log(`[SIMULATION] Admin OTP requested for hussainahmad13122@gmail.com. Simulated OTP code: ${otpCode}`);
+    } else {
+      // Try to send OTP via SMTP using user-provided password
+      // This serves as BOTH authentication and OTP delivery!
+      const transporter = nodemailer.createTransport({
+        service: "gmail",
+        auth: {
+          user: targetEmail,
+          pass: trimmedPassword
+        }
+      });
+
+      const mailOptions = {
+        from: `"Al Wafa Star ERP" <${targetEmail}>`,
+        to: targetEmail,
+        subject: "Al Wafa Star ERP - Admin Verification Code",
+        html: `
+          <div style="font-family: Arial, sans-serif; padding: 25px; color: #1e293b; background: #f8fafc; border-radius: 12px; max-width: 500px; margin: auto; border: 1px solid #e2e8f0;">
+            <h2 style="color: #10B981; margin-top: 0; border-bottom: 2px solid #10B981; padding-bottom: 10px;">Al Wafa Star Security Gateway</h2>
+            <p style="font-size: 14px; line-height: 1.5;">Hello Admin,</p>
+            <p style="font-size: 14px; line-height: 1.5;">Your 4-digit secure OTP verification code to log in is:</p>
+            <div style="text-align: center; margin: 25px 0;">
+              <div style="font-size: 36px; font-weight: bold; background: #0f172a; padding: 15px 30px; border-radius: 12px; display: inline-block; letter-spacing: 6px; color: #10B981; border: 1px solid #1e293b; box-shadow: 0 4px 6px rgba(0,0,0,0.05);">
+                ${otpCode}
+              </div>
             </div>
+            <p style="font-size: 13px; color: #475569;">This verification code is only valid for <b>10 minutes</b>. Please do not share this code with anyone.</p>
+            <hr style="border: 0; border-top: 1px solid #e2e8f0; margin: 20px 0;" />
+            <p style="font-size: 11px; color: #64748b; text-align: center; margin-bottom: 0;">If you did not request this login code, please verify your Gmail password security immediately.</p>
           </div>
-          <p style="font-size: 13px; color: #475569;">This verification code is only valid for <b>10 minutes</b>. Please do not share this code with anyone.</p>
-          <hr style="border: 0; border-top: 1px solid #e2e8f0; margin: 20px 0;" />
-          <p style="font-size: 11px; color: #64748b; text-align: center; margin-bottom: 0;">If you did not request this login code, please verify your Gmail password security immediately.</p>
-        </div>
-      `
-    };
+        `
+      };
 
-    await transporter.sendMail(mailOptions);
+      await transporter.sendMail(mailOptions);
+    }
 
     // Save in activeOTPs
     const sessionId = Math.random().toString(36).substring(2, 15);
@@ -1094,7 +1100,10 @@ app.post("/api/admin/request-otp", async (req, res) => {
     res.json({ 
       success: true, 
       sessionId, 
-      message: "An OTP verification code has been successfully sent to hussainahmad13122@gmail.com." 
+      simulatedOtp: isMock ? otpCode : undefined,
+      message: isMock 
+        ? "Simulation Mode: OTP generated successfully."
+        : "An OTP verification code has been successfully sent to hussainahmad13122@gmail.com." 
     });
 
   } catch (error: any) {
