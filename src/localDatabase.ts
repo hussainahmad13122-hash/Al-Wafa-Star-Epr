@@ -757,8 +757,33 @@ export async function saveRegisteredUsers(users: any[]): Promise<void> {
     await ensureFirebaseInitialized();
     if (dbInstance) {
       try {
+        // Query all existing user document IDs in Firestore
+        const q = collection(dbInstance, "users");
+        const snapshot = await getDocs(q);
+        const existingIds = new Set<string>();
+        snapshot.forEach((d) => {
+          existingIds.add(d.id);
+        });
+
+        const newIds = new Set(users.map((u) => u.id));
+
         let batch = writeBatch(dbInstance);
         let batchCount = 0;
+
+        // Delete any user documents that are not in the updated list
+        for (const existingId of existingIds) {
+          if (!newIds.has(existingId)) {
+            batch.delete(doc(dbInstance, "users", existingId));
+            batchCount++;
+            if (batchCount >= 400) {
+              await batch.commit();
+              batch = writeBatch(dbInstance);
+              batchCount = 0;
+            }
+          }
+        }
+
+        // Upsert the remaining/new users
         for (const user of users) {
           batch.set(doc(dbInstance, "users", user.id), user);
           batchCount++;
@@ -768,6 +793,7 @@ export async function saveRegisteredUsers(users: any[]): Promise<void> {
             batchCount = 0;
           }
         }
+
         if (batchCount > 0) {
           await batch.commit();
         }

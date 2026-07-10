@@ -328,7 +328,16 @@ export default function App() {
       sessionStorage.getItem("ALW_STAR_LOGGED_IN_USER");
     if (s) {
       try {
-        return JSON.parse(s);
+        const parsed = JSON.parse(s);
+        const usersStr = localStorage.getItem("ALW_STAR_USERS");
+        if (usersStr) {
+          const usersList = JSON.parse(usersStr) as AppUser[];
+          const matched = usersList.find(u => u.username.toLowerCase() === parsed.username.toLowerCase() || u.id === parsed.id);
+          if (matched) {
+            return { ...parsed, ...matched };
+          }
+        }
+        return parsed;
       } catch (e) {}
     }
     return null;
@@ -360,8 +369,17 @@ export default function App() {
       if (s) {
         try {
           const parsed = JSON.parse(s);
-          setCurrentUser(parsed);
-          setRole(parsed.role);
+          const usersStr = localStorage.getItem("ALW_STAR_USERS");
+          let freshUser = parsed;
+          if (usersStr) {
+            const usersList = JSON.parse(usersStr) as AppUser[];
+            const matched = usersList.find(u => u.username.toLowerCase() === parsed.username.toLowerCase() || u.id === parsed.id);
+            if (matched) {
+              freshUser = { ...parsed, ...matched };
+            }
+          }
+          setCurrentUser(freshUser);
+          setRole(freshUser.role);
         } catch (e) {}
       }
     };
@@ -400,7 +418,11 @@ export default function App() {
       case "client_portal": isAllowed = perms.canViewClientPortal; break;
       case "custom_option_1": isAllowed = perms.canViewScheduler; break;
       case "custom_option_2":
+        isAllowed = currentUser?.role === "Admin";
+        break;
       case "custom_option_3": 
+        isAllowed = currentUser?.role === "Admin" || perms.canViewTechnicians;
+        break;
       case "admin_settings":
         isAllowed = currentUser?.role === "Admin";
         break;

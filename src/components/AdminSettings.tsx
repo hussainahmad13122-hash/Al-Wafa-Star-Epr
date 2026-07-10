@@ -367,21 +367,8 @@ export default function AdminSettings({
   const [editingPassword, setEditingPassword] = useState<string>("");
   const [editingRole, setEditingRole] = useState<"Admin" | "Moderator" | "Visitor" | "Acting Leader">("Visitor");
   const [editingCustomPermissionsEnabled, setEditingCustomPermissionsEnabled] = useState<boolean>(false);
-  const [editingCustomPermissions, setEditingCustomPermissions] = useState<{
-    serviceReport: "None" | "View" | "Edit" | "Delete";
-    engineeringReport: "None" | "View" | "Edit" | "Delete";
-    inventory: "None" | "View" | "Edit" | "Delete";
-    technicians: "None" | "View" | "Edit" | "Delete";
-    scheduler: "None" | "View" | "Edit" | "Delete";
-    clientDirectory: "None" | "View" | "Edit" | "Delete";
-  }>({
-    serviceReport: "View",
-    engineeringReport: "View",
-    inventory: "View",
-    technicians: "View",
-    scheduler: "View",
-    clientDirectory: "View"
-  });
+  const [editingCustomPermissions, setEditingCustomPermissions] = useState<Record<string, any>>({});
+  const [editingUserSubTab, setEditingUserSubTab] = useState<"Ad" | "V" | "D" | "Ed" | "All">("All");
   const [editingAllowedEmirates, setEditingAllowedEmirates] = useState<string[]>([]);
 
   // Professional security enhancer states
@@ -429,14 +416,94 @@ export default function AdminSettings({
     setEditingPassword(user.passwordPlain);
     setEditingRole(user.role);
     setEditingCustomPermissionsEnabled(!!user.customPermissionsEnabled);
-    setEditingCustomPermissions(user.customPermissions || {
-      serviceReport: "View",
-      engineeringReport: "View",
-      inventory: "View",
-      technicians: "View",
-      scheduler: "View",
-      clientDirectory: "View"
-    });
+    
+    // Initialize editingCustomPermissions
+    const finalCP: Record<string, boolean> = {};
+    const defaultForRole = DEFAULT_ROLE_PERMISSIONS[user.role] || DEFAULT_ROLE_PERMISSIONS.Visitor;
+    
+    // Fill all keys with either default role permissions or false
+    const allKeys = [
+      ...PERMISSION_GROUPS.Ad,
+      ...PERMISSION_GROUPS.V,
+      ...PERMISSION_GROUPS.D,
+      ...PERMISSION_GROUPS.Ed
+    ];
+    for (const item of allKeys) {
+      finalCP[item.key] = (defaultForRole as any)[item.key] ?? false;
+    }
+
+    if (user.customPermissions) {
+      // Check if it is already in the new format (with "can..." keys)
+      let hasDirectFlags = false;
+      for (const k of Object.keys(user.customPermissions)) {
+        if (k.startsWith("can")) {
+          hasDirectFlags = true;
+          break;
+        }
+      }
+
+      if (hasDirectFlags) {
+        for (const [k, v] of Object.entries(user.customPermissions)) {
+          if (k.startsWith("can") && typeof v === "boolean") {
+            finalCP[k] = v;
+          }
+        }
+      } else {
+        // Map from old module format
+        const cp = user.customPermissions as any;
+        if (cp.serviceReport) {
+          const mode = cp.serviceReport;
+          finalCP.canViewDashboard = mode !== "None";
+          finalCP.canViewCompletedRegistry = mode !== "None";
+          finalCP.canViewMasterForm = mode !== "None";
+          finalCP.canCreateReport = mode === "Edit" || mode === "Delete";
+          finalCP.canEditReport = mode === "Edit" || mode === "Delete";
+          finalCP.canDeleteReport = mode === "Delete";
+        }
+        if (cp.engineeringReport) {
+          const mode = cp.engineeringReport;
+          finalCP.canViewEngineeringReport = mode !== "None";
+          finalCP.canCreateEngineeringReport = mode === "Edit" || mode === "Delete";
+          finalCP.canEditEngineeringReport = mode === "Edit" || mode === "Delete";
+          finalCP.canDeleteEngineeringReport = mode === "Delete";
+        }
+        if (cp.inventory) {
+          const mode = cp.inventory;
+          finalCP.canViewInventory = mode !== "None";
+          finalCP.canCreateInventory = mode === "Edit" || mode === "Delete";
+          finalCP.canEditInventory = mode === "Edit" || mode === "Delete";
+          finalCP.canDeleteInventory = mode === "Delete";
+        }
+        if (cp.technicians) {
+          const mode = cp.technicians;
+          finalCP.canViewTechnicians = mode !== "None";
+          finalCP.canCreateTechnician = mode === "Edit" || mode === "Delete";
+          finalCP.canEditTechnician = mode === "Edit" || mode === "Delete";
+          finalCP.canDeleteTechnician = mode === "Delete";
+          finalCP.canViewSupervisors = mode !== "None";
+          finalCP.canCreateSupervisor = mode === "Edit" || mode === "Delete";
+          finalCP.canEditSupervisor = mode === "Edit" || mode === "Delete";
+          finalCP.canDeleteSupervisor = mode === "Delete";
+        }
+        if (cp.scheduler) {
+          const mode = cp.scheduler;
+          finalCP.canViewScheduler = mode !== "None";
+          finalCP.canCreateScheduler = mode === "Edit" || mode === "Delete";
+          finalCP.canEditScheduler = mode === "Edit" || mode === "Delete";
+          finalCP.canDeleteScheduler = mode === "Delete";
+        }
+        if (cp.clientDirectory) {
+          const mode = cp.clientDirectory;
+          finalCP.canViewDirectory = mode !== "None";
+          finalCP.canViewLocations = mode !== "None";
+          finalCP.canCreateLocation = mode === "Edit" || mode === "Delete";
+          finalCP.canEditLocation = mode === "Edit" || mode === "Delete";
+          finalCP.canDeleteLocation = mode === "Delete";
+        }
+      }
+    }
+    setEditingCustomPermissions(finalCP);
+    setEditingUserSubTab("All");
     setEditingAllowedEmirates(user.allowedEmirates || []);
   };
 
@@ -2318,49 +2385,195 @@ Reloading portal to apply updates...`;
                                     </div>
 
                                     {editingCustomPermissionsEnabled && (
-                                      <div className="bg-slate-950/40 border border-slate-850 rounded-2xl p-4 space-y-3">
-                                        <span className="block text-[10px] font-bold text-slate-350 uppercase tracking-wider">
-                                          🔑 {language === "bn" ? "মডিউল ভিত্তিক অ্যাক্সেস কন্ট্রোল" : "Granular Module Permissions"}
-                                        </span>
-                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                                          {[
-                                            { key: "serviceReport", label: language === "bn" ? "সার্ভিস রিপোর্ট" : "Service Reports" },
-                                            { key: "engineeringReport", label: language === "bn" ? "ইঞ্জিনিয়ারিং রিপোর্ট" : "Engineering Reports" },
-                                            { key: "inventory", label: language === "bn" ? "কেমিক্যাল ইনভেন্টরি" : "Chemical Inventory" },
-                                            { key: "technicians", label: language === "bn" ? "টেকনিশিয়ান প্যানেল" : "Technicians & Supervisors" },
-                                            { key: "scheduler", label: language === "bn" ? "প্রজেক্ট শিডিউলার" : "Project Scheduler" },
-                                            { key: "clientDirectory", label: language === "bn" ? "লোকেশন ডিরেক্টরি" : "Location Directory" },
-                                          ].map((mod) => {
-                                            const currentVal = editingCustomPermissions[mod.key as keyof typeof editingCustomPermissions] || "None";
-                                            return (
-                                              <div key={mod.key} className="flex items-center justify-between bg-slate-900/40 p-2.5 rounded-xl border border-slate-850/60">
-                                                <span className="text-xs font-bold text-slate-300">{mod.label}</span>
-                                                <div className="flex bg-slate-950 rounded-lg p-0.5 border border-slate-800">
-                                                  {(["None", "View", "Edit", "Delete"] as const).map((level) => (
-                                                    <button
-                                                      key={level}
-                                                      type="button"
-                                                      onClick={() => setEditingCustomPermissions({
-                                                        ...editingCustomPermissions,
-                                                        [mod.key]: level
-                                                      })}
-                                                      className={`px-2 py-1 rounded text-[9px] font-bold transition cursor-pointer ${
-                                                        currentVal === level
-                                                          ? "bg-[#10B981] text-slate-950"
-                                                          : "text-slate-455 hover:text-slate-200"
-                                                      }`}
-                                                    >
-                                                      {level === "None" && (language === "bn" ? "বন্ধ" : "None")}
-                                                      {level === "View" && (language === "bn" ? "দেখা" : "View")}
-                                                      {level === "Edit" && (language === "bn" ? "এডিট" : "Edit")}
-                                                      {level === "Delete" && (language === "bn" ? "মুছা" : "Delete")}
-                                                    </button>
-                                                  ))}
+                                      <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 space-y-5 shadow-xl text-left">
+                                        <div className="flex items-center justify-between border-b border-slate-850 pb-3 gap-4 flex-wrap">
+                                          <div className="flex items-center gap-4 flex-wrap w-full justify-between">
+                                            <h4 className="text-xs font-black text-slate-200 flex items-center gap-2">
+                                              <span className="w-2 h-2 rounded-full bg-[#10B981] animate-pulse" />
+                                              <span>{language === "bn" ? "অ্যাকাউন্ট কাস্টম পারমিশন" : "Account Custom Permissions"}</span>
+                                            </h4>
+
+                                            {/* Category Tab Buttons */}
+                                            <div className="flex items-center gap-1.5 flex-wrap">
+                                              {[
+                                                { id: "All", label: language === "bn" ? "সমস্ত" : "All", tooltip: language === "bn" ? "সব পারমিশন" : "All Permissions" },
+                                                { id: "Ad", label: language === "bn" ? "Add" : "Add", tooltip: language === "bn" ? "অ্যাড করা" : "Add/Create Permissions" },
+                                                { id: "V", label: language === "bn" ? "View" : "View", tooltip: language === "bn" ? "ভিউ করা" : "View Permissions" },
+                                                { id: "D", label: language === "bn" ? "Delete" : "Delete", tooltip: language === "bn" ? "ডিলিট করা" : "Delete Permissions" },
+                                                { id: "Ed", label: language === "bn" ? "Edit" : "Edit", tooltip: language === "bn" ? "এডিট করা" : "Edit Permissions" },
+                                              ].map((btn) => {
+                                                const isActive = editingUserSubTab === btn.id;
+                                                return (
+                                                  <button
+                                                    key={btn.id}
+                                                    type="button"
+                                                    onClick={() => {
+                                                      setEditingUserSubTab(btn.id as any);
+                                                    }}
+                                                    className={`px-2.5 py-1 rounded-lg text-[10px] font-black tracking-wide border transition-all duration-300 cursor-pointer ${
+                                                      isActive
+                                                        ? "bg-[#10B981]/10 border-[#10B981] text-[#10B981] shadow-sm shadow-[#10B981]/10"
+                                                        : "bg-slate-950 border-slate-850 text-slate-400 hover:text-slate-200 hover:bg-slate-900 hover:border-slate-700"
+                                                    }`}
+                                                    title={btn.tooltip}
+                                                  >
+                                                    {btn.label}
+                                                  </button>
+                                                );
+                                              })}
+                                            </div>
+                                          </div>
+                                        </div>
+
+                                        {(() => {
+                                          const keysToRender: { key: string; label: string }[] = [];
+                                          
+                                          if (editingUserSubTab === "All") {
+                                            const allKeys = [
+                                              ...PERMISSION_GROUPS.Ad,
+                                              ...PERMISSION_GROUPS.V,
+                                              ...PERMISSION_GROUPS.D,
+                                              ...PERMISSION_GROUPS.Ed
+                                            ];
+                                            const seen = new Set<string>();
+                                            for (const item of allKeys) {
+                                              if (!seen.has(item.key)) {
+                                                seen.add(item.key);
+                                                keysToRender.push({
+                                                  key: item.key,
+                                                  label: language === "bn" ? item.label.bn : item.label.en
+                                                });
+                                              }
+                                            }
+                                          } else {
+                                            const groupKeys = PERMISSION_GROUPS[editingUserSubTab as "Ad" | "V" | "D" | "Ed"] || [];
+                                            for (const item of groupKeys) {
+                                              keysToRender.push({
+                                                key: item.key,
+                                                label: language === "bn" ? item.label.bn : item.label.en
+                                              });
+                                            }
+                                          }
+
+                                          const handleToggleAll = (enabled: boolean) => {
+                                            const allKeys = [
+                                              ...PERMISSION_GROUPS.Ad,
+                                              ...PERMISSION_GROUPS.V,
+                                              ...PERMISSION_GROUPS.D,
+                                              ...PERMISSION_GROUPS.Ed
+                                            ];
+                                            const updated = { ...editingCustomPermissions };
+                                            for (const item of allKeys) {
+                                              updated[item.key] = enabled;
+                                            }
+                                            setEditingCustomPermissions(updated);
+                                          };
+
+                                          const half = Math.ceil(keysToRender.length / 2);
+                                          const leftColumn = keysToRender.slice(0, half);
+                                          const rightColumn = keysToRender.slice(half);
+
+                                          return (
+                                            <div className="space-y-4">
+                                              {editingUserSubTab === "All" && (
+                                                <div className="flex flex-wrap items-center gap-3 bg-slate-950/40 border border-slate-850 p-2.5 rounded-xl mb-2">
+                                                  <span className="text-[10px] font-black text-slate-350 uppercase tracking-wider font-mono">
+                                                    {language === "bn" ? "গ্লোবাল নিয়ন্ত্রণ:" : "Global Controls:"}
+                                                  </span>
+                                                  <button
+                                                    type="button"
+                                                    onClick={() => handleToggleAll(true)}
+                                                    className="px-2.5 py-1 rounded bg-[#10B981]/10 hover:bg-[#10B981]/20 text-[#10B981] border border-[#10B981]/20 text-[9px] font-bold uppercase transition-all cursor-pointer"
+                                                  >
+                                                    {language === "bn" ? "সমস্ত সক্রিয় করুন" : "Activate All"}
+                                                  </button>
+                                                  <button
+                                                    type="button"
+                                                    onClick={() => handleToggleAll(false)}
+                                                    className="px-2.5 py-1 rounded bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/20 text-[9px] font-bold uppercase transition-all cursor-pointer"
+                                                  >
+                                                    {language === "bn" ? "সমস্ত নিষ্ক্রিয় করুন" : "Deactivate All"}
+                                                  </button>
+                                                </div>
+                                              )}
+
+                                              <div className="flex flex-col md:flex-row md:items-stretch gap-y-4 md:gap-x-8 min-h-[180px]">
+                                                <div className="flex-1 space-y-3">
+                                                  {leftColumn.map(({ key, label }) => {
+                                                    const value = !!editingCustomPermissions[key];
+                                                    const isKeyInSelectedGroup = editingUserSubTab === "All" || (
+                                                      PERMISSION_GROUPS[editingUserSubTab as "Ad" | "V" | "D" | "Ed"]?.some(item => item.key === key)
+                                                    );
+                                                    return (
+                                                      <label key={key} className="flex items-center justify-between group cursor-pointer py-0.5 select-none transition-all duration-300 opacity-100">
+                                                        <span className={`text-[11px] font-semibold transition-colors ${
+                                                          editingUserSubTab !== "All" && isKeyInSelectedGroup
+                                                            ? "text-[#10B981] font-extrabold"
+                                                            : "text-slate-300 group-hover:text-white"
+                                                        }`}>
+                                                          {label}
+                                                        </span>
+                                                        <div className="relative inline-block w-8 h-4 shrink-0">
+                                                          <input 
+                                                            type="checkbox"
+                                                            className="peer sr-only"
+                                                            checked={value}
+                                                            onChange={(e) => {
+                                                              setEditingCustomPermissions({
+                                                                ...editingCustomPermissions,
+                                                                [key]: e.target.checked
+                                                              });
+                                                            }}
+                                                          />
+                                                          <div className="block bg-slate-950 border border-slate-850 w-full h-full rounded-full peer-checked:bg-[#10B981] peer-checked:border-[#10B981] transition-all"></div>
+                                                          <div className="absolute left-[2px] top-[2px] bg-slate-500 w-3 h-3 rounded-full transition-all peer-checked:translate-x-full peer-checked:bg-white"></div>
+                                                        </div>
+                                                      </label>
+                                                    );
+                                                  })}
+                                                </div>
+
+                                                {/* Elegant Vertical Divider Line */}
+                                                <div className="hidden md:block w-[1px] bg-slate-800/80 self-stretch" />
+
+                                                <div className="flex-1 space-y-3">
+                                                  {rightColumn.map(({ key, label }) => {
+                                                    const value = !!editingCustomPermissions[key];
+                                                    const isKeyInSelectedGroup = editingUserSubTab === "All" || (
+                                                      PERMISSION_GROUPS[editingUserSubTab as "Ad" | "V" | "D" | "Ed"]?.some(item => item.key === key)
+                                                    );
+                                                    return (
+                                                      <label key={key} className="flex items-center justify-between group cursor-pointer py-0.5 select-none transition-all duration-300 opacity-100">
+                                                        <span className={`text-[11px] font-semibold transition-colors ${
+                                                          editingUserSubTab !== "All" && isKeyInSelectedGroup
+                                                            ? "text-[#10B981] font-extrabold"
+                                                            : "text-slate-300 group-hover:text-white"
+                                                        }`}>
+                                                          {label}
+                                                        </span>
+                                                        <div className="relative inline-block w-8 h-4 shrink-0">
+                                                          <input 
+                                                            type="checkbox"
+                                                            className="peer sr-only"
+                                                            checked={value}
+                                                            onChange={(e) => {
+                                                              setEditingCustomPermissions({
+                                                                ...editingCustomPermissions,
+                                                                [key]: e.target.checked
+                                                              });
+                                                            }}
+                                                          />
+                                                          <div className="block bg-slate-950 border border-slate-850 w-full h-full rounded-full peer-checked:bg-[#10B981] peer-checked:border-[#10B981] transition-all"></div>
+                                                          <div className="absolute left-[2px] top-[2px] bg-slate-500 w-3 h-3 rounded-full transition-all peer-checked:translate-x-full peer-checked:bg-white"></div>
+                                                        </div>
+                                                      </label>
+                                                    );
+                                                  })}
                                                 </div>
                                               </div>
-                                            );
-                                          })}
-                                        </div>
+                                            </div>
+                                          );
+                                        })()}
                                       </div>
                                     )}
 

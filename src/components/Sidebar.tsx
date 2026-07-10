@@ -111,7 +111,8 @@ export default function Sidebar({
     if (item.id === "ai_pest") return perms.canViewAIPest;
     if (item.id === "client_portal") return perms.canViewClientPortal;
     if (item.id === "custom_option_1") return perms.canViewScheduler;
-    if (item.id === "custom_option_2" || item.id === "custom_option_3") return userRole === "Admin";
+    if (item.id === "custom_option_2") return userRole === "Admin";
+    if (item.id === "custom_option_3") return userRole === "Admin" || perms.canViewTechnicians;
 
     return true;
   });
