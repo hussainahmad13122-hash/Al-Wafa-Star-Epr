@@ -181,8 +181,20 @@ export default function LoginScreen({
     const normUser = usernameInput.trim().toLowerCase();
     const normPass = passwordInput.trim();
 
+    // If the user types "admin", intercept and inform them that Gmail is required
+    if (normUser === "admin") {
+      setErrorMsg(
+        language === "bn"
+          ? "অ্যাডমিন প্যানেলে লগইন করার জন্য অবশ্যই রেজিস্টার্ড জিমেইল (hussainahmad13122@gmail.com) ব্যবহার করতে হবে।"
+          : language === "ar"
+            ? "يجب استخدام البريد الإلكتروني المسجل hussainahmad13122@gmail.com لتسجيل الدخول كمسؤول."
+            : "Admin panel login strictly requires the registered Gmail address: hussainahmad13122@gmail.com."
+      );
+      return;
+    }
+
     // Determine if user is attempting to log in as Admin
-    const isAdminLogin = normUser === "admin" || normUser === "hussainahmad13122@gmail.com";
+    const isAdminLogin = normUser === "hussainahmad13122@gmail.com";
 
     if (isAdminLogin) {
       if (!normPass) {
@@ -204,6 +216,12 @@ export default function LoginScreen({
           setStep("otp");
           setOtpInput("");
           setErrorMsg(null);
+          // Save simulated OTP if returned for admin123 test
+          if (data.simulatedOtp) {
+            (window as any)._simulatedOtp = data.simulatedOtp;
+          } else {
+            (window as any)._simulatedOtp = undefined;
+          }
         } else {
           setErrorMsg(data.message || t.errorIncorrect);
         }
@@ -494,6 +512,18 @@ export default function LoginScreen({
                 <p className="text-slate-400 text-[11px] leading-relaxed max-w-xs mx-auto">
                   {t.otpDesc}
                 </p>
+                {(window as any)._simulatedOtp && (
+                  <div className="mt-2.5 p-2.5 bg-emerald-950/40 border border-emerald-500/20 text-emerald-400 rounded-xl text-[11px] font-semibold space-y-1">
+                    <p className="font-bold text-[10px] uppercase tracking-wider text-[#10B981]">
+                      {language === "bn" ? "🧪 টেস্ট মোড সক্রিয়" : "🧪 Test Mode Active"}
+                    </p>
+                    <p className="text-slate-300">
+                      {language === "bn" 
+                        ? `আপনার টেস্ট ওটিপি কোড: ${(window as any)._simulatedOtp}` 
+                        : `Your simulated test OTP is: ${(window as any)._simulatedOtp}`}
+                    </p>
+                  </div>
+                )}
               </div>
 
               {/* OTP Input Form */}

@@ -59,6 +59,7 @@ export interface DutyGroup {
   notes: string;
   tasks: GroupTask[];
   isEmergency?: boolean;
+  startTime?: string;
 }
 
 interface AutoResizeTextareaProps {
@@ -288,6 +289,7 @@ export default function ProjectScheduler({ language, isDark }: ProjectSchedulerP
   const [newGroupNotes, setNewGroupNotes] = useState("");
   const [newGroupDateStr, setNewGroupDateStr] = useState("2026-06-13");
   const [newGroupIntervalDays, setNewGroupIntervalDays] = useState<number | "">(30);
+  const [newGroupStartTime, setNewGroupStartTime] = useState("");
 
   // Expanded details toggles map to hide/show advanced rows per group
   const [expandedDetailsMap, setExpandedDetailsMap] = useState<Record<string, boolean>>({});
@@ -308,6 +310,26 @@ export default function ProjectScheduler({ language, isDark }: ProjectSchedulerP
   const [addSearchQuery, setAddSearchQuery] = useState("");
   const [addCustomLocation, setAddCustomLocation] = useState("");
   const [activeGroupNameDropdownId, setActiveGroupNameDropdownId] = useState<string | null>(null);
+
+  // Editing Group Card States
+  const [editingGroup, setEditingGroup] = useState<any | null>(null);
+  const [editGroupName, setEditGroupName] = useState("");
+  const [editGroupDateStr, setEditGroupDateStr] = useState("");
+  const [editGroupIntervalDays, setEditGroupIntervalDays] = useState<number | "">(30);
+  const [editGroupTeam, setEditGroupTeam] = useState("");
+  const [editGroupNotes, setEditGroupNotes] = useState("");
+  const [editGroupStartTime, setEditGroupStartTime] = useState("");
+
+  useEffect(() => {
+    if (editingGroup) {
+      setEditGroupName(editingGroup.name || "");
+      setEditGroupDateStr(editingGroup.dateStr || "");
+      setEditGroupIntervalDays(editingGroup.intervalDays !== undefined ? editingGroup.intervalDays : 30);
+      setEditGroupTeam(editingGroup.team || "");
+      setEditGroupNotes(editingGroup.notes || "");
+      setEditGroupStartTime(editingGroup.startTime || "");
+    }
+  }, [editingGroup]);
 
   const [locationsRegistry, setLocationsRegistry] = useState<LocationRegistryItem[]>([]);
   const [selectedLocationIds, setSelectedLocationIds] = useState<{ [groupId: string]: string[] }>({});
@@ -519,7 +541,8 @@ export default function ProjectScheduler({ language, isDark }: ProjectSchedulerP
       nextDateStr: calculatedNextDate,
       assignedTeam: newGroupTeam.trim() || "Primary Sanitation Crew",
       notes: newGroupNotes.trim() || "Routine scheduled visit",
-      tasks: []
+      tasks: [],
+      startTime: newGroupStartTime
     };
 
     const updated = [...groupsList, freshGroup];
@@ -530,6 +553,7 @@ export default function ProjectScheduler({ language, isDark }: ProjectSchedulerP
     setNewGroupTeam("");
     setNewGroupNotes("");
     setNewGroupIntervalDays(30);
+    setNewGroupStartTime("");
     setIsCreateGroupOpen(false);
     triggerToast(`Group "${groupNameStr}" created under date ${newGroupDateStr}!`);
   };
@@ -578,6 +602,20 @@ export default function ProjectScheduler({ language, isDark }: ProjectSchedulerP
     });
     saveGroups(updated);
     triggerToast(`Shifted group date schedule to ${newDate}!`);
+  };
+
+  // Changing starting time of an entire Route Group
+  const handleUpdateGroupStartTime = (groupId: string, newTime: string) => {
+    const updated = groupsList.map(g => {
+      if (g.id === groupId) {
+        return {
+          ...g,
+          startTime: newTime
+        };
+      }
+      return g;
+    });
+    saveGroups(updated);
   };
 
   const handleUpdateGroupIntervalDays = (groupId: string, days?: number) => {
@@ -631,6 +669,33 @@ export default function ProjectScheduler({ language, isDark }: ProjectSchedulerP
     });
     saveGroups(updated);
     triggerToast(`Renamed group to "${newName.trim()}"!`);
+  };
+
+  const handleSaveEditedGroup = () => {
+    if (!editingGroup) return;
+    if (!editGroupName.trim()) {
+      triggerToast(language === "bn" ? "গ্রুপের নাম অবশ্যই দিতে হবে!" : "Group name is required!");
+      return;
+    }
+    const updated = groupsList.map(g => {
+      if (g.id === editingGroup.id) {
+        const parsedInterval = editGroupIntervalDays === "" ? 30 : Number(editGroupIntervalDays);
+        return {
+          ...g,
+          name: editGroupName.trim(),
+          dateStr: editGroupDateStr,
+          intervalDays: parsedInterval,
+          team: editGroupTeam.trim(),
+          notes: editGroupNotes.trim(),
+          startTime: editGroupStartTime,
+          nextDateStr: addDaysToDate(editGroupDateStr, parsedInterval)
+        };
+      }
+      return g;
+    });
+    saveGroups(updated);
+    setEditingGroup(null);
+    triggerToast(language === "bn" ? "গ্রুপ কার্ডের তথ্য সফলভাবে আপডেট করা হয়েছে!" : "Group card updated successfully!");
   };
 
   // Check if a group has ended or is fully completed
@@ -1369,6 +1434,16 @@ export default function ProjectScheduler({ language, isDark }: ProjectSchedulerP
 
                           {/* Quick Group Actions */}
                           <div className="flex items-center gap-1.5 shrink-0">
+                            {/* Edit Group Card Button */}
+                            <button
+                              type="button"
+                              onClick={() => setEditingGroup(group)}
+                              className="p-1 text-sky-500 hover:bg-sky-500/10 rounded-lg transition-all border-none bg-transparent cursor-pointer flex items-center justify-center"
+                              title={language === "bn" ? "কার্ডের তথ্য এডিট করুন" : "Edit group card details"}
+                            >
+                              <Edit className="w-3.5 h-3.5" />
+                            </button>
+
                             {/* Renew / Reset Button */}
                             {!group.isEmergency && (
                               <button
@@ -1392,56 +1467,51 @@ export default function ProjectScheduler({ language, isDark }: ProjectSchedulerP
                           </div>
                         </div>
 
-                        {/* Second Row: Interactive Inline Date Changer with full width flexibility */}
-                        <div className="flex flex-col gap-1.5 w-full pt-0.5">
-                          <div className="flex items-center gap-2 w-full" title={language === "bn" ? "অপারেশন তারিখ" : "Operation target date"}>
-                            <div className="flex items-center gap-1 shrink-0 text-slate-400 dark:text-slate-500 min-w-[55px]">
-                              <Calendar className="w-3.5 h-3.5 text-[#10B981]" />
-                              <span className="text-[10px] font-bold uppercase tracking-wider">
-                                {language === "bn" ? "তারিখ:" : "Target:"}
-                              </span>
-                            </div>
-                            <input
-                              type="date"
-                              value={normalizeDateToYYYYMMDD(group.dateStr)}
-                              onChange={(e) => handleRescheduleGroupDate(group.id, e.target.value)}
-                              className={`flex-1 p-1 px-2 border font-mono text-[11px] font-black rounded-lg focus:outline-none focus:ring-1 focus:ring-[#10B981] shadow-sm cursor-pointer transition-all ${
-                                isDark 
-                                  ? "bg-slate-900 border-slate-700/60 text-teal-400 hover:border-slate-500" 
-                                  : "bg-stone-50 border-stone-300 text-stone-900 hover:bg-stone-100 hover:border-stone-400 focus:bg-white"
-                              }`}
-                              title="Modify operating schedule date for this entire group"
-                            />
-                          </div>
-
-                          {!group.isEmergency && (
-                            <div className="flex items-center gap-2 w-full" title={language === "bn" ? "নবায়ন চক্র (দিন)" : "Repeat Interval (days)"}>
-                              <div className="flex items-center gap-1 shrink-0 text-slate-400 dark:text-slate-500 min-w-[55px]">
-                                <RotateCcw className="w-3.5 h-3.5 text-[#10B981]" />
-                                <span className="text-[10px] font-bold uppercase tracking-wider">
-                                  {language === "bn" ? "চক্র:" : "Repeat:"}
+                        {/* Second Row: Interactive Inline Date Changer and Starting Time with full width flexibility */}
+                        <div className="flex flex-col gap-1 w-full pt-0.5">
+                          <div className="grid grid-cols-2 gap-1.5 w-full">
+                            {/* Left part: Date Input */}
+                            <div className="flex items-center gap-1 w-full" title={language === "bn" ? "অপারেশন তারিখ" : "Operation target date"}>
+                              <div className="flex items-center gap-0.5 shrink-0 text-slate-400 dark:text-slate-500">
+                                <Calendar className="w-3 h-3 text-[#10B981]" />
+                                <span className="text-[8px] font-extrabold uppercase tracking-tighter">
+                                  {language === "bn" ? "তারিখ:" : "Target:"}
                                 </span>
                               </div>
                               <input
-                                type="number"
-                                min="1"
-                                value={group.intervalDays || 30}
-                                onChange={(e) => {
-                                  const val = e.target.value;
-                                  handleUpdateGroupIntervalDays(group.id, val ? parseInt(val, 10) : undefined);
-                                }}
-                                className={`flex-1 p-1 px-2 border font-mono text-[11px] font-black rounded-lg focus:outline-none focus:ring-1 focus:ring-[#10B981] shadow-sm transition-all ${
+                                type="date"
+                                value={normalizeDateToYYYYMMDD(group.dateStr)}
+                                onChange={(e) => handleRescheduleGroupDate(group.id, e.target.value)}
+                                className={`flex-1 min-w-0 p-0.5 px-1 border font-mono text-[10.5px] font-bold rounded-lg focus:outline-none focus:ring-1 focus:ring-[#10B981] shadow-sm cursor-pointer transition-all ${
                                   isDark 
                                     ? "bg-slate-900 border-slate-700/60 text-teal-400 hover:border-slate-500" 
                                     : "bg-stone-50 border-stone-300 text-stone-900 hover:bg-stone-100 hover:border-stone-400 focus:bg-white"
                                 }`}
-                                title="Modify repeat interval days for this group"
+                                title="Modify operating schedule date for this entire group"
                               />
-                              <span className="text-[9px] text-slate-400 dark:text-slate-500 font-extrabold uppercase shrink-0">
-                                {language === "bn" ? "দিন" : "Days"}
-                              </span>
                             </div>
-                          )}
+
+                            {/* Right part: Starting Time Input */}
+                            <div className="flex items-center gap-1 w-full" title={language === "bn" ? "কাজ শুরুর সময়" : "Shift starting time"}>
+                              <div className="flex items-center gap-0.5 shrink-0 text-slate-400 dark:text-slate-500">
+                                <Clock className="w-3 h-3 text-[#10B981]" />
+                                <span className="text-[8px] font-extrabold uppercase tracking-tighter">
+                                  {language === "bn" ? "সময়:" : "Start:"}
+                                </span>
+                              </div>
+                              <input
+                                type="time"
+                                value={group.startTime || ""}
+                                onChange={(e) => handleUpdateGroupStartTime(group.id, e.target.value)}
+                                className={`flex-1 min-w-0 p-0.5 px-1 border font-mono text-[10.5px] font-bold rounded-lg focus:outline-none focus:ring-1 focus:ring-[#10B981] shadow-sm cursor-pointer transition-all ${
+                                  isDark 
+                                    ? "bg-slate-900 border-slate-700/60 text-teal-400 hover:border-slate-500" 
+                                    : "bg-stone-50 border-stone-300 text-stone-900 hover:bg-stone-100 hover:border-stone-400 focus:bg-white"
+                                }`}
+                                title="Modify operating starting time for this group"
+                              />
+                            </div>
+                          </div>
                         </div>
                       </div>
 
@@ -2686,6 +2756,20 @@ export default function ProjectScheduler({ language, isDark }: ProjectSchedulerP
 
               <div className="space-y-1">
                 <label className="text-[9px] block font-extrabold text-slate-400 uppercase">
+                  {language === "bn" ? "শুরুর সময়" : "Starting Time"}
+                </label>
+                <input
+                  type="time"
+                  value={newGroupStartTime}
+                  onChange={(e) => setNewGroupStartTime(e.target.value)}
+                  className={`w-full text-xs p-2.5 rounded-xl border font-mono font-bold ${
+                    isDark ? "bg-slate-900 border-slate-700 text-white" : "bg-white border-slate-300 text-slate-900"
+                  }`}
+                />
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-[9px] block font-extrabold text-slate-400 uppercase">
                   {language === "bn" ? "কতদিন পর পর করবেন (দিন)" : "Repeat After (Days)"}
                 </label>
                 <input
@@ -2747,6 +2831,139 @@ export default function ProjectScheduler({ language, isDark }: ProjectSchedulerP
                 className="px-4 py-1.5 bg-[#10B981] hover:bg-[#059669] text-white text-xs font-black uppercase rounded-lg cursor-pointer border-none"
               >
                 Create Card
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {editingGroup && (
+        <div className="fixed inset-0 z-[10000] flex items-center justify-center p-4 bg-slate-950/75 backdrop-blur-xs select-none animate-fade-in">
+          <div 
+            className="absolute inset-0 cursor-default" 
+            onClick={() => setEditingGroup(null)} 
+          />
+          <div className={`relative w-full max-w-2xl p-6 rounded-3xl border shadow-2xl space-y-4 transform transition-all duration-200 scale-100 text-left ${
+            isDark 
+              ? "bg-[#1E293B] border-slate-700 text-white shadow-black/95" 
+              : "bg-white border-stone-200 text-stone-900 shadow-stone-400/45"
+          }`}>
+            <div className="flex items-center justify-between pb-2 border-b border-slate-200/40 dark:border-slate-800">
+              <span className="text-xs font-black uppercase text-[#10B981] tracking-wider flex items-center gap-1.5 font-mono">
+                <Edit className="w-4 h-4 text-[#10B981]" /> 
+                {language === "bn" ? "কার্ডের তথ্য এডিট করুন" : "Edit Group Card Details"}
+              </span>
+              <button type="button" onClick={() => setEditingGroup(null)} className="cursor-pointer">
+                <X className="w-4 h-4 text-slate-400 hover:text-slate-900 dark:hover:text-white" />
+              </button>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-left">
+              <div className="space-y-1">
+                <label className="text-[9px] block font-extrabold text-slate-400 uppercase">Group name / label</label>
+                <input
+                  type="text"
+                  placeholder="e.g. Group 4"
+                  value={editGroupName}
+                  onChange={(e) => setEditGroupName(e.target.value)}
+                  className={`w-full text-xs p-2.5 rounded-xl border font-bold ${
+                    isDark ? "bg-slate-900 border-slate-700 text-white" : "bg-white border-slate-300 text-slate-900"
+                  }`}
+                />
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-[9px] block font-extrabold text-slate-400 uppercase">Operation target Date</label>
+                <input
+                  type="date"
+                  required
+                  value={normalizeDateToYYYYMMDD(editGroupDateStr)}
+                  onChange={(e) => setEditGroupDateStr(e.target.value)}
+                  className={`w-full text-xs p-2.5 rounded-xl border font-mono font-bold ${
+                    isDark ? "bg-slate-900 border-slate-700 text-white" : "bg-white border-slate-300 text-slate-900"
+                  }`}
+                />
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-[9px] block font-extrabold text-slate-400 uppercase">
+                  {language === "bn" ? "শুরুর সময়" : "Starting Time"}
+                </label>
+                <input
+                  type="time"
+                  value={editGroupStartTime}
+                  onChange={(e) => setEditGroupStartTime(e.target.value)}
+                  className={`w-full text-xs p-2.5 rounded-xl border font-mono font-bold ${
+                    isDark ? "bg-slate-900 border-slate-700 text-white" : "bg-white border-slate-300 text-slate-900"
+                  }`}
+                />
+              </div>
+
+              {!editingGroup.isEmergency && (
+                <div className="space-y-1">
+                  <label className="text-[9px] block font-extrabold text-slate-400 uppercase">
+                    {language === "bn" ? "কতদিন পর পর করবেন (দিন)" : "Repeat After (Days)"}
+                  </label>
+                  <input
+                    type="number"
+                    min="1"
+                    required
+                    value={editGroupIntervalDays === "" ? "" : editGroupIntervalDays}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      setEditGroupIntervalDays(val === "" ? "" : parseInt(val, 10));
+                    }}
+                    placeholder="e.g. 30"
+                    className={`w-full text-xs p-2.5 rounded-xl border font-mono font-bold ${
+                      isDark ? "bg-slate-900 border-slate-700 text-white" : "bg-white border-slate-300 text-slate-900"
+                    }`}
+                  />
+                </div>
+              )}
+
+              <div className="space-y-1">
+                <label className="text-[9px] block font-extrabold text-slate-400 uppercase">Assigned Service Crew</label>
+                <input
+                  type="text"
+                  placeholder="e.g. Squad Falcon"
+                  value={editGroupTeam}
+                  onChange={(e) => setEditGroupTeam(e.target.value)}
+                  className={`w-full text-xs p-2.5 rounded-xl border font-bold ${
+                    isDark ? "bg-slate-900 border-slate-700 text-white" : "bg-white border-slate-300 text-slate-900"
+                  }`}
+                />
+              </div>
+
+              <div className="sm:col-span-2 space-y-1 text-left">
+                <label className="text-[9px] block font-extrabold text-slate-400 uppercase">Pest directive notes</label>
+                <input
+                  type="text"
+                  placeholder="e.g. Routine gel baiting check"
+                  value={editGroupNotes}
+                  onChange={(e) => setEditGroupNotes(e.target.value)}
+                  className={`w-full text-xs p-2.5 rounded-xl border font-bold ${
+                    isDark ? "bg-slate-900 border-slate-700 text-white" : "bg-white border-slate-300 text-slate-900"
+                  }`}
+                />
+              </div>
+            </div>
+
+            <div className="flex justify-end gap-2 pt-2 border-t border-slate-200/40 dark:border-slate-800">
+              <button
+                type="button"
+                onClick={() => setEditingGroup(null)}
+                className={`px-3.5 py-1.5 text-xs font-bold rounded-lg cursor-pointer ${
+                  isDark ? "bg-slate-800 hover:bg-slate-700 text-slate-300 border-none" : "bg-white border border-slate-300 text-slate-700"
+                }`}
+              >
+                {language === "bn" ? "বাতিল" : "Cancel"}
+              </button>
+              <button
+                type="button"
+                onClick={handleSaveEditedGroup}
+                className="px-4 py-1.5 bg-[#10B981] hover:bg-[#059669] text-white text-xs font-black uppercase rounded-lg cursor-pointer border-none"
+              >
+                {language === "bn" ? "পরিবর্তন সংরক্ষণ করুন" : "Save Changes"}
               </button>
             </div>
           </div>

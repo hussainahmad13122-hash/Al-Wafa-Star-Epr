@@ -214,10 +214,112 @@ export default function MasterForm({
   };
   const recommendationsRef = useRef<HTMLTextAreaElement>(null);
 
+  const [emirate, setEmirate] = useState(() => {
+    // Determine the initial emirate to use
+    let initialEmirate = "Ajman";
+    const loggedInUserStrRaw = typeof window !== "undefined" ? (localStorage.getItem("ALW_STAR_LOGGED_IN_USER") || sessionStorage.getItem("ALW_STAR_LOGGED_IN_USER") || localStorage.getItem("ALW_LOGGED_IN_USER_V2")) : null;
+    if (loggedInUserStrRaw) {
+      try {
+        const u = JSON.parse(loggedInUserStrRaw);
+        if (u && u.role !== "Admin" && u.allowedEmirates && u.allowedEmirates.length > 0) {
+          initialEmirate = u.allowedEmirates[0];
+        }
+      } catch (e) {}
+    }
+    return initialEmirate;
+  });
+
+  // Helper to calculate next serial number per Emirate
+  const getNextSlNoForEmirate = (targetEmirate: string): string => {
+    // Determine default base starting number based on the Emirate
+    // Dubai: starts at 300 (so the first report is 301, then 302, as requested)
+    // Abu Dhabi: starts at 5000
+    // Sharjah: starts at 3000
+    // Fujairah: starts at 1500
+    // Ras Al Khaimah: starts at 1200
+    // Umm Al Quwain: starts at 1000
+    // Others/Ajman: starts at 229
+    let maxNum = 229;
+    const lowerEmirate = (targetEmirate || "").toLowerCase();
+    if (lowerEmirate === "dubai") {
+      maxNum = 300;
+    } else if (lowerEmirate === "abu dhabi" || lowerEmirate === "abudhabi") {
+      maxNum = 5000;
+    } else if (lowerEmirate === "sharjah") {
+      maxNum = 3000;
+    } else if (lowerEmirate === "fujairah") {
+      maxNum = 1500;
+    } else if (lowerEmirate === "ras al khaimah") {
+      maxNum = 1200;
+    } else if (lowerEmirate === "umm al quwain" || lowerEmirate === "umm alquwain") {
+      maxNum = 1000;
+    }
+
+    // Check specific storage key for this Emirate first
+    const key = `ALW_LAST_SL_NO_FOR_${targetEmirate.toUpperCase().replace(/\s+/g, "_")}`;
+    const storedLast = typeof window !== "undefined" ? localStorage.getItem(key) : null;
+    if (storedLast) {
+      const parsedStored = parseInt(storedLast, 10);
+      if (!isNaN(parsedStored) && parsedStored > maxNum) {
+        maxNum = parsedStored;
+      }
+    }
+
+    // Scan existing reports for the same Emirate to see if there is any higher serial number
+    if (reports && reports.length > 0) {
+      reports.forEach(r => {
+        if (r.emirate && r.emirate.toLowerCase() === lowerEmirate) {
+          if (r.id) {
+            const parts = r.id.split("-");
+            if (parts.length >= 2) {
+              const middlePart = parts[1];
+              const parsed = parseInt(middlePart, 10);
+              if (!isNaN(parsed) && parsed > 0 && parsed < 99999) {
+                if (parsed > maxNum) {
+                  maxNum = parsed;
+                }
+              }
+            }
+          }
+        }
+      });
+    }
+
+    return String(maxNum + 1).padStart(4, "0");
+  };
+
   // Replicating physical form top headers
   const [slNo, setSlNo] = useState(() => {
-    let maxNum = 229; // default starting number
-    const storedLast = typeof window !== "undefined" ? localStorage.getItem("ALW_LAST_SL_NO") : null;
+    // Determine the initial emirate to use
+    let initialEmirate = "Ajman";
+    const loggedInUserStrRaw = typeof window !== "undefined" ? (localStorage.getItem("ALW_STAR_LOGGED_IN_USER") || sessionStorage.getItem("ALW_STAR_LOGGED_IN_USER") || localStorage.getItem("ALW_LOGGED_IN_USER_V2")) : null;
+    if (loggedInUserStrRaw) {
+      try {
+        const u = JSON.parse(loggedInUserStrRaw);
+        if (u && u.role !== "Admin" && u.allowedEmirates && u.allowedEmirates.length > 0) {
+          initialEmirate = u.allowedEmirates[0];
+        }
+      } catch (e) {}
+    }
+
+    let maxNum = 229;
+    const lowerEmirate = initialEmirate.toLowerCase();
+    if (lowerEmirate === "dubai") {
+      maxNum = 300;
+    } else if (lowerEmirate === "abu dhabi" || lowerEmirate === "abudhabi") {
+      maxNum = 5000;
+    } else if (lowerEmirate === "sharjah") {
+      maxNum = 3000;
+    } else if (lowerEmirate === "fujairah") {
+      maxNum = 1500;
+    } else if (lowerEmirate === "ras al khaimah") {
+      maxNum = 1200;
+    } else if (lowerEmirate === "umm al quwain" || lowerEmirate === "umm alquwain") {
+      maxNum = 1000;
+    }
+
+    const key = `ALW_LAST_SL_NO_FOR_${initialEmirate.toUpperCase().replace(/\s+/g, "_")}`;
+    const storedLast = typeof window !== "undefined" ? localStorage.getItem(key) : null;
     if (storedLast) {
       const parsedStored = parseInt(storedLast, 10);
       if (!isNaN(parsedStored) && parsedStored > maxNum) {
@@ -227,37 +329,13 @@ export default function MasterForm({
     return String(maxNum + 1).padStart(4, "0");
   });
 
-  // Auto-calculate and advance serial number on mount/reports list population
+  // Auto-calculate and advance serial number on mount, reports list, or emirate change
   useEffect(() => {
     if (!editingReport) {
-      let maxNum = 229;
-      const storedLast = localStorage.getItem("ALW_LAST_SL_NO");
-      if (storedLast) {
-        const parsedStored = parseInt(storedLast, 10);
-        if (!isNaN(parsedStored) && parsedStored > maxNum) {
-          maxNum = parsedStored;
-        }
-      }
-      if (reports && reports.length > 0) {
-        reports.forEach(r => {
-          if (r.id) {
-            const parts = r.id.split("-");
-            if (parts.length >= 2) {
-              const middlePart = parts[1];
-              const parsed = parseInt(middlePart, 10);
-              if (!isNaN(parsed) && parsed > 0 && parsed < 9999) {
-                if (parsed > maxNum) {
-                  maxNum = parsed;
-                }
-              }
-            }
-          }
-        });
-      }
-      const nextVal = String(maxNum + 1).padStart(4, "0");
+      const nextVal = getNextSlNoForEmirate(emirate);
       setSlNo(nextVal);
     }
-  }, [reports, editingReport]);
+  }, [reports, editingReport, emirate]);
 
   const [dateOfOperation, setDateOfOperation] = useState(() => {
     const d = new Date();
@@ -314,7 +392,6 @@ export default function MasterForm({
   const [clientId, setClientId] = useState("");
   const [branchName, setBranchName] = useState("Deira Main Center");
   const [facilityType, setFacilityType] = useState("Clinic");
-  const [emirate, setEmirate] = useState("Ajman");
   const [googleMapLink, setGoogleMapLink] = useState("");
   const [gpsCoordinates, setGpsCoordinates] = useState("25.4052° N, 55.5136° E");
 
@@ -1539,6 +1616,8 @@ export default function MasterForm({
         const parsedSl = parseInt(slNo, 10);
         if (!isNaN(parsedSl)) {
           localStorage.setItem("ALW_LAST_SL_NO", String(parsedSl));
+          const key = `ALW_LAST_SL_NO_FOR_${emirate.toUpperCase().replace(/\s+/g, "_")}`;
+          localStorage.setItem(key, String(parsedSl));
           // Pre-increment state to make subsequent report creation completely seamless
           setSlNo(String(parsedSl + 1).padStart(4, "0"));
         }

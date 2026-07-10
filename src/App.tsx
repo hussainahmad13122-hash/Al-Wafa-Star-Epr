@@ -352,6 +352,27 @@ export default function App() {
     return () => unsubscribe();
   }, []);
 
+  useEffect(() => {
+    const handleAuthUpdate = () => {
+      const s =
+        localStorage.getItem("ALW_STAR_LOGGED_IN_USER") ||
+        sessionStorage.getItem("ALW_STAR_LOGGED_IN_USER");
+      if (s) {
+        try {
+          const parsed = JSON.parse(s);
+          setCurrentUser(parsed);
+          setRole(parsed.role);
+        } catch (e) {}
+      }
+    };
+    window.addEventListener("auth_update", handleAuthUpdate);
+    window.addEventListener("storage", handleAuthUpdate);
+    return () => {
+      window.removeEventListener("auth_update", handleAuthUpdate);
+      window.removeEventListener("storage", handleAuthUpdate);
+    };
+  }, []);
+
   const isAuthenticated = currentUser !== null;
   const currentUserPermissions = currentUser ? rolePermissions[currentUser.role] || DEFAULT_ROLE_PERMISSIONS[currentUser.role] || DEFAULT_ROLE_PERMISSIONS.Visitor : DEFAULT_ROLE_PERMISSIONS.Visitor;
 
@@ -1151,10 +1172,28 @@ export default function App() {
       window.addEventListener("mousemove", activityHandler, { passive: true });
       window.addEventListener("keydown", activityHandler, { passive: true });
       
+      // Real-time listener to check if this session was deleted/force-logged-out by admin
+      const deviceId = localStorage.getItem("ALW_DEVICE_ID");
+      let unsubscribeSessions: (() => void) | null = null;
+      if (deviceId) {
+        unsubscribeSessions = subscribeCollection<any>("sessions", (sessions) => {
+          if (sessions && sessions.length > 0) {
+            const stillExists = sessions.some(s => s.id === deviceId);
+            if (!stillExists) {
+              console.log("Current device session has been terminated by admin.");
+              handleLogout();
+            }
+          }
+        });
+      }
+      
       return () => {
         clearInterval(interval);
         window.removeEventListener("mousemove", activityHandler);
         window.removeEventListener("keydown", activityHandler);
+        if (unsubscribeSessions) {
+          unsubscribeSessions();
+        }
       };
     }
   }, [currentUser]);

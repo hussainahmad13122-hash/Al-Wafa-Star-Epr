@@ -1,4 +1,5 @@
 import { AppUser, LoginSession } from "./types";
+import { saveDocument, deleteDocument } from "./localDatabase";
 
 export function getDeviceInfo(): string {
   const ua = navigator.userAgent;
@@ -46,6 +47,11 @@ export function registerSession(user: AppUser) {
   sessions.push(session);
   
   localStorage.setItem("ALW_LOGIN_SESSIONS", JSON.stringify(sessions));
+
+  // Sync to Firestore
+  saveDocument("sessions", deviceId, session).catch((err) => {
+    console.warn("Failed to save login session to Firestore:", err);
+  });
 }
 
 export function updateSessionActivity(): boolean {
@@ -59,8 +65,17 @@ export function updateSessionActivity(): boolean {
     let sessions: LoginSession[] = JSON.parse(storedSessions);
     const sessionIndex = sessions.findIndex(s => s.id === deviceId);
     if (sessionIndex >= 0) {
-      sessions[sessionIndex].lastActive = new Date().toISOString();
+      const updatedSession = {
+        ...sessions[sessionIndex],
+        lastActive: new Date().toISOString()
+      };
+      sessions[sessionIndex] = updatedSession;
       localStorage.setItem("ALW_LOGIN_SESSIONS", JSON.stringify(sessions));
+
+      // Sync updated session activity to Firestore
+      saveDocument("sessions", deviceId, updatedSession).catch((err) => {
+        console.warn("Failed to update session activity in Firestore:", err);
+      });
       return true;
     }
     return false;
@@ -87,6 +102,11 @@ export function removeSession(deviceId: string) {
     sessions = sessions.filter(s => s.id !== deviceId);
     localStorage.setItem("ALW_LOGIN_SESSIONS", JSON.stringify(sessions));
   } catch (e) {}
+
+  // Sync delete to Firestore
+  deleteDocument("sessions", deviceId).catch((err) => {
+    console.warn("Failed to delete login session from Firestore:", err);
+  });
 }
 
 export function removeCurrentSession() {

@@ -30,7 +30,7 @@ import {
   CheckCircle
 } from "lucide-react";
 import { ReportItem, AppUser, UserRole, DEFAULT_ROLE_PERMISSIONS } from "../types";
-import { getRegisteredUsers, saveRegisteredUsers, getDocuments, getActiveFirebaseConfig, initializeFirebaseClient, isFirebaseActive, getFirebaseConnectionError, synchronizeDatabase, saveBrandingData, saveStoreValue } from "../localDatabase";
+import { getRegisteredUsers, saveRegisteredUsers, getDocuments, getActiveFirebaseConfig, initializeFirebaseClient, isFirebaseActive, getFirebaseConnectionError, synchronizeDatabase, saveBrandingData, saveStoreValue, subscribeCollection, deleteDocument } from "../localDatabase";
 
 interface AdminSettingsProps {
   language: "en" | "ar" | "bn";
@@ -181,35 +181,28 @@ export default function AdminSettings({
   }, [selectedRoleToManage]);
 
   useEffect(() => {
-    const fetchSessions = () => {
-      const stored = localStorage.getItem("ALW_LOGIN_SESSIONS");
-      if (stored) {
-        try {
-          setActiveSessionsList(JSON.parse(stored));
-        } catch (e) {}
+    const unsubscribe = subscribeCollection<any>("sessions", (sessions) => {
+      if (sessions && sessions.length > 0) {
+        setActiveSessionsList(sessions);
+        localStorage.setItem("ALW_LOGIN_SESSIONS", JSON.stringify(sessions));
       } else {
-        setActiveSessionsList([]);
-      }
-    };
-
-    if (activeTab === "active_devices") {
-      fetchSessions();
-      
-      const handleStorage = (e: StorageEvent) => {
-        if (e.key === "ALW_LOGIN_SESSIONS") {
-          fetchSessions();
+        // Fallback to local storage if cloud is empty or loading
+        const stored = localStorage.getItem("ALW_LOGIN_SESSIONS");
+        if (stored) {
+          try {
+            setActiveSessionsList(JSON.parse(stored));
+          } catch (e) {
+            setActiveSessionsList([]);
+          }
+        } else {
+          setActiveSessionsList([]);
         }
-      };
-      window.addEventListener("storage", handleStorage);
-      
-      const interval = setInterval(fetchSessions, 5000);
-      
-      return () => {
-        window.removeEventListener("storage", handleStorage);
-        clearInterval(interval);
-      };
-    }
-  }, [activeTab]);
+      }
+    });
+    return () => {
+      unsubscribe();
+    };
+  }, []);
 
   const [saveAsGlobal, setSaveAsGlobal] = useState(false);
   const [isCustomProfile, setIsCustomProfile] = useState(() => {
@@ -340,7 +333,7 @@ export default function AdminSettings({
       } catch (e) {}
     }
     return [
-      { id: "user-admin", username: "admin", passwordPlain: "admin123", role: "Admin" },
+      { id: "user-admin", username: "hussainahmad13122@gmail.com", passwordPlain: "admin123", role: "Admin" },
       { id: "user-moderator", username: "moderator", passwordPlain: "mod123", role: "Moderator" },
       { id: "user-visitor", username: "visitor", passwordPlain: "visitor123", role: "Visitor" }
     ];
@@ -479,7 +472,9 @@ export default function AdminSettings({
       if (sessionStorage.getItem("ALW_STAR_LOGGED_IN_USER")) {
         sessionStorage.setItem("ALW_STAR_LOGGED_IN_USER", JSON.stringify(updatedLoggedInUser));
       }
+      window.dispatchEvent(new Event("auth_update"));
     }
+    window.dispatchEvent(new Event("storage"));
 
     setEditingUserId(null);
     setUserSuccess(language === "bn" ? "অ্যাকাউন্ট সফলভাবে আপডেট করা হয়েছে!" : "Account credentials updated successfully!");
@@ -778,8 +773,20 @@ export default function AdminSettings({
       setAdminUserPassword(psNewPassword);
     }
     
-    if (psSelectedUser === "self" && loggedInUser) {
+    if (loggedInUser && (psSelectedUser === "self" || loggedInUser.id === targetUserId)) {
       loggedInUser.passwordPlain = psNewPassword;
+      const updatedLoggedInUser = {
+        ...loggedInUser,
+        passwordPlain: psNewPassword
+      };
+      localStorage.setItem("ALW_STAR_LOGGED_IN_USER", JSON.stringify(updatedLoggedInUser));
+      if (sessionStorage.getItem("ALW_STAR_LOGGED_IN_USER")) {
+        sessionStorage.setItem("ALW_STAR_LOGGED_IN_USER", JSON.stringify(updatedLoggedInUser));
+      }
+      window.dispatchEvent(new Event("auth_update"));
+      window.dispatchEvent(new Event("storage"));
+    } else {
+      window.dispatchEvent(new Event("storage"));
     }
 
     setPsSuccess(language === "bn" ? "পাসওয়ার্ড সফলভাবে পরিবর্তন করা হয়েছে!" : "Password successfully changed!");
@@ -3400,6 +3407,9 @@ Reloading portal to apply updates...`;
                             const updated = activeSessionsList.filter(s => s.id !== session.id);
                             setActiveSessionsList(updated);
                             localStorage.setItem("ALW_LOGIN_SESSIONS", JSON.stringify(updated));
+                            deleteDocument("sessions", session.id).catch((err) => {
+                              console.warn("Failed to delete session from cloud database:", err);
+                            });
                           }
                         }}
                         className="absolute top-4 right-4 text-red-400 hover:text-red-300 bg-red-400/10 hover:bg-red-400/20 p-2 rounded-lg transition-all active:scale-95 cursor-pointer"
