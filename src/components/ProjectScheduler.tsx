@@ -128,8 +128,9 @@ const normalizeDateToYYYYMMDD = (dateStr: string): string => {
   return trimmed;
 };
 
-const addDaysToDate = (dateStr: string, days: number): string => {
+const addDaysToDate = (dateStr: string, daysInput: number | string): string => {
   if (!dateStr) return "";
+  const days = Number(daysInput) || 30;
   const normalized = normalizeDateToYYYYMMDD(dateStr);
   const parts = normalized.split("-");
   if (parts.length !== 3) return "";
@@ -425,19 +426,6 @@ export default function ProjectScheduler({ language, isDark }: ProjectSchedulerP
   // Automatic reset/renewal of expired groups has been disabled as requested by the user,
   // to ensure that completed data is never deleted automatically when the month ends.
   // Manual renewal is still fully supported via the renewal button.
-  // Exception: Emergency schedules whose date is in the past are automatically deleted completely, as requested.
-  useEffect(() => {
-    if (groupsList.length > 0) {
-      const todayDate = new Date();
-      const todayStr = `${todayDate.getFullYear()}-${String(todayDate.getMonth() + 1).padStart(2, "0")}-${String(todayDate.getDate()).padStart(2, "0")}`;
-      
-      const hasExpiredEmergency = groupsList.some(g => g.isEmergency && normalizeDateToYYYYMMDD(g.dateStr) < todayStr);
-      if (hasExpiredEmergency) {
-        const cleaned = groupsList.filter(g => !(g.isEmergency && normalizeDateToYYYYMMDD(g.dateStr) < todayStr));
-        saveGroups(cleaned);
-      }
-    }
-  }, [groupsList]);
 
   // Save utilities
   const saveProjects = (list: HospitalProject[]) => {
@@ -638,24 +626,48 @@ export default function ProjectScheduler({ language, isDark }: ProjectSchedulerP
   };
 
   const handleRenewGroup = (groupId: string) => {
+    let msg = "";
+    let shouldDelete = false;
     const updated = groupsList.map(g => {
       if (g.id === groupId) {
-        const interval = g.intervalDays || 30;
-        const baseDate = g.dateStr || todayStr;
-        const newDateStr = addDaysToDate(baseDate, interval);
-        const calculatedNextDate = addDaysToDate(newDateStr, interval);
-        const freshTasks = g.tasks.map(t => ({ ...t, status: "pending" as const }));
-        return {
-          ...g,
-          dateStr: newDateStr,
-          nextDateStr: calculatedNextDate,
-          tasks: freshTasks
-        };
+        if (g.isEmergency) {
+          shouldDelete = true;
+          msg = language === "bn"
+            ? "ইমারজেন্সি শিডিউল সম্পূর্ণ হয়েছে এবং এটি সরানো হয়েছে!"
+            : "Emergency schedule completed and removed!";
+          return g;
+        } else {
+          const interval = Number(g.intervalDays) || 30;
+          const baseDate = g.dateStr || todayStr;
+          const newDateStr = addDaysToDate(baseDate, interval);
+          const calculatedNextDate = addDaysToDate(newDateStr, interval);
+          const freshTasks = g.tasks.map(t => ({ ...t, status: "pending" as const }));
+          
+          msg = language === "bn"
+            ? `গ্রুপ "${g.name}" এর সার্ভিস সম্পূর্ণ হয়েছে! পরবর্তী শিডিউল: ${newDateStr} (${interval} দিন পর)`
+            : `Group "${g.name}" service completed! Next schedule: ${newDateStr} (after ${interval} days)`;
+
+          return {
+            ...g,
+            dateStr: newDateStr,
+            nextDateStr: calculatedNextDate,
+            tasks: freshTasks
+          };
+        }
       }
       return g;
     });
-    saveGroups(updated);
-    triggerToast(language === "bn" ? "গ্রুপটি পরবর্তী মেয়াদের জন্য সফলভাবে নবায়ন করা হয়েছে এবং সম্পন্নকৃত কাজগুলো প্রথম দিকে আনা হয়েছে!" : "Group renewed successfully for the next cycle and completed tasks reset!");
+
+    let finalGroups = updated;
+    if (shouldDelete) {
+      finalGroups = updated.filter(g => g.id !== groupId);
+    }
+    saveGroups(finalGroups);
+    if (msg) {
+      triggerToast(msg);
+    } else {
+      triggerToast(language === "bn" ? "গ্রুপটি পরবর্তী মেয়াদের জন্য সফলভাবে নবায়ন করা হয়েছে এবং সম্পন্নকৃত কাজগুলো প্রথম দিকে আনা হয়েছে!" : "Group renewed successfully for the next cycle and completed tasks reset!");
+    }
   };
 
   // Renaming a route group
@@ -940,7 +952,7 @@ export default function ProjectScheduler({ language, isDark }: ProjectSchedulerP
             return { ...g, tasks: updatedTasks };
           } else {
             // Regular group: auto-renew
-            const interval = g.intervalDays || 30;
+            const interval = Number(g.intervalDays) || 30;
             const baseDate = g.dateStr || todayStr;
             const newDateStr = addDaysToDate(baseDate, interval);
             const calculatedNextDate = addDaysToDate(newDateStr, interval);
@@ -1647,21 +1659,31 @@ export default function ProjectScheduler({ language, isDark }: ProjectSchedulerP
                     {/* Bottom Utility Bar - Houses addition menu dropdown and settings expander */}
                     <div className="p-3 pt-0 bg-transparent flex flex-col space-y-2">
 
-                      {/* Toggle commands: Toggle "+ Add" */}
-                      <div className="flex items-center justify-center pt-1">
+                      {/* Toggle commands: Toggle "+ Add" and "Complete Service" */}
+                      <div className="grid grid-cols-2 gap-2 pt-1">
                         
                         {/* + Add clinic button exactly matching layout sketch representation */}
                         <button
                           type="button"
                           onClick={() => toggleAddingDropdownMode(group.id)}
-                          className={`w-full py-2 rounded-xl font-black text-xs transition-all uppercase flex items-center justify-center gap-1 cursor-pointer shadow-sm ${
+                          className={`py-2 rounded-xl font-black text-xs transition-all uppercase flex items-center justify-center gap-1 cursor-pointer shadow-sm ${
                             isAddingActive
                               ? "bg-rose-500 text-white hover:bg-rose-600"
                               : "bg-[#10B981] hover:bg-emerald-600 text-white"
                           }`}
                         >
                           <Plus className="w-3.5 h-3.5 shrink-0" />
-                          <span>{isAddingActive ? "Close Selection" : "+ Add Clinic"}</span>
+                          <span>{isAddingActive ? (language === "bn" ? "বন্ধ করুন" : "Close") : (language === "bn" ? "+ ক্লিনিক যোগ" : "+ Add Clinic")}</span>
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => handleRenewGroup(group.id)}
+                          className="py-2 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white rounded-xl font-black text-xs transition-all uppercase flex items-center justify-center gap-1 cursor-pointer shadow-sm"
+                          title={language === "bn" ? "সার্ভিস সম্পূর্ণ করুন এবং শিডিউল পরিবর্তন করুন" : "Complete service and shift target date"}
+                        >
+                          <Check className="w-3.5 h-3.5 shrink-0" />
+                          <span>{language === "bn" ? "সার্ভিস সম্পূর্ণ" : "Complete Service"}</span>
                         </button>
 
                       </div>

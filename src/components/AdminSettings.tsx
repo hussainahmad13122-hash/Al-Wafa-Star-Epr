@@ -326,7 +326,7 @@ export default function AdminSettings({
 
   // Load registered users directly from localStorage in AdminSettings
   const [usersList, setUsersList] = useState<AppUser[]>(() => {
-    const stored = localStorage.getItem("ALW_STAR_USERS");
+    const stored = localStorage.getItem("ALW_STAR_USERS") || localStorage.getItem("ALW_STANDALONE_DB_users");
     if (stored) {
       try {
         return JSON.parse(stored);
@@ -346,6 +346,7 @@ export default function AdminSettings({
         if (usersListRes && usersListRes.length > 0) {
           setUsersList(usersListRes);
           localStorage.setItem("ALW_STAR_USERS", JSON.stringify(usersListRes));
+          localStorage.setItem("ALW_STANDALONE_DB_users", JSON.stringify(usersListRes));
           window.dispatchEvent(new Event("storage"));
         }
       })
@@ -523,7 +524,11 @@ export default function AdminSettings({
     });
     setUsersList(updated);
     localStorage.setItem("ALW_STAR_USERS", JSON.stringify(updated));
+    localStorage.setItem("ALW_STANDALONE_DB_users", JSON.stringify(updated));
     window.dispatchEvent(new Event("storage"));
+
+    // Explicitly update cloud users state
+    saveRegisteredUsers(updated).catch((err) => console.log("Failed to sync updated user to Firestore:", err));
 
     // Also update current logged in user if they edited their own profile
     if (loggedInUser && loggedInUser.id === id) {
@@ -557,12 +562,12 @@ export default function AdminSettings({
   const [adminLockError, setAdminLockError] = useState<string | null>(null);
 
   const [adminUserPassword, setAdminUserPassword] = useState<string>(() => {
-    const admin = usersList.find(u => u.username === "admin");
+    const admin = usersList.find(u => u.username === "admin" || u.username === "hussainahmad13122@gmail.com");
     return admin ? admin.passwordPlain : "admin123";
   });
 
   useEffect(() => {
-    const admin = usersList.find(u => u.username === "admin");
+    const admin = usersList.find(u => u.username === "admin" || u.username === "hussainahmad13122@gmail.com");
     if (admin) {
       setAdminUserPassword(admin.passwordPlain);
     }
@@ -579,13 +584,17 @@ export default function AdminSettings({
     // 2. Save 'admin' account password
     const finalAdminPass = adminUserPassword.trim() || "admin123";
     const updatedUsers = usersList.map(u => {
-      if (u.username === "admin") {
+      if (u.username === "admin" || u.username === "hussainahmad13122@gmail.com") {
         return { ...u, passwordPlain: finalAdminPass };
       }
       return u;
     });
     setUsersList(updatedUsers);
     localStorage.setItem("ALW_STAR_USERS", JSON.stringify(updatedUsers));
+    localStorage.setItem("ALW_STANDALONE_DB_users", JSON.stringify(updatedUsers));
+
+    // Explicitly update cloud users state
+    saveRegisteredUsers(updatedUsers).catch((err) => console.log("Failed to sync updated admin password to Firestore:", err));
 
     // Alert other parts that storage has changed
     window.dispatchEvent(new Event("storage"));
@@ -626,9 +635,13 @@ export default function AdminSettings({
     const updated = [...usersList, newUser];
     setUsersList(updated);
     localStorage.setItem("ALW_STAR_USERS", JSON.stringify(updated));
+    localStorage.setItem("ALW_STANDALONE_DB_users", JSON.stringify(updated));
     
     // Dispatch storage update so that the sidebar/login is alerted
     window.dispatchEvent(new Event("storage"));
+    
+    // Explicitly update cloud users state
+    saveRegisteredUsers(updated).catch((err) => console.log("Failed to sync new user to Firestore:", err));
     
     setNewUsername("");
     setNewPassword("");
@@ -637,7 +650,7 @@ export default function AdminSettings({
   };
 
   const handleDeleteUser = (id: string, name: string) => {
-    if (name === "admin") {
+    if (name === "admin" || name === "hussainahmad13122@gmail.com") {
       setAdminLockError(language === "bn" ? "আইকন প্রধান 'admin' অ্যাকাউন্টটি চিরতরে লক করা আছে!" : "Primary 'admin' account cannot be modified!");
       return;
     }
@@ -654,7 +667,17 @@ export default function AdminSettings({
     const updated = usersList.filter(u => u.id !== id);
     setUsersList(updated);
     localStorage.setItem("ALW_STAR_USERS", JSON.stringify(updated));
+    localStorage.setItem("ALW_STANDALONE_DB_users", JSON.stringify(updated));
     window.dispatchEvent(new Event("storage"));
+    
+    // Explicitly delete document from Firestore and saveUpdated list
+    deleteDocument("users", id)
+      .then(() => {
+        return saveRegisteredUsers(updated);
+      })
+      .catch((e) => {
+        console.error("Cloud deletion sync failed:", e);
+      });
     
     setUserToDelete(null);
     setUserSuccess(language === "bn" ? "অ্যাকাউন্টটি সফলভাবে মুছে ফেলা হয়েছে!" : "Account successfully removed!");
@@ -834,6 +857,7 @@ export default function AdminSettings({
 
     setUsersList(updatedList);
     localStorage.setItem("ALW_STAR_USERS", JSON.stringify(updatedList));
+    localStorage.setItem("ALW_STANDALONE_DB_users", JSON.stringify(updatedList));
     saveRegisteredUsers(updatedList);
 
     if (targetUserId === "user-admin") {
@@ -2217,7 +2241,7 @@ Reloading portal to apply updates...`;
                       }).map((user) => {
                         const isEditing = editingUserId === user.id;
                         const isPasswordVisible = !!editingPasswordVisibilities[user.id];
-                        const isSystemRoot = user.username === "admin";
+                        const isSystemRoot = user.username === "admin" || user.username === "hussainahmad13122@gmail.com";
                         
                         return (
                           <React.Fragment key={user.id}>

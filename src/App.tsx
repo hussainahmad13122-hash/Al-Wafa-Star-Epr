@@ -329,12 +329,16 @@ export default function App() {
     if (s) {
       try {
         const parsed = JSON.parse(s);
-        const usersStr = localStorage.getItem("ALW_STAR_USERS");
+        const usersStr = localStorage.getItem("ALW_STAR_USERS") || localStorage.getItem("ALW_STANDALONE_DB_users");
         if (usersStr) {
           const usersList = JSON.parse(usersStr) as AppUser[];
           const matched = usersList.find(u => u.username.toLowerCase() === parsed.username.toLowerCase() || u.id === parsed.id);
           if (matched) {
             return { ...parsed, ...matched };
+          } else {
+            localStorage.removeItem("ALW_STAR_LOGGED_IN_USER");
+            sessionStorage.removeItem("ALW_STAR_LOGGED_IN_USER");
+            return null;
           }
         }
         return parsed;
@@ -369,18 +373,31 @@ export default function App() {
       if (s) {
         try {
           const parsed = JSON.parse(s);
-          const usersStr = localStorage.getItem("ALW_STAR_USERS");
+          const usersStr = localStorage.getItem("ALW_STAR_USERS") || localStorage.getItem("ALW_STANDALONE_DB_users");
           let freshUser = parsed;
+          let isDeleted = false;
           if (usersStr) {
             const usersList = JSON.parse(usersStr) as AppUser[];
             const matched = usersList.find(u => u.username.toLowerCase() === parsed.username.toLowerCase() || u.id === parsed.id);
             if (matched) {
               freshUser = { ...parsed, ...matched };
+            } else {
+              isDeleted = true;
             }
           }
-          setCurrentUser(freshUser);
-          setRole(freshUser.role);
+          if (isDeleted) {
+            setCurrentUser(null);
+            setRole("Visitor");
+            localStorage.removeItem("ALW_STAR_LOGGED_IN_USER");
+            sessionStorage.removeItem("ALW_STAR_LOGGED_IN_USER");
+          } else {
+            setCurrentUser(freshUser);
+            setRole(freshUser.role);
+          }
         } catch (e) {}
+      } else {
+        setCurrentUser(null);
+        setRole("Visitor");
       }
     };
     window.addEventListener("auth_update", handleAuthUpdate);

@@ -25,7 +25,7 @@ import {
   ChevronDown
 } from "lucide-react";
 import { ReportItem, LocationRegistryItem, STANDARD_FACILITIES, EMIRATE_MAPPING_FACILITIES, getCurrentUserPermissions, AppUser } from "../types";
-import { saveDocument } from "../localDatabase";
+import { saveDocument, saveStoreValue } from "../localDatabase";
 import { generateReportHTML, printHTMLContent } from "./ClientDirectory";
 
 interface MasterFormProps {
@@ -1628,6 +1628,63 @@ export default function MasterForm({
       // Attempt background online sync to Firestore
       saveDocument("serviceReports", payload.id, payload)
         .catch(err => console.log("Failed to sync report to Firestore: ", err));
+
+      // Clean up emergency schedules that match the facilityName being submitted
+      try {
+        const savedGroupsStr = localStorage.getItem("ALW_MONTHLY_GROUPS_LIST_v2");
+        if (savedGroupsStr) {
+          const groups = JSON.parse(savedGroupsStr);
+          if (Array.isArray(groups)) {
+            const savedProjectsStr = localStorage.getItem("ALW_MONTHLY_PROJECTS_DB");
+            const projects = savedProjectsStr ? JSON.parse(savedProjectsStr) : [];
+            const projList = Array.isArray(projects) ? projects : [];
+
+            const cleanStr = (s: string) => (s || "").toLowerCase().replace(/[^a-z0-9]/g, "").trim();
+            const facilityClean = cleanStr(facilityName);
+
+            const remainingGroups = groups.filter((g: any) => {
+              if (!g.isEmergency) return true;
+
+              // Match 1: Group name contains facility name or vice versa
+              const gNameClean = cleanStr(g.name);
+              if (gNameClean.length > 2 && (gNameClean.includes(facilityClean) || facilityClean.includes(gNameClean))) {
+                return false; // remove/delete
+              }
+
+              // Match 2: Any task/clinic in group has a project name matching facility name
+              const hasMatchingTask = g.tasks && g.tasks.some((t: any) => {
+                const proj = projList.find((p: any) => p.id === t.projectId);
+                if (proj) {
+                  const pNameClean = cleanStr(proj.name);
+                  return pNameClean === facilityClean || pNameClean.includes(facilityClean) || facilityClean.includes(pNameClean);
+                }
+                return false;
+              });
+
+              if (hasMatchingTask) {
+                return false; // remove/delete
+              }
+
+              // Match 3: Notes contain the facility name
+              const gNotesClean = cleanStr(g.notes);
+              if (gNotesClean.length > 2 && gNotesClean.includes(facilityClean)) {
+                return false; // remove/delete
+              }
+
+              return true; // keep
+            });
+
+            if (remainingGroups.length !== groups.length) {
+              localStorage.setItem("ALW_MONTHLY_GROUPS_LIST_v2", JSON.stringify(remainingGroups));
+              saveStoreValue("monthly_groups_list", remainingGroups).catch((err) =>
+                console.log("Sync emergency delete from MasterForm error", err)
+              );
+            }
+          }
+        }
+      } catch (err) {
+        console.error("Failed to clean up emergency groups on report submit:", err);
+      }
       
     } catch (e: any) {
       console.error(e);
