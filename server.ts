@@ -1058,10 +1058,16 @@ app.post("/api/admin/request-otp", async (req, res) => {
       // This serves as BOTH authentication and OTP delivery!
       const transporter = nodemailer.createTransport({
         service: "gmail",
+        host: "smtp.gmail.com",
+        port: 465,
+        secure: true,
         auth: {
           user: targetEmail,
           pass: trimmedPassword
-        }
+        },
+        connectionTimeout: 6000, // 6 seconds timeout to prevent endless hanging
+        greetingTimeout: 6000,
+        socketTimeout: 6000
       });
 
       const mailOptions = {
@@ -1110,10 +1116,14 @@ app.post("/api/admin/request-otp", async (req, res) => {
     console.error("OTP send failed:", error);
     const errorMsg = error?.message || "";
     let friendlyMessage = "Failed to authenticate with Gmail or send verification code.";
-    if (errorMsg.includes("Username and Password not accepted") || errorMsg.includes("535")) {
-      friendlyMessage = "Incorrect Gmail password. If you have 2-Step Verification enabled, please use a Google App Password.";
-    } else if (errorMsg.includes("network") || errorMsg.includes("EAI_AGAIN") || errorMsg.includes("connect")) {
-      friendlyMessage = "Network/SMTP server unreachable. Please check your internet connection.";
+    
+    // Check if error is timeout or generic connect failure
+    if (error.code === 'ETIMEDOUT' || errorMsg.includes("timeout") || errorMsg.includes("connect")) {
+      friendlyMessage = "Gmail SMTP connection timed out. Google might be blocking normal sign-in. Please ensure you are using a 16-character Google App Password (১৬ সংখ্যার গুগল অ্যাপ পাসওয়ার্ড) instead of your regular password. regular passwords are not allowed by Google SMTP.";
+    } else if (errorMsg.includes("Username and Password not accepted") || errorMsg.includes("535") || errorMsg.includes("Invalid login")) {
+      friendlyMessage = "Incorrect Gmail password or login rejected. Google requires a 16-character 'App Password' (অ্যাপ পাসওয়ার্ড) if you have 2FA enabled. General passwords will not work.";
+    } else if (errorMsg.includes("network") || errorMsg.includes("EAI_AGAIN")) {
+      friendlyMessage = "Network/SMTP server unreachable. Please check your connection.";
     }
 
     res.status(401).json({ 
