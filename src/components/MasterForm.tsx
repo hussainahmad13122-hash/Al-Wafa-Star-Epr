@@ -1140,6 +1140,14 @@ export default function MasterForm({
     const defaultName = `AlWafaStar-Report-${slNo || "0229"}-${Date.now().toString().slice(-3)}`;
     const customFileName = defaultName;
 
+    const loggedInUserStrRaw = localStorage.getItem("ALW_STAR_LOGGED_IN_USER") || sessionStorage.getItem("ALW_STAR_LOGGED_IN_USER") || localStorage.getItem("ALW_LOGGED_IN_USER_V2");
+    let activeFormUser = loggedInUser;
+    if (!activeFormUser && loggedInUserStrRaw) {
+      try {
+        activeFormUser = JSON.parse(loggedInUserStrRaw);
+      } catch(err) {}
+    }
+
     // Assemble payload dynamically from current form input states
     const finalCategories = [
       ...Object.keys(serviceTypes).filter(k => serviceTypes[k]),
@@ -1186,6 +1194,10 @@ export default function MasterForm({
       ...editingReport, // preserve other fields of the report being edited
       id: editingReport ? editingReport.id : `REP-${slNo || "0229"}-${Date.now().toString().slice(-3)}`,
       updatedAt: Date.now(),
+      createdBy: editingReport?.createdBy || (activeFormUser ? {
+        username: activeFormUser.username,
+        role: activeFormUser.role
+      } : undefined),
       facilityName,
       clientId: clientId || `ALW-CLI-${Math.floor(3000 + Math.random() * 6000)}`,
       contractNo: contractNo || "CON-PRE-2026",
@@ -1371,6 +1383,10 @@ export default function MasterForm({
       ...editingReport, // preserve other fields of the report being edited
       id: editingReport ? editingReport.id : `REP-${slNo || "0229"}-${Date.now().toString().slice(-3)}`,
       updatedAt: Date.now(),
+      createdBy: editingReport?.createdBy || (loggedInUser ? {
+        username: loggedInUser.username,
+        role: loggedInUser.role
+      } : undefined),
       facilityName,
       clientId: clientId || `ALW-CLI-${Math.floor(3000 + Math.random() * 6000)}`,
       contractNo: contractNo || "CON-PRE-2026",

@@ -2,13 +2,14 @@ import { useState, useEffect } from "react";
 import { AlWafaBannerLogo } from "./AlWafaBannerLogo";
 import AlWafaLogo from "./AlWafaLogo";
 import { ReportItem, LocationRegistryItem, STANDARD_FACILITIES, SupervisorRegistryItem, EMIRATE_MAPPING_FACILITIES, getCurrentUserPermissions } from "../types";
-import { saveStoreValue, deleteDocument } from "../localDatabase";
+import { saveStoreValue, deleteDocument, subscribeCollection } from "../localDatabase";
 import firebaseConfig from "../firebase-applet-config.json";
 import { 
   FileCheck2, 
   MapPin,
   CheckCircle2,
   Clock,
+  FlaskConical,
   Search,
   Filter,
   DollarSign,
@@ -99,6 +100,76 @@ const parseAreaString = (str: string) => {
       details: remaining.substring(splitIdx + 3).trim()
     };
   }
+};
+
+const getReportMonthAndYear = (dateStr?: string) => {
+  if (!dateStr) return { month: -1, year: -1 };
+  try {
+    const trimmed = dateStr.trim();
+    const match = trimmed.match(/^(\d{4})-(\d{2})-\d{2}/);
+    if (match) {
+      return {
+        year: parseInt(match[1], 10),
+        month: parseInt(match[2], 10) // 1-12
+      };
+    }
+    const parsedDate = new Date(trimmed);
+    if (!isNaN(parsedDate.getTime())) {
+      return {
+        year: parsedDate.getFullYear(),
+        month: parsedDate.getMonth() + 1 // 1-12
+      };
+    }
+  } catch (e) {}
+  return { month: -1, year: -1 };
+};
+
+const monthsList = {
+  en: [
+    { value: "All", label: "All Months" },
+    { value: "1", label: "January" },
+    { value: "2", label: "February" },
+    { value: "3", label: "March" },
+    { value: "4", label: "April" },
+    { value: "5", label: "May" },
+    { value: "6", label: "June" },
+    { value: "7", label: "July" },
+    { value: "8", label: "August" },
+    { value: "9", label: "September" },
+    { value: "10", label: "October" },
+    { value: "11", label: "November" },
+    { value: "12", label: "December" }
+  ],
+  bn: [
+    { value: "All", label: "সব মাস" },
+    { value: "1", label: "জানুয়ারি" },
+    { value: "2", label: "ফেব্রুয়ারি" },
+    { value: "3", label: "মার্চ" },
+    { value: "4", label: "এপ্রিল" },
+    { value: "5", label: "মে" },
+    { value: "6", label: "জুন" },
+    { value: "7", label: "জুলাই" },
+    { value: "8", label: "আগস্ট" },
+    { value: "9", label: "সেপ্টেম্বর" },
+    { value: "10", label: "অক্টোবর" },
+    { value: "11", label: "নভেম্বর" },
+    { value: "12", label: "ডিসেম্বর" }
+  ],
+  ar: [
+    { value: "All", label: "جميع الأشهر" },
+    { value: "1", label: "يناير (كانون الثاني)" },
+    { value: "2", label: "فبراير (شباط)" },
+    { value: "3", label: "مارس (آذار)" },
+    { value: "4", label: "أبريل (نيسان)" },
+    { value: "5", label: "مايو (أيار)" },
+    { value: "6", label: "يونيو (حزيران)" },
+    { value: "7", label: "يوليو (تموز)" },
+    { value: "8", label: "أغسطس (آب)" },
+    { value: "9", label: "سبتمبر (أيلول)" },
+    { value: "10", label: "أكتوبر (تشرين الأول)" },
+    { value: "11", label: "نوفمبر (تشرين الثاني)" },
+    { value: "12", label: "ديسمبر (كانون الأول)" }
+  ]
 };
 
 interface DashboardProps {
@@ -294,6 +365,13 @@ function ScheduleRouteDutyModal({
   );
 }
 
+const DEFAULT_CHEMICALS = [
+  { name: "DELTACIDE SPEEDY", stock: 45.5, unit: "L", alertThreshold: 10 },
+  { name: "TRIPLE POWER", stock: 12.0, unit: "L", alertThreshold: 10 },
+  { name: "PROVECTA", stock: 3.5, unit: "L", alertThreshold: 5 },
+  { name: "CHOCKROACH GEL", stock: 28.0, unit: "Pcs", alertThreshold: 10 },
+];
+
 export default function Dashboard({
   reports,
   language,
@@ -321,6 +399,7 @@ export default function Dashboard({
   // Local UI States for search and filtering
   const [completedSearch, setCompletedSearch] = useState("");
   const [emirateFilter, setEmirateFilter] = useState("All");
+  const [monthFilter, setMonthFilter] = useState<string>(String(new Date().getMonth() + 1));
 
   useEffect(() => {
     if (hasRegionalRestriction && userAllowedEmirates.length > 0) {
@@ -333,6 +412,31 @@ export default function Dashboard({
   const [simulatedPrint, setSimulatedPrint] = useState(false);
   const [activeFolder, setActiveFolder] = useState<"completed" | "partial" | "unstarted">("completed");
   const [deletedCenters, setDeletedCenters] = useState<Set<string>>(new Set());
+
+  const [chemicals, setChemicals] = useState<any[]>([]);
+
+  useEffect(() => {
+    // Load initial
+    const stored = localStorage.getItem("ALW_CHEMICAL_INVENTORY");
+    if (stored) {
+      try {
+        setChemicals(JSON.parse(stored));
+      } catch (e) {}
+    }
+
+    // Subscribe to real-time changes
+    const unsubscribe = subscribeCollection<any>("chemicalInventory", (list) => {
+      if (list) {
+        setChemicals(list);
+      }
+    });
+
+    return () => {
+      if (typeof unsubscribe === "function") {
+        unsubscribe();
+      }
+    };
+  }, []);
 
   // 1. Identify unique centers from the dynamic locations list in the Location Map
   const allCentersList = Array.from(new Set([
@@ -797,7 +901,14 @@ export default function Dashboard({
                             r.ticketNo?.toLowerCase().includes(completedSearch.toLowerCase()) ||
                             r.id?.toLowerCase().includes(completedSearch.toLowerCase());
       const matchesEmirate = emirateFilter === "All" || r.emirate === emirateFilter;
-      return matchesSearch && matchesEmirate;
+
+      let matchesMonth = true;
+      if (monthFilter !== "All") {
+        const { month } = getReportMonthAndYear(r.dateOfOperation);
+        matchesMonth = String(month) === monthFilter;
+      }
+
+      return matchesSearch && matchesEmirate && matchesMonth;
     })
     .sort((a, b) => {
       const dateA = a.dateOfOperation || "";
@@ -825,7 +936,7 @@ export default function Dashboard({
       </div>
 
       {/* Dynamic Metric Cards Row - Showing 4 metadata tiles */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 select-none">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 select-none items-stretch">
         
         {/* Card 1: Total Registered Centers under me */}
         <div className={`border rounded-2xl p-6 shadow-lg hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1 relative overflow-hidden group ${themeMode === "dark" ? "bg-slate-800/80 border-slate-700 backdrop-blur-md" : "bg-white border-slate-200"}`}>
@@ -872,31 +983,7 @@ export default function Dashboard({
           </div>
         </div>
 
-        {/* Card 3: Partially Completed Services */}
-        <div 
-          onClick={() => setActiveFolder("partial")}
-          className={`border rounded-2xl p-6 shadow-lg hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1 relative overflow-hidden group cursor-pointer ${themeMode === "dark" ? (activeFolder === "partial" ? "bg-slate-800 border-amber-500 shadow-[0_0_20px_rgba(245,158,11,0.25)]" : "bg-slate-800/80 border-slate-700 backdrop-blur-md") : (activeFolder === "partial" ? "bg-white border-amber-500 ring-4 ring-amber-500/10" : "bg-white border-slate-200")}`}
-        >
-          <div className={`absolute top-0 left-0 w-2 h-full ${themeMode === "dark" ? "bg-amber-500 shadow-[0_0_15px_rgba(245,158,11,0.5)]" : "bg-amber-500"}`} />
-          <div className="flex items-center justify-between pl-2">
-            <div className="space-y-1.5 flex-1 pr-4">
-              <span className={`text-[10px] tracking-wider uppercase font-black block font-mono ${themeMode === "dark" ? "text-slate-400" : "text-slate-500"}`}>
-                {language === "bn" ? "কিছুটা বাদ আছে (এডিটেবল)" : "Partially Completed"}
-              </span>
-              <span className={`text-4xl font-black tracking-tight font-sans ${themeMode === "dark" ? "text-slate-100" : "text-slate-900"}`}>
-                {partiallyCompletedCount}
-              </span>
-              <span className={`text-[10.5px] font-bold block ${themeMode === "dark" ? "text-amber-400" : "text-amber-600"}`}>
-                {language === "bn" ? "📝 কি কি কাজ বাকি আছে ট্র্যাকার" : "📝 Skipped work & dynamic logs"}
-              </span>
-            </div>
-            <div className={`w-12 h-12 rounded-2xl flex items-center justify-center border group-hover:scale-110 transition-transform duration-300 shadow-inner ${themeMode === "dark" ? "bg-amber-500/10 text-amber-400 border-amber-500/20" : "bg-amber-50 text-amber-600 border-amber-100/50"}`}>
-              <Clock className="w-5.5 h-5.5" />
-            </div>
-          </div>
-        </div>
-
-        {/* Card 4: Not Completed / Pending */}
+        {/* Card 3: Not Completed / Pending */}
         <div 
           onClick={() => setActiveFolder("unstarted")}
           className={`border rounded-2xl p-6 shadow-lg hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1 relative overflow-hidden group cursor-pointer ${themeMode === "dark" ? (activeFolder === "unstarted" ? "bg-slate-800 border-rose-500 shadow-[0_0_20px_rgba(244,63,94,0.25)]" : "bg-slate-800/80 border-slate-700 backdrop-blur-md") : (activeFolder === "unstarted" ? "bg-white border-rose-500 ring-4 ring-rose-500/10" : "bg-white border-slate-200")}`}
@@ -916,6 +1003,129 @@ export default function Dashboard({
             </div>
             <div className={`w-12 h-12 rounded-2xl flex items-center justify-center border group-hover:scale-110 transition-transform duration-300 shadow-inner ${themeMode === "dark" ? "bg-rose-500/10 text-rose-400 border-rose-500/20" : "bg-rose-50 text-rose-600 border-rose-100/50"}`}>
               <AlertOctagon className="w-5.5 h-5.5" />
+            </div>
+          </div>
+        </div>
+
+        {/* Card 4: Chemical Store (কেমিক্যাল স্টক) */}
+        <div 
+          onClick={() => setTab("inventory")}
+          className={`border rounded-2xl p-6 shadow-lg hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1 relative overflow-hidden group cursor-pointer ${themeMode === "dark" ? "bg-slate-800/80 border-slate-700 backdrop-blur-md" : "bg-white border-slate-200"}`}
+        >
+          <div className={`absolute top-0 left-0 w-2 h-full ${themeMode === "dark" ? "bg-amber-500 shadow-[0_0_15px_rgba(245,158,11,0.5)]" : "bg-amber-500"}`} />
+          <div className="flex items-start pl-2 gap-3.5">
+            {/* Left Column: Chemical Icon on Top, label underneath in small */}
+            <div className="flex flex-col items-center shrink-0 w-14">
+              <div className={`w-12 h-12 rounded-2xl flex items-center justify-center border group-hover:scale-110 transition-transform duration-300 shadow-inner ${themeMode === "dark" ? "bg-amber-500/10 text-amber-400 border-amber-500/20" : "bg-amber-50 text-amber-600 border-amber-100/50"}`}>
+                <FlaskConical className="w-5.5 h-5.5" />
+              </div>
+              <span className={`text-[8px] md:text-[8.5px] tracking-tight uppercase font-black text-center mt-2.5 font-mono leading-tight break-words w-full ${themeMode === "dark" ? "text-slate-400" : "text-slate-500"}`}>
+                {language === "bn" ? "কেমিক্যাল স্টক" : language === "ar" ? "مخزون كيميائي" : "Chemical Store"}
+              </span>
+            </div>
+
+            {/* Chemical list shifted to the right, starting directly from the top with increased height */}
+            <div className="flex-1 min-w-0">
+              <div className="space-y-[3.5px] h-[88px] overflow-y-auto pr-1 [&::-webkit-scrollbar]:hidden [scrollbar-width:none] [-ms-overflow-style:none]">
+                {[...((chemicals && chemicals.length > 0) ? chemicals : DEFAULT_CHEMICALS)]
+                  .map((chem) => {
+                    const stockVal = parseFloat(chem.stock) || 0;
+                    
+                    let high = 100;
+                    let mid = 50;
+                    let low = 25;
+                    
+                    if (chem.expiry && chem.expiry.includes("/")) {
+                      const parts = chem.expiry.split("/").map(p => parseFloat(p.trim()));
+                      if (parts.length >= 3) {
+                        high = parts[0] || 100;
+                        mid = parts[1] || 50;
+                        low = parts[2] || 25;
+                      }
+                    } else {
+                      const threshold = parseFloat(chem.alertThreshold) || 5;
+                      low = threshold;
+                      mid = threshold * 3;
+                      high = threshold * 5;
+                    }
+                    
+                    // Sort order: lowest ratio relative to low threshold goes to the top
+                    const ratio = low > 0 ? (stockVal / low) : stockVal;
+                    
+                    // Calculate proportional percentage:
+                    // - 0 to low maps to 10% to 30% (less than half)
+                    // - low to mid maps to 30% to 50% (exactly half is mid)
+                    // - mid to high maps to 50% to 100% (completely full is high)
+                    let percentage = 10;
+                    if (stockVal > 0) {
+                      if (stockVal <= low) {
+                        percentage = 10 + (stockVal / low) * 20;
+                      } else if (stockVal <= mid) {
+                        percentage = 30 + ((stockVal - low) / (mid - low)) * 20;
+                      } else if (stockVal <= high) {
+                        percentage = 50 + ((stockVal - mid) / (high - mid)) * 50;
+                      } else {
+                        percentage = 100;
+                      }
+                    }
+                    percentage = Math.min(100, Math.max(10, percentage));
+                    
+                    let barColorClass = "";
+                    if (stockVal <= low) {
+                      barColorClass = "bg-gradient-to-r from-red-600 to-rose-500 shadow-[0_0_8px_rgba(239,68,68,0.4)]";
+                    } else if (stockVal <= mid) {
+                      barColorClass = "bg-gradient-to-r from-amber-500 to-orange-400 shadow-[0_0_8px_rgba(245,158,11,0.4)]";
+                    } else {
+                      barColorClass = "bg-gradient-to-r from-emerald-500 to-teal-400 shadow-[0_0_8px_rgba(16,185,129,0.4)]";
+                    }
+                    
+                    return { ...chem, stockVal, ratio, percentage, barColorClass };
+                  })
+                  .sort((a, b) => a.ratio - b.ratio)
+                  .map((chem, idx) => {
+                    return (
+                      <div 
+                        key={idx} 
+                        className={`w-full relative h-[14px] rounded-sm border flex items-center overflow-hidden transition-all duration-300 ${
+                          themeMode === "dark" 
+                            ? "bg-slate-900/60 border-slate-800/80 shadow-[inset_0_1px_2px_rgba(0,0,0,0.4)]" 
+                            : "bg-slate-100 border-slate-200 shadow-[inset_0_1px_1px_rgba(0,0,0,0.05)]"
+                        }`}
+                      >
+                        <div 
+                          className={`absolute top-0 left-0 h-full transition-all duration-500 ease-out rounded-l-sm ${chem.barColorClass}`}
+                          style={{ width: `${chem.percentage}%` }}
+                        />
+                        <div className="absolute inset-0 flex items-center justify-between px-1.5 z-10 select-none">
+                          <span 
+                            className={`text-[7.5px] font-black tracking-wide truncate max-w-[125px] uppercase ${
+                              themeMode === "dark" ? "text-white" : "text-slate-950"
+                            }`}
+                            style={{ 
+                              textShadow: themeMode === "dark"
+                                ? "1px 1px 1.5px rgba(0,0,0,0.9), -0.5px -0.5px 0px rgba(0,0,0,0.9), 0.5px -0.5px 0px rgba(0,0,0,0.9), -0.5px 0.5px 0px rgba(0,0,0,0.9)"
+                                : "1px 1px 1.5px rgba(255,255,255,0.95), -0.5px -0.5px 0px rgba(255,255,255,0.95), 0.5px -0.5px 0px rgba(255,255,255,0.95), -0.5px 0.5px 0px rgba(255,255,255,0.95)"
+                            }}
+                          >
+                            {chem.name}
+                          </span>
+                          <span 
+                            className={`text-[7px] font-black font-mono shrink-0 ${
+                              themeMode === "dark" ? "text-white" : "text-slate-950"
+                            }`}
+                            style={{ 
+                              textShadow: themeMode === "dark"
+                                ? "1px 1px 1.5px rgba(0,0,0,0.9), -0.5px -0.5px 0px rgba(0,0,0,0.9), 0.5px -0.5px 0px rgba(0,0,0,0.9), -0.5px 0.5px 0px rgba(0,0,0,0.9)"
+                                : "1px 1px 1.5px rgba(255,255,255,0.95), -0.5px -0.5px 0px rgba(255,255,255,0.95), 0.5px -0.5px 0px rgba(255,255,255,0.95), -0.5px 0.5px 0px rgba(255,255,255,0.95)"
+                            }}
+                          >
+                            {chem.stockVal} {chem.unit || "L"}
+                          </span>
+                        </div>
+                      </div>
+                    );
+                  })}
+              </div>
             </div>
           </div>
         </div>
@@ -1009,6 +1219,24 @@ export default function Dashboard({
               </div>
               
               <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
+                {/* Month Filter Dropdown */}
+                <div className="relative text-xs">
+                  <span className={`absolute inset-y-0 left-0 flex items-center pl-2.5 pointer-events-none ${themeMode === "dark" ? "text-slate-500" : "text-slate-400"}`}>
+                    <Calendar className="w-3.5 h-3.5" />
+                  </span>
+                  <select
+                    value={monthFilter}
+                    onChange={(e) => setMonthFilter(e.target.value)}
+                    className={`border text-[11px] font-bold pl-8 pr-2 py-1.5 rounded-lg outline-none cursor-pointer focus:border-indigo-500 ${themeMode === "dark" ? "bg-slate-900 border-slate-600 text-slate-200" : "bg-white border-slate-350 text-slate-800"}`}
+                  >
+                    {(monthsList[language] || monthsList.en).map((m) => (
+                      <option key={m.value} value={m.value}>
+                        {m.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
                 {/* Emirate filter */}
                 <select
                   value={emirateFilter}
@@ -1073,8 +1301,88 @@ export default function Dashboard({
 
                       return (
                         <tr key={`${report.id}-${idx}`} className={`transition-colors ${themeMode === "dark" ? "hover:bg-slate-700/50" : "hover:bg-slate-50/50"}`}>
-                          <td className={`py-3 px-4 font-mono text-[10.5px] font-bold ${themeMode === "dark" ? "text-slate-400" : "text-slate-550"}`}>
-                            {report.id}
+                          <td className="py-3 px-4">
+                            <span className={`block font-mono text-[10.5px] font-bold ${themeMode === "dark" ? "text-slate-400" : "text-slate-550"}`}>{report.id}</span>
+                            {(() => {
+                              const getCreatorDisplayName = (rep: typeof report) => {
+                                if (rep.createdBy && rep.createdBy.username) {
+                                  const rawUser = rep.createdBy.username;
+                                  if (rawUser === "hussainahmad13122@gmail.com" || rawUser === "admin") {
+                                    return "Admin";
+                                  }
+                                  let clean = rawUser.split("@")[0];
+                                  clean = clean.replace(/[\._-]/g, " ");
+                                  return clean
+                                    .split(/\s+/)
+                                    .map((w: string) => w.charAt(0).toUpperCase() + w.slice(1))
+                                    .join(" ");
+                                }
+                                return "Admin";
+                              };
+
+                              const creatorName = getCreatorDisplayName(report);
+                              const initials = creatorName
+                                .split(/\s+/)
+                                .map((word) => word[0])
+                                .join("")
+                                .substring(0, 2)
+                                .toUpperCase() || "A";
+                              
+                              const getAvatarBg = (name: string) => {
+                                let hash = 0;
+                                for (let i = 0; i < name.length; i++) {
+                                  hash = name.charCodeAt(i) + ((hash << 5) - hash);
+                                }
+                                const bgColors = [
+                                  "bg-rose-500",
+                                  "bg-amber-500",
+                                  "bg-emerald-500",
+                                  "bg-indigo-500",
+                                  "bg-cyan-500",
+                                  "bg-teal-500",
+                                  "bg-violet-500",
+                                  "bg-sky-500",
+                                  "bg-purple-500"
+                                ];
+                                const idxColor = Math.abs(hash) % bgColors.length;
+                                return bgColors[idxColor];
+                              };
+
+                              // Try to find the matching user and get their profilePic
+                              const usersStr = localStorage.getItem("ALW_STAR_USERS") || localStorage.getItem("ALW_STANDALONE_DB_users");
+                              let creatorProfilePic = "";
+                              if (usersStr) {
+                                try {
+                                  const usersList = JSON.parse(usersStr);
+                                  const matchedUser = usersList.find((u: any) => 
+                                    u.username && report.createdBy?.username && u.username.toLowerCase() === report.createdBy.username.toLowerCase()
+                                  );
+                                  if (matchedUser && matchedUser.profilePic) {
+                                    creatorProfilePic = matchedUser.profilePic;
+                                  }
+                                } catch (e) {}
+                              }
+
+                              return (
+                                <div className="flex items-center gap-1.5 mt-1">
+                                  {creatorProfilePic ? (
+                                    <img
+                                      src={creatorProfilePic}
+                                      alt={creatorName}
+                                      className="w-5 h-5 rounded-full object-cover shrink-0 shadow-xs border border-slate-700/50"
+                                      referrerPolicy="no-referrer"
+                                    />
+                                  ) : (
+                                    <div className={`w-5 h-5 rounded-full flex items-center justify-center text-[9px] font-black text-white ${getAvatarBg(creatorName)} shrink-0 shadow-xs uppercase select-none`}>
+                                      {initials}
+                                    </div>
+                                  )}
+                                  <span className={`text-[10px] font-bold max-w-[120px] truncate ${themeMode === "dark" ? "text-slate-400" : "text-slate-500"}`} title={creatorName}>
+                                    {creatorName}
+                                  </span>
+                                </div>
+                              );
+                            })()}
                           </td>
                           <td className="py-3 px-4">
                             <span className={`font-black text-[13.5px] block ${themeMode === "dark" ? "text-white font-extrabold" : "text-slate-850"}`}>{report.facilityName}</span>

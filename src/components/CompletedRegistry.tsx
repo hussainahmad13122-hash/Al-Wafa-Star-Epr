@@ -11,7 +11,8 @@ import {
   Briefcase,
   MapPin,
   Clock,
-  ExternalLink
+  ExternalLink,
+  Calendar
 } from "lucide-react";
 import { generateReportHTML, generateEngineeringHTML, printHTMLContent } from "./ClientDirectory";
 
@@ -27,6 +28,76 @@ const formatFacilityType = (type: string, lang: "en" | "ar" | "bn") => {
     return lang === "bn" ? "কমপ্লিট হয়নি" : "Incomplete";
   }
   return type;
+};
+
+const getReportMonthAndYear = (dateStr?: string) => {
+  if (!dateStr) return { month: -1, year: -1 };
+  try {
+    const trimmed = dateStr.trim();
+    const match = trimmed.match(/^(\d{4})-(\d{2})-\d{2}/);
+    if (match) {
+      return {
+        year: parseInt(match[1], 10),
+        month: parseInt(match[2], 10) // 1-12
+      };
+    }
+    const parsedDate = new Date(trimmed);
+    if (!isNaN(parsedDate.getTime())) {
+      return {
+        year: parsedDate.getFullYear(),
+        month: parsedDate.getMonth() + 1 // 1-12
+      };
+    }
+  } catch (e) {}
+  return { month: -1, year: -1 };
+};
+
+const monthsList = {
+  en: [
+    { value: "All", label: "All Months" },
+    { value: "1", label: "January" },
+    { value: "2", label: "February" },
+    { value: "3", label: "March" },
+    { value: "4", label: "April" },
+    { value: "5", label: "May" },
+    { value: "6", label: "June" },
+    { value: "7", label: "July" },
+    { value: "8", label: "August" },
+    { value: "9", label: "September" },
+    { value: "10", label: "October" },
+    { value: "11", label: "November" },
+    { value: "12", label: "December" }
+  ],
+  bn: [
+    { value: "All", label: "সব মাস" },
+    { value: "1", label: "জানুয়ারি" },
+    { value: "2", label: "ফেব্রুয়ারি" },
+    { value: "3", label: "মার্চ" },
+    { value: "4", label: "এপ্রিল" },
+    { value: "5", label: "মে" },
+    { value: "6", label: "জুন" },
+    { value: "7", label: "জুলাই" },
+    { value: "8", label: "আগস্ট" },
+    { value: "9", label: "সেপ্টেম্বর" },
+    { value: "10", label: "অক্টোবর" },
+    { value: "11", label: "নভেম্বর" },
+    { value: "12", label: "ডিসেম্বর" }
+  ],
+  ar: [
+    { value: "All", label: "جميع الأشهر" },
+    { value: "1", label: "يناير (كانون الثاني)" },
+    { value: "2", label: "فبراير (شباط)" },
+    { value: "3", label: "مارس (آذار)" },
+    { value: "4", label: "أبريل (نيسان)" },
+    { value: "5", label: "مايو (أيار)" },
+    { value: "6", label: "يونيو (حزيران)" },
+    { value: "7", label: "يوليو (تموز)" },
+    { value: "8", label: "أغسطس (آب)" },
+    { value: "9", label: "سبتمبر (أيلول)" },
+    { value: "10", label: "أكتوبر (تشرين الأول)" },
+    { value: "11", label: "نوفمبر (تشرين الثاني)" },
+    { value: "12", label: "ديسمبر (كانون الأول)" }
+  ]
 };
 
 const parseAreaString = (str: string) => {
@@ -108,6 +179,7 @@ export default function CompletedRegistry({
 
   const [completedSearch, setCompletedSearch] = useState("");
   const [emirateFilter, setEmirateFilter] = useState("All");
+  const [monthFilter, setMonthFilter] = useState<string>(String(new Date().getMonth() + 1));
 
   useEffect(() => {
     if (hasRegionalRestriction && userAllowedEmirates.length > 0) {
@@ -213,26 +285,18 @@ export default function CompletedRegistry({
     }
   }[language];
 
-  // Helper filter completed items (excluding past months to archive them)
+  // Helper filter completed items by selected month
   const completedReports = reports.filter(r => {
     const isCompleted = r.workStatus === "Completed" || !r.workStatus;
     if (!isCompleted) return false;
 
     if (!r.dateOfOperation) return true;
-    try {
-      const match = r.dateOfOperation.trim().match(/^(\d{4})-(\d{2})-\d{2}/);
-      const now = new Date();
-      if (match) {
-        const year = parseInt(match[1], 10);
-        const month = parseInt(match[2], 10) - 1; // 0-indexed
-        return year === now.getFullYear() && month === now.getMonth();
-      }
-      const parsedDate = new Date(r.dateOfOperation);
-      if (isNaN(parsedDate.getTime())) return true;
-      return parsedDate.getFullYear() === now.getFullYear() && parsedDate.getMonth() === now.getMonth();
-    } catch (e) {
-      return true;
+
+    if (monthFilter !== "All") {
+      const { month } = getReportMonthAndYear(r.dateOfOperation);
+      return String(month) === monthFilter;
     }
+    return true;
   });
   
   const filteredCompletedReports = completedReports.filter(r => {
@@ -321,6 +385,24 @@ export default function CompletedRegistry({
           </div>
           
           <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
+            {/* Month Filter Dropdown */}
+            <div className="relative text-xs">
+              <span className="absolute inset-y-0 left-0 flex items-center pl-2.5 pointer-events-none text-slate-400">
+                <Calendar className="w-3.5 h-3.5" />
+              </span>
+              <select
+                value={monthFilter}
+                onChange={(e) => setMonthFilter(e.target.value)}
+                className="bg-white border border-slate-350 text-slate-800 text-[11px] font-bold pl-8 pr-2 py-1.5 rounded-lg outline-none cursor-pointer focus:border-indigo-500"
+              >
+                {(monthsList[language] || monthsList.en).map((m) => (
+                  <option key={m.value} value={m.value}>
+                    {m.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+
             {/* Emirate filter */}
             <select
               value={emirateFilter}
@@ -384,8 +466,88 @@ export default function CompletedRegistry({
 
                   return (
                     <tr key={`${report.id}-${idx}`} className="hover:bg-slate-50/50 transition-colors">
-                      <td className="py-3 px-4 text-slate-550 font-mono text-[10.5px] font-bold">
-                        {report.id}
+                      <td className="py-3 px-4">
+                        <span className="block text-slate-550 font-mono text-[10.5px] font-bold">{report.id}</span>
+                        {(() => {
+                          const getCreatorDisplayName = (rep: typeof report) => {
+                            if (rep.createdBy && rep.createdBy.username) {
+                              const rawUser = rep.createdBy.username;
+                              if (rawUser === "hussainahmad13122@gmail.com" || rawUser === "admin") {
+                                return "Admin";
+                              }
+                              let clean = rawUser.split("@")[0];
+                              clean = clean.replace(/[\._-]/g, " ");
+                              return clean
+                                .split(/\s+/)
+                                .map((w: string) => w.charAt(0).toUpperCase() + w.slice(1))
+                                .join(" ");
+                            }
+                            return "Admin";
+                          };
+
+                          const creatorName = getCreatorDisplayName(report);
+                          const initials = creatorName
+                            .split(/\s+/)
+                            .map((word) => word[0])
+                            .join("")
+                            .substring(0, 2)
+                            .toUpperCase() || "A";
+                          
+                          const getAvatarBg = (name: string) => {
+                            let hash = 0;
+                            for (let i = 0; i < name.length; i++) {
+                              hash = name.charCodeAt(i) + ((hash << 5) - hash);
+                            }
+                            const bgColors = [
+                              "bg-rose-500",
+                              "bg-amber-500",
+                              "bg-emerald-500",
+                              "bg-indigo-500",
+                              "bg-cyan-500",
+                              "bg-teal-500",
+                              "bg-violet-500",
+                              "bg-sky-500",
+                              "bg-purple-500"
+                            ];
+                            const idxColor = Math.abs(hash) % bgColors.length;
+                            return bgColors[idxColor];
+                          };
+
+                          // Try to find the matching user and get their profilePic
+                          const usersStr = localStorage.getItem("ALW_STAR_USERS") || localStorage.getItem("ALW_STANDALONE_DB_users");
+                          let creatorProfilePic = "";
+                          if (usersStr) {
+                            try {
+                              const usersList = JSON.parse(usersStr);
+                              const matchedUser = usersList.find((u: any) => 
+                                u.username && report.createdBy?.username && u.username.toLowerCase() === report.createdBy.username.toLowerCase()
+                              );
+                              if (matchedUser && matchedUser.profilePic) {
+                                creatorProfilePic = matchedUser.profilePic;
+                              }
+                            } catch (e) {}
+                          }
+
+                          return (
+                            <div className="flex items-center gap-1.5 mt-1">
+                              {creatorProfilePic ? (
+                                <img
+                                  src={creatorProfilePic}
+                                  alt={creatorName}
+                                  className="w-5 h-5 rounded-full object-cover shrink-0 shadow-xs border border-slate-700/50"
+                                  referrerPolicy="no-referrer"
+                                />
+                              ) : (
+                                <div className={`w-5 h-5 rounded-full flex items-center justify-center text-[9px] font-black text-white ${getAvatarBg(creatorName)} shrink-0 shadow-xs uppercase select-none`}>
+                                  {initials}
+                                </div>
+                              )}
+                              <span className="text-[10px] text-slate-500 dark:text-slate-350 font-bold max-w-[120px] truncate" title={creatorName}>
+                                {creatorName}
+                              </span>
+                            </div>
+                          );
+                        })()}
                       </td>
                       <td className="py-3 px-4 text-slate-900">
                         <span className="font-extrabold text-[12px] block">{report.facilityName}</span>

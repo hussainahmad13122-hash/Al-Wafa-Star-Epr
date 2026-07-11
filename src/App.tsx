@@ -60,6 +60,7 @@ import {
   subscribeCollection,
   subscribeBrandingData,
   subscribeStoreValue,
+  saveRegisteredUsers,
 } from "./localDatabase";
 
 export default function App() {
@@ -502,6 +503,10 @@ export default function App() {
     return localStorage.getItem("ALW_STAR_PROFILE_AVATAR") || "";
   });
   const [showProfileEditor, setShowProfileEditor] = useState<boolean>(false);
+  const [showUserProfileEditor, setShowUserProfileEditor] = useState<boolean>(false);
+  const [userProfilePic, setUserProfilePic] = useState<string>("");
+  const [userFullName, setUserFullName] = useState<string>("");
+  const [userPassword, setUserPassword] = useState<string>("");
 
   // Core Reports list state synced to localStorage for session persistence!
   const [reports, setReports] = useState<ReportItem[]>(() => {
@@ -1706,18 +1711,35 @@ export default function App() {
 
             {/* User credentials identifier / Avatar */}
             <div
-              onClick={() => setShowProfileEditor(true)}
+              onClick={() => {
+                if (currentUser) {
+                  setUserProfilePic(currentUser.profilePic || "");
+                  setUserFullName(currentUser.fullName || "");
+                  setUserPassword(currentUser.passwordPlain || "");
+                }
+                setShowUserProfileEditor(true);
+              }}
               className="w-9 h-9 bg-slate-850 rounded-full flex items-center justify-center font-bold text-xs border border-slate-700 text-[#10B981] hover:border-[#10B981] transition-all cursor-pointer overflow-hidden shadow-sm shrink-0"
-              title="Click to Configure Profile & Brand"
+              title={language === "bn" ? "প্রোফাইল সেটিংস পরিবর্তন" : "Click to Configure Personal Profile"}
             >
-              {profileAvatarUrl ? (
+              {currentUser?.profilePic ? (
+                <img
+                  src={currentUser.profilePic}
+                  className="w-full h-full object-cover"
+                  alt="Profile"
+                  referrerPolicy="no-referrer"
+                />
+              ) : profileAvatarUrl ? (
                 <img
                   src={profileAvatarUrl}
                   className="w-full h-full object-cover"
                   alt="Profile"
+                  referrerPolicy="no-referrer"
                 />
               ) : (
-                <User className="w-5 h-5 text-slate-400" />
+                <div className="text-[11px] text-[#10B981] font-extrabold select-none">
+                  {(currentUser?.fullName || currentUser?.username || "A").substring(0, 2).toUpperCase()}
+                </div>
               )}
             </div>
           </div>
@@ -2045,12 +2067,12 @@ export default function App() {
                 />
               </div>
 
-              {/* Field 5: Profile picture conversion */}
+              {/* Field 5: Brand Logo picture conversion */}
               <div className="space-y-2 pt-2 border-t border-slate-850">
                 <label className="text-slate-300 block">
                   {language === "bn"
-                    ? "প্রোফাইল পিকচার পরিবর্তন করুন"
-                    : "Change Profile Photo"}
+                    ? "কোম্পানি বা ব্র্যান্ডের লোগো পরিবর্তন"
+                    : "Change Company / Brand Logo"}
                 </label>
                 <div className="flex items-center gap-4">
                   {profileAvatarUrl ? (
@@ -2148,6 +2170,183 @@ export default function App() {
                 className="px-5 py-2.5 bg-[#10B981] hover:bg-emerald-400 text-slate-950 rounded-xl transition shadow-lg shadow-emerald-500/20 cursor-pointer"
               >
                 Save Settings
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* User Profile Editor Modal (ব্যবহারকারী প্রোফাইল পরিবর্তন) */}
+      {showUserProfileEditor && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4 animate-fade-in font-sans">
+          <div className="w-full max-w-lg bg-slate-900 border border-slate-700 rounded-3xl p-6 shadow-2xl text-slate-100 animate-scale-up flex flex-col max-h-[90vh]">
+            <div className="flex justify-between items-center border-b border-slate-800 pb-3 shrink-0">
+              <div className="flex items-center gap-2">
+                <span className="text-xl">👤</span>
+                <h3 className="text-md font-bold text-slate-55">
+                  {language === "bn"
+                    ? "আপনার নিজস্ব প্রোফাইল কাস্টমাইজ"
+                    : "Personal Profile Customizer"}
+                </h3>
+              </div>
+              <button
+                onClick={() => setShowUserProfileEditor(false)}
+                className="p-1.5 px-3 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white transition-colors cursor-pointer text-xs font-bold"
+              >
+                ✕ Close
+              </button>
+            </div>
+
+            <div className="flex-1 overflow-y-auto space-y-4 py-4 text-xs font-semibold">
+              {/* Account Role Info */}
+              <div className="bg-slate-950/60 border border-slate-800 rounded-2xl p-3">
+                <p className="text-[10px] text-slate-400">
+                  {language === "bn" ? "ব্যবহারকারীর নাম" : "Username"}
+                </p>
+                <p className="text-xs font-bold text-white">
+                  {currentUser?.username}
+                </p>
+                <p className="text-[10px] text-emerald-400 font-mono mt-0.5">
+                  {language === "bn" ? `রোল: ${currentUser?.role}` : `Role: ${currentUser?.role}`}
+                </p>
+              </div>
+
+              {/* Field 1: Full Name */}
+              <div className="space-y-1">
+                <label className="text-slate-300 block">
+                  {language === "bn" ? "আপনার সম্পূর্ণ নাম" : "Full Name"}
+                </label>
+                <input
+                  type="text"
+                  value={userFullName}
+                  onChange={(e) => setUserFullName(e.target.value)}
+                  placeholder={currentUser?.username || "Admin User"}
+                  className="w-full bg-slate-950 border border-slate-700 text-slate-100 rounded-xl py-2.5 px-3 text-xs outline-none focus:border-[#10B981] focus:ring-1 focus:ring-[#10B981]"
+                />
+              </div>
+
+              {/* Field 2: Password */}
+              <div className="space-y-1">
+                <label className="text-slate-300 block">
+                  {language === "bn" ? "পাসওয়ার্ড পরিবর্তন করুন" : "Change Password"}
+                </label>
+                <input
+                  type="text"
+                  value={userPassword}
+                  onChange={(e) => setUserPassword(e.target.value)}
+                  className="w-full bg-slate-950 border border-slate-700 text-slate-100 rounded-xl py-2.5 px-3 text-xs outline-none focus:border-[#10B981] focus:ring-1 focus:ring-[#10B981] font-mono"
+                />
+              </div>
+
+              {/* Field 3: Profile picture */}
+              <div className="space-y-2 pt-2 border-t border-slate-850">
+                <label className="text-slate-300 block">
+                  {language === "bn" ? "প্রোফাইল ছবি পরিবর্তন করুন" : "Change Profile Photo"}
+                </label>
+                <div className="flex items-center gap-4">
+                  {userProfilePic ? (
+                    <img
+                      src={userProfilePic}
+                      alt="Avatar Preview"
+                      className="w-12 h-12 rounded-full border border-[#10B981] bg-slate-950 object-cover"
+                    />
+                  ) : (
+                    <div className="w-12 h-12 rounded-full bg-slate-800 border border-slate-700 flex items-center justify-center font-bold text-slate-350 text-sm">
+                      {(userFullName || currentUser?.username || "U").substring(0, 2).toUpperCase()}
+                    </div>
+                  )}
+                  <div className="flex-1">
+                    <input
+                      type="file"
+                      accept="image/*"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (file) {
+                          const reader = new FileReader();
+                          reader.onloadend = () => {
+                            setUserProfilePic(reader.result as string);
+                          };
+                          reader.readAsDataURL(file);
+                        }
+                      }}
+                      className="text-xs text-slate-400 file:mr-3 file:py-1.5 file:px-3 file:rounded-xl file:border-0 file:text-[10px] file:font-semibold file:bg-slate-800 file:text-[#10B981] hover:file:bg-slate-700 transition cursor-pointer"
+                    />
+                    <p className="text-[10px] text-slate-500 mt-1">
+                      {language === "bn" ? "PNG, JPG বা WebP ফরম্যাট গ্রহণযোগ্য।" : "Accepts PNG, JPG, WebP."}
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="pt-3 flex justify-end gap-2 text-xs font-bold border-t border-slate-800">
+              <button
+                type="button"
+                onClick={() => setShowUserProfileEditor(false)}
+                className="px-4 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl transition cursor-pointer"
+              >
+                {language === "bn" ? "বাতিল" : "Cancel"}
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  if (currentUser?.role === "Visitor") {
+                    alert(
+                      language === "bn"
+                        ? "দুঃখিত, ভিজিটর মোডে প্রোফাইল পরিবর্তন সম্ভব নয়।"
+                        : "Sorry, you cannot modify profiles in read-only Visitor mode."
+                    );
+                    return;
+                  }
+                  
+                  const usersStr = localStorage.getItem("ALW_STAR_USERS") || localStorage.getItem("ALW_STANDALONE_DB_users");
+                  if (usersStr) {
+                    try {
+                      let usersList = JSON.parse(usersStr) as AppUser[];
+                      usersList = usersList.map((u) => {
+                        if (u.id === currentUser?.id) {
+                          return {
+                            ...u,
+                            fullName: userFullName,
+                            passwordPlain: userPassword || u.passwordPlain,
+                            profilePic: userProfilePic,
+                          };
+                        }
+                        return u;
+                      });
+                      
+                      localStorage.setItem("ALW_STAR_USERS", JSON.stringify(usersList));
+                      localStorage.setItem("ALW_STANDALONE_DB_users", JSON.stringify(usersList));
+                      
+                      // Cloud sync!
+                      saveRegisteredUsers(usersList).catch((e) => console.warn(e));
+                      
+                      // Update active session user as well
+                      const updatedLoggedInUser = {
+                        ...currentUser,
+                        fullName: userFullName,
+                        passwordPlain: userPassword || currentUser.passwordPlain,
+                        profilePic: userProfilePic,
+                      };
+                      
+                      localStorage.setItem("ALW_STAR_LOGGED_IN_USER", JSON.stringify(updatedLoggedInUser));
+                      if (sessionStorage.getItem("ALW_STAR_LOGGED_IN_USER")) {
+                        sessionStorage.setItem("ALW_STAR_LOGGED_IN_USER", JSON.stringify(updatedLoggedInUser));
+                      }
+                      
+                      // Dispatch both events so all components re-render immediately
+                      window.dispatchEvent(new Event("auth_update"));
+                      window.dispatchEvent(new Event("storage"));
+                      
+                      setShowUserProfileEditor(false);
+                    } catch (err) {
+                      console.error("Failed to save user profile:", err);
+                    }
+                  }
+                }}
+                className="px-5 py-2.5 bg-[#10B981] hover:bg-emerald-400 text-slate-950 rounded-xl transition shadow-lg shadow-emerald-500/20 cursor-pointer"
+              >
+                {language === "bn" ? "প্রোফাইল সংরক্ষণ করুন" : "Save Profile"}
               </button>
             </div>
           </div>

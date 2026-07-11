@@ -626,6 +626,24 @@ export default function ProjectScheduler({ language, isDark }: ProjectSchedulerP
   };
 
   const handleRenewGroup = (groupId: string) => {
+    if (isVisitor) {
+      triggerToast(language === "bn" ? "ভিজিটর মোডে এই কাজ করার অনুমতি নেই!" : "Read-only mode");
+      return;
+    }
+
+    const group = groupsList.find(g => g.id === groupId);
+    const groupName = group ? group.name : "";
+
+    setConfirmConfig({
+      title: "Confirm Service Completion",
+      message: `Are you sure you want to mark "${groupName}" service as completed? This will update the group schedule and reset the tasks.`,
+      onCallback: () => {
+        executeRenewGroup(groupId);
+      }
+    });
+  };
+
+  const executeRenewGroup = (groupId: string) => {
     let msg = "";
     let shouldDelete = false;
     const updated = groupsList.map(g => {

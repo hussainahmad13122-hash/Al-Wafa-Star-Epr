@@ -78,6 +78,11 @@ export interface ReportItem {
     technician?: string;
     supervisor?: string;
   };
+  createdBy?: {
+    username: string;
+    role?: string;
+    avatarColor?: string;
+  };
   media?: {
     beforePhotos?: string[];
     afterPhotos?: string[];
@@ -115,6 +120,8 @@ export interface AppUser {
     [key: string]: any;
   };
   allowedEmirates?: string[];
+  profilePic?: string;
+  fullName?: string;
 }
 
 export interface LoginSession {

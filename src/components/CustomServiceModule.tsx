@@ -6,7 +6,8 @@ import {
   Printer, 
   X,
   Edit3,
-  Trash2
+  Trash2,
+  Calendar
 } from "lucide-react";
 import { generateReportHTML, generateEngineeringHTML, printHTMLContent } from "./ClientDirectory";
 import EngineeringReport from "./EngineeringReport";
@@ -28,6 +29,76 @@ const formatFacilityType = (type: string, lang: "en" | "ar" | "bn") => {
   return type;
 };
 
+const getReportMonthAndYear = (dateStr?: string) => {
+  if (!dateStr) return { month: -1, year: -1 };
+  try {
+    const trimmed = dateStr.trim();
+    const match = trimmed.match(/^(\d{4})-(\d{2})-\d{2}/);
+    if (match) {
+      return {
+        year: parseInt(match[1], 10),
+        month: parseInt(match[2], 10) // 1-12
+      };
+    }
+    const parsedDate = new Date(trimmed);
+    if (!isNaN(parsedDate.getTime())) {
+      return {
+        year: parsedDate.getFullYear(),
+        month: parsedDate.getMonth() + 1 // 1-12
+      };
+    }
+  } catch (e) {}
+  return { month: -1, year: -1 };
+};
+
+const monthsList = {
+  en: [
+    { value: "All", label: "All Months" },
+    { value: "1", label: "January" },
+    { value: "2", label: "February" },
+    { value: "3", label: "March" },
+    { value: "4", label: "April" },
+    { value: "5", label: "May" },
+    { value: "6", label: "June" },
+    { value: "7", label: "July" },
+    { value: "8", label: "August" },
+    { value: "9", label: "September" },
+    { value: "10", label: "October" },
+    { value: "11", label: "November" },
+    { value: "12", label: "December" }
+  ],
+  bn: [
+    { value: "All", label: "সব মাস" },
+    { value: "1", label: "জানুয়ারি" },
+    { value: "2", label: "ফেব্রুয়ারি" },
+    { value: "3", label: "মার্চ" },
+    { value: "4", label: "এপ্রিল" },
+    { value: "5", label: "মে" },
+    { value: "6", label: "জুন" },
+    { value: "7", label: "জুলাই" },
+    { value: "8", label: "আগস্ট" },
+    { value: "9", label: "সেপ্টেম্বর" },
+    { value: "10", label: "অক্টোবর" },
+    { value: "11", label: "নভেম্বর" },
+    { value: "12", label: "ডিসেম্বর" }
+  ],
+  ar: [
+    { value: "All", label: "جميع الأشهر" },
+    { value: "1", label: "يناير (كانون الثاني)" },
+    { value: "2", label: "فبراير (شباط)" },
+    { value: "3", label: "مارس (آذار)" },
+    { value: "4", label: "أبريل (نيسان)" },
+    { value: "5", label: "مايو (أيار)" },
+    { value: "6", label: "يونيو (حزيران)" },
+    { value: "7", label: "يوليو (تموز)" },
+    { value: "8", label: "أغسطس (آب)" },
+    { value: "9", label: "سبتمبر (أيلول)" },
+    { value: "10", label: "أكتوبر (تشرين الأول)" },
+    { value: "11", label: "نوفمبر (تشرين الثاني)" },
+    { value: "12", label: "ديسمبر (كانون الأول)" }
+  ]
+};
+
 export default function CustomServiceModule({ language, isDark, reports = [], onEditReport, onDeleteReport }: CustomServiceModuleProps) {
   const loggedInUserStrRaw = localStorage.getItem("ALW_STAR_LOGGED_IN_USER") || sessionStorage.getItem("ALW_STAR_LOGGED_IN_USER") || localStorage.getItem("ALW_LOGGED_IN_USER_V2");
   let loggedInUser = null;
@@ -41,6 +112,7 @@ export default function CustomServiceModule({ language, isDark, reports = [], on
 
   const [completedSearch, setCompletedSearch] = useState("");
   const [emirateFilter, setEmirateFilter] = useState("All");
+  const [monthFilter, setMonthFilter] = useState<string>("All");
 
   useEffect(() => {
     if (hasRegionalRestriction && userAllowedEmirates.length > 0) {
@@ -104,11 +176,18 @@ export default function CustomServiceModule({ language, isDark, reports = [], on
     const isEngineeringType = !!r.rawEngineeringData;
     const matchesTabType = activeSystemTab === "engineering" ? isEngineeringType : !isEngineeringType;
 
+    // Filter by month
+    let matchesMonth = true;
+    if (monthFilter !== "All") {
+      const { month } = getReportMonthAndYear(r.dateOfOperation);
+      matchesMonth = String(month) === monthFilter;
+    }
+
     const matchesSearch = r.facilityName?.toLowerCase().includes(completedSearch.toLowerCase()) || 
                           r.ticketNo?.toLowerCase().includes(completedSearch.toLowerCase()) ||
                           r.id?.toLowerCase().includes(completedSearch.toLowerCase());
     const matchesEmirate = emirateFilter === "All" || r.emirate === emirateFilter;
-    return matchesTabType && matchesSearch && matchesEmirate;
+    return matchesTabType && matchesMonth && matchesSearch && matchesEmirate;
   });
 
   const downloadFullReportPDF = async (report: ReportItem) => {
@@ -172,6 +251,24 @@ export default function CustomServiceModule({ language, isDark, reports = [], on
             </div>
             
             <div className="flex flex-wrap flex-1 justify-end items-center gap-2 w-full md:w-auto">
+              {/* Month Filter Dropdown */}
+              <div className="relative text-xs">
+                <span className={`absolute inset-y-0 left-0 flex items-center pl-2.5 pointer-events-none ${isDark ? "text-slate-500" : "text-slate-400"}`}>
+                  <Calendar className="w-3.5 h-3.5" />
+                </span>
+                <select
+                  value={monthFilter}
+                  onChange={(e) => setMonthFilter(e.target.value)}
+                  className={`border text-[11px] font-bold pl-8 pr-2 py-1.5 rounded-lg outline-none cursor-pointer focus:border-indigo-500 ${isDark ? "bg-slate-900 border-slate-600 text-slate-200" : "bg-white border-slate-350 text-slate-800"}`}
+                >
+                  {(monthsList[language] || monthsList.en).map((m) => (
+                    <option key={m.value} value={m.value}>
+                      {m.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
               <select
                 value={emirateFilter}
                 onChange={(e) => setEmirateFilter(e.target.value)}
@@ -236,9 +333,92 @@ export default function CustomServiceModule({ language, isDark, reports = [], on
 
                     return (
                       <tr key={`${report.id}-${idx}`} className={`group transition-colors ${isDark ? "hover:bg-slate-700/50" : "hover:bg-slate-50/50"}`}>
-                        <td className={`py-3 px-4 font-mono text-[10.5px] font-bold ${isDark ? "text-slate-400" : "text-slate-550"}`}>
-                          {report.id}
-                        </td>
+                         <td className="py-3 px-4">
+                           <span className={`block font-mono text-[10.5px] font-bold ${isDark ? "text-slate-400" : "text-slate-550"}`}>{report.id}</span>
+                           {(() => {
+                             const getCreatorDisplayName = (rep: typeof report) => {
+                               if (rep.createdBy && rep.createdBy.username) {
+                                 const rawUser = rep.createdBy.username;
+                                 if (rawUser === "hussainahmad13122@gmail.com" || rawUser === "admin") {
+                                   return "Admin";
+                                 }
+                                 let clean = rawUser.split("@")[0];
+                                 clean = clean.replace(/[\._-]/g, " ");
+                                 return clean
+                                   .split(/\s+/)
+                                   .map((w: string) => w.charAt(0).toUpperCase() + w.slice(1))
+                                   .join(" ");
+                               }
+                               return "Admin";
+                             };
+
+                             const creatorName = getCreatorDisplayName(report);
+                             const initials = creatorName
+                               .split(/\s+/)
+                               .map((word) => word[0])
+                               .join("")
+                               .substring(0, 2)
+                               .toUpperCase() || "A";
+                             
+                             const getAvatarBg = (name: string) => {
+                               let hash = 0;
+                               for (let i = 0; i < name.length; i++) {
+                                 hash = name.charCodeAt(i) + ((hash << 5) - hash);
+                               }
+                               const bgColors = [
+                                 "bg-rose-500",
+                                 "bg-amber-500",
+                                 "bg-emerald-500",
+                                 "bg-indigo-500",
+                                 "bg-cyan-500",
+                                 "bg-teal-500",
+                                 "bg-violet-500",
+                                 "bg-sky-500",
+                                 "bg-purple-500"
+                               ];
+                               const idxColor = Math.abs(hash) % bgColors.length;
+                               return bgColors[idxColor];
+                             };
+
+                             return (
+                               <div className="flex items-center gap-1.5 mt-1">
+                                 {(() => {
+                                   const usersStr = localStorage.getItem("ALW_STAR_USERS") || localStorage.getItem("ALW_STANDALONE_DB_users");
+                                   let creatorProfilePic = "";
+                                   if (usersStr) {
+                                     try {
+                                       const usersList = JSON.parse(usersStr);
+                                       const matchedUser = usersList.find((u: any) => 
+                                         u.username && report.createdBy?.username && u.username.toLowerCase() === report.createdBy.username.toLowerCase()
+                                       );
+                                       if (matchedUser && matchedUser.profilePic) {
+                                         creatorProfilePic = matchedUser.profilePic;
+                                       }
+                                     } catch (e) {}
+                                   }
+                                   if (creatorProfilePic) {
+                                     return (
+                                       <img
+                                         src={creatorProfilePic}
+                                         alt={creatorName}
+                                         className="w-5 h-5 rounded-full object-cover shrink-0 shadow-xs border border-slate-700/50"
+                                         referrerPolicy="no-referrer"
+                                       />
+                                     );
+                                   }
+                                   return (
+                                     <div className={`w-5 h-5 rounded-full flex items-center justify-center text-[9px] font-black text-white ${getAvatarBg(creatorName)} shrink-0 shadow-xs uppercase select-none`}>
+                                       {initials}
+                                     </div>
+                                   );
+                                 })()}
+                                 <span className={`text-[10px] font-bold max-w-[120px] truncate ${isDark ? "text-slate-400" : "text-slate-500"}`} title={creatorName}>
+                                   {creatorName}
+                                 </span>
+                               </div>
+                             );
+                           })()}
+                         </td>
                         <td className={`py-3 px-4 ${isDark ? "text-slate-100" : "text-slate-900"}`}>
                           <span className="font-extrabold text-[12px] block">{report.facilityName}</span>
                           <span className={`text-[10px] block ${isDark ? "text-slate-400" : "text-slate-400"}`}>{report.emirate} • {formatFacilityType(report.facilityType, language)}</span>

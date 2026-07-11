@@ -2018,20 +2018,64 @@ export default function ChemicalInventory({ language, themeMode = "dark" }: Chem
                 />
               </div>
               <div className="space-y-1">
-                <label className={`block ${isDark ? "text-slate-300" : "text-slate-700"}`}>Batch No</label>
-                <input
-                  type="text"
-                  placeholder="e.g. X1-99"
-                  value={newChemBatch}
-                  onChange={(e) => handleBatchNoChange(e.target.value)}
-                  list="batch-suggestions"
-                  className={`w-full font-bold placeholder:font-medium rounded-xl py-2 px-3 outline-none border transition-all ${isDark ? "bg-[#0E172B] border-slate-700 text-white placeholder:text-slate-605 focus:border-indigo-500" : "bg-white border-slate-300 text-slate-900 placeholder:text-slate-400 focus:border-indigo-550"}`}
-                />
-                <datalist id="batch-suggestions">
-                  {chemicals.map((c) => (
-                    c.batch && c.batch !== "N/A" ? <option key={c.batch} value={c.batch} /> : null
-                  ))}
-                </datalist>
+                <label className={`block ${isDark ? "text-slate-300" : "text-slate-700"}`}>
+                  {language === "bn" ? "স্টক অ্যালার্টস (উচ্চ / মাঝারি / কম)" : language === "ar" ? "تنبيهات المخزون (أقصى / متوسط / أدنى)" : "Stock Alerts (High / Mid / Low)"}
+                </label>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="text"
+                    placeholder="High"
+                    value={newChemHighAlert}
+                    onChange={(e) => setNewChemHighAlert(e.target.value)}
+                    className={`w-full text-center font-bold placeholder:font-medium rounded-xl py-2 px-3 outline-none border transition-all ${isDark ? "bg-[#0E172B] border-slate-700 text-white placeholder:text-slate-600 focus:border-indigo-500" : "bg-white border-slate-300 text-slate-900 placeholder:text-slate-400 focus:border-indigo-550"}`}
+                  />
+                  <span className={`${isDark ? "text-slate-500" : "text-slate-400"} font-bold`}>/</span>
+                  <input
+                    type="text"
+                    placeholder="Mid"
+                    value={newChemMidAlert}
+                    onChange={(e) => setNewChemMidAlert(e.target.value)}
+                    className={`w-full text-center font-bold placeholder:font-medium rounded-xl py-2 px-3 outline-none border transition-all ${isDark ? "bg-[#0E172B] border-slate-700 text-white placeholder:text-slate-600 focus:border-indigo-500" : "bg-white border-slate-300 text-slate-900 placeholder:text-slate-400 focus:border-indigo-550"}`}
+                  />
+                  <span className={`${isDark ? "text-slate-500" : "text-slate-400"} font-bold`}>/</span>
+                  <input
+                    type="text"
+                    placeholder="Low"
+                    value={newChemLowAlert}
+                    onChange={(e) => setNewChemLowAlert(e.target.value)}
+                    className={`w-full text-center font-bold placeholder:font-medium rounded-xl py-2 px-3 outline-none border transition-all ${isDark ? "bg-[#0E172B] border-slate-700 text-white placeholder:text-slate-600 focus:border-indigo-500" : "bg-white border-slate-300 text-slate-900 placeholder:text-slate-400 focus:border-indigo-550"}`}
+                  />
+                </div>
+              </div>
+              <div className="flex gap-2">
+                <div className="space-y-1 flex-1">
+                  <label className={`block ${isDark ? "text-slate-300" : "text-slate-700"}`}>
+                    {language === "bn" ? "ডিলিউশন রেট" : "Dilution Rate"}
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="e.g. 10ml / 1L"
+                    value={newChemDilution}
+                    onChange={(e) => setNewChemDilution(e.target.value)}
+                    className={`w-full font-bold placeholder:font-medium rounded-xl py-2 px-3 outline-none border transition-all ${isDark ? "bg-[#0E172B] border-slate-700 text-white placeholder:text-slate-600 focus:border-indigo-500" : "bg-white border-slate-300 text-slate-900 placeholder:text-slate-400 focus:border-indigo-550"}`}
+                  />
+                </div>
+                <div className="space-y-1 flex-1">
+                  <label className={`block ${isDark ? "text-slate-300" : "text-slate-700"}`}>Batch No</label>
+                  <input
+                    type="text"
+                    placeholder="e.g. X1-99"
+                    value={newChemBatch}
+                    onChange={(e) => handleBatchNoChange(e.target.value)}
+                    list="batch-suggestions"
+                    className={`w-full font-bold placeholder:font-medium rounded-xl py-2 px-3 outline-none border transition-all ${isDark ? "bg-[#0E172B] border-slate-700 text-white placeholder:text-slate-600 focus:border-indigo-500" : "bg-white border-slate-300 text-slate-900 placeholder:text-slate-400 focus:border-indigo-550"}`}
+                  />
+                  <datalist id="batch-suggestions">
+                    {chemicals.map((c) => (
+                      c.batch && c.batch !== "N/A" ? <option key={c.batch} value={c.batch} /> : null
+                    ))}
+                  </datalist>
+                </div>
               </div>
               <div className="flex gap-2">
                 <div className="space-y-1 flex-[2]">
@@ -2052,7 +2096,7 @@ export default function ChemicalInventory({ language, themeMode = "dark" }: Chem
                   <select
                     value={newChemUnit}
                     onChange={(e) => setNewChemUnit(e.target.value)}
-                    className={`w-full font-bold rounded-xl py-2 px-3 outline-none border transition-all ${isDark ? "bg-[#0E172B] border-slate-705 text-white focus:border-indigo-550" : "bg-white border-slate-300 text-slate-900 focus:border-indigo-550"}`}
+                    className={`w-full font-bold rounded-xl py-2 px-3 outline-none border transition-all ${isDark ? "bg-[#0E172B] border-slate-755 text-white focus:border-indigo-550" : "bg-white border-slate-300 text-slate-900 focus:border-indigo-550"}`}
                   >
                     <option value="L">L</option>
                     <option value="g">g</option>
