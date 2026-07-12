@@ -436,7 +436,7 @@ export default function CustomSpaceNotes({ language, loggedInUser }: CustomSpace
         <div className="flex flex-wrap gap-2 items-center w-full md:w-auto">
           {[
             { id: "All", label: "All Notes" },
-            ...customCategories.map((cat) => ({ id: cat, label: cat === "Rats" ? "Rodents" : cat })),
+            ...customCategories.map((cat) => ({ id: cat, label: cat })),
           ]
             .reduce(
               (acc, current) => {
@@ -576,8 +576,7 @@ export default function CustomSpaceNotes({ language, loggedInUser }: CustomSpace
                       ? "bg-amber-500/10 text-amber-500 border border-amber-500/20"
                       : note.category === "Drain Flies"
                         ? "bg-blue-500/10 text-blue-500 border border-blue-500/20"
-                        : note.category === "Rats" ||
-                            note.category === "Rodents"
+                        : note.category === "Rodents"
                           ? "bg-rose-500/10 text-rose-500 border border-rose-500/20"
                           : "bg-emerald-500/10 text-emerald-500 border border-emerald-500/20"
                   }`}
@@ -586,7 +585,7 @@ export default function CustomSpaceNotes({ language, loggedInUser }: CustomSpace
                     ? "Ants"
                     : note.category === "Drain Flies"
                       ? "Drain Flies"
-                      : note.category === "Rats" || note.category === "Rodents"
+                      : note.category === "Rodents"
                         ? "Rodent"
                         : note.category}
                 </span>
@@ -724,12 +723,12 @@ export default function CustomSpaceNotes({ language, loggedInUser }: CustomSpace
                   {[
                     { id: "Ants", label: "Ants" },
                     { id: "Drain Flies", label: "Flies" },
-                    { id: "Rats", label: "Rodents" },
+                    { id: "Rodents", label: "Rodents" },
                     { id: "Custom", label: "Custom" },
                     ...customCategories
                       .filter(
                         (c) =>
-                          !["Ants", "Drain Flies", "Rats", "Custom"].includes(
+                          !["Ants", "Drain Flies", "Rodents", "Custom"].includes(
                             c,
                           ),
                       )
@@ -765,19 +764,19 @@ export default function CustomSpaceNotes({ language, loggedInUser }: CustomSpace
                         : "bg-slate-950 text-indigo-400 border-slate-850 hover:border-slate-700 border-dashed"
                     }`}
                   >
-                    + New Category / নতুন ক্যাটাগরি
+                    {language === "bn" ? "+ নতুন ক্যাটাগরি" : language === "ar" ? "+ فئة جديدة" : "+ New Category"}
                   </button>
                 </div>
 
                 {/* If "other" or "Custom" is selected, or if they want to override the input, show text box */}
                 {(formCategory === "other" ||
                   formCategory === "Custom" ||
-                  !["Ants", "Drain Flies", "Rats", "Custom"].includes(
+                  !["Ants", "Drain Flies", "Rodents", "Custom"].includes(
                     formCategory,
                   )) && (
                   <div className="mt-2 space-y-1">
                     <label className="text-[9px] font-bold text-slate-500 uppercase tracking-wider block">
-                      Category Name / টাইপ করুন
+                      {language === "bn" ? "ক্যাটাগরির নাম / টাইপ করুন" : language === "ar" ? "اسم الفئة" : "Category Name"}
                     </label>
                     <input
                       type="text"

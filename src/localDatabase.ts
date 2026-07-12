@@ -483,7 +483,13 @@ async function getLocalDocuments<T>(collName: string): Promise<T[]> {
   try {
     const raw = localStorage.getItem(STORAGE_PREFIX + collName);
     if (raw) {
-      return JSON.parse(raw);
+      const list = JSON.parse(raw);
+      const deletedKey = STORAGE_PREFIX + "deleted_" + collName;
+      const deletedList = JSON.parse(localStorage.getItem(deletedKey) || "[]");
+      if (Array.isArray(list) && Array.isArray(deletedList) && deletedList.length > 0) {
+        return list.filter((r: any) => r && !deletedList.includes(r.id));
+      }
+      return list;
     }
   } catch (e) {}
   return [];
@@ -495,6 +501,18 @@ export async function saveDocument(
   data: any,
 ): Promise<any> {
   const cleanData = sanitizeFirestoreData(data);
+  cleanData.updatedAt = Date.now();
+
+  // If this item was deleted previously, remove it from the deleted list
+  try {
+    const deletedKey = STORAGE_PREFIX + "deleted_" + collName;
+    const deletedList = JSON.parse(localStorage.getItem(deletedKey) || "[]");
+    if (deletedList.includes(docId)) {
+      const updatedDeleted = deletedList.filter((id: string) => id !== docId);
+      localStorage.setItem(deletedKey, JSON.stringify(updatedDeleted));
+    }
+  } catch (e) {}
+
   try {
     const list = await getLocalDocuments<any>(collName);
     const existingIndex = list.findIndex((r) => r.id === docId);
@@ -542,6 +560,9 @@ export async function saveDocumentsBulk(
         for (const item of chunk) {
           const cleanData = sanitizeFirestoreData(item);
           if (!cleanData.id) continue;
+          if (!cleanData.updatedAt) {
+            cleanData.updatedAt = Date.now();
+          }
           batch.set(doc(dbInstance, collName, cleanData.id), cleanData);
           batchCount++;
         }
@@ -559,6 +580,9 @@ export async function saveDocumentsBulk(
     for (const item of items) {
       const cleanData = sanitizeFirestoreData(item);
       if (!cleanData.id) continue;
+      if (!cleanData.updatedAt) {
+        cleanData.updatedAt = Date.now();
+      }
       const existingIndex = list.findIndex((r) => r.id === cleanData.id);
       const recordPayload = { ...cleanData };
 
@@ -589,6 +613,14 @@ export async function deleteDocument(
   docId: string,
 ): Promise<void> {
   try {
+    // Add to tombstone list
+    const deletedKey = STORAGE_PREFIX + "deleted_" + collName;
+    const deletedList = JSON.parse(localStorage.getItem(deletedKey) || "[]");
+    if (!deletedList.includes(docId)) {
+      deletedList.push(docId);
+      localStorage.setItem(deletedKey, JSON.stringify(deletedList));
+    }
+
     const list = await getLocalDocuments<any>(collName);
     const filtered = list.filter((r) => r.id !== docId);
     localStorage.setItem(STORAGE_PREFIX + collName, JSON.stringify(filtered));
@@ -608,6 +640,12 @@ export async function deleteDocument(
 }
 
 export async function getDocuments<T>(collName: string): Promise<T[]> {
+  const deletedKey = STORAGE_PREFIX + "deleted_" + collName;
+  let deletedList: string[] = [];
+  try {
+    deletedList = JSON.parse(localStorage.getItem(deletedKey) || "[]");
+  } catch (e) {}
+
   await ensureFirebaseInitialized();
   if (dbInstance) {
     try {
@@ -615,7 +653,9 @@ export async function getDocuments<T>(collName: string): Promise<T[]> {
       const snapshot = await getDocs(q);
       const list: any[] = [];
       snapshot.forEach((d) => {
-        list.push({ ...d.data(), id: d.id });
+        if (!deletedList.includes(d.id)) {
+          list.push({ ...d.data(), id: d.id });
+        }
       });
       // update local cache
       localStorage.setItem(STORAGE_PREFIX + collName, JSON.stringify(list));
@@ -626,7 +666,8 @@ export async function getDocuments<T>(collName: string): Promise<T[]> {
       handleFirestoreError(err, OperationType.LIST, collName);
     }
   }
-  return getLocalDocuments<T>(collName);
+  const locals = await getLocalDocuments<T>(collName);
+  return locals.filter((r: any) => !deletedList.includes(r.id));
 }
 
 export async function getStoreValue<T>(key: string, defaultVal: T): Promise<T> {
@@ -662,10 +703,13 @@ export async function saveStoreValue<T>(key: string, value: T): Promise<void> {
       notifySubscribers("store_" + key, value);
     }
 
+    const updatedAt = Date.now();
+    localStorage.setItem(STORAGE_PREFIX + "store_meta_" + key, JSON.stringify({ updatedAt }));
+
     await ensureFirebaseInitialized();
     if (dbInstance) {
       try {
-        await setDoc(doc(dbInstance, "store", key), { value });
+        await setDoc(doc(dbInstance, "store", key), { value, updatedAt });
       } catch (err) {
         handleFirestoreError(err, OperationType.WRITE, `store/${key}`);
       }
@@ -824,9 +868,37 @@ export function subscribeCollection<T>(
         firestoreSubscriptions[collName] = onSnapshot(
           collection(dbInstance, collName),
           (snapshot) => {
+            const deletedKey = STORAGE_PREFIX + "deleted_" + collName;
+            let deletedList: string[] = [];
+            try {
+              deletedList = JSON.parse(localStorage.getItem(deletedKey) || "[]");
+            } catch (e) {}
+
+            const localRaw = localStorage.getItem(STORAGE_PREFIX + collName);
+            let locals: any[] = [];
+            try {
+              if (localRaw) locals = JSON.parse(localRaw);
+            } catch (e) {}
+
             const list: any[] = [];
             snapshot.forEach((doc) => {
-              list.push({ ...doc.data(), id: doc.id });
+              const docId = doc.id;
+              if (deletedList.includes(docId)) {
+                return; // Ignored (deleted locally)
+              }
+
+              const remoteItem = { ...doc.data(), id: docId } as any;
+              const localItem = locals.find((l) => l.id === docId);
+              if (localItem) {
+                const localTime = localItem.updatedAt || 0;
+                const remoteTime = remoteItem.updatedAt || 0;
+                if (localTime > remoteTime) {
+                  // Keep newer local version
+                  list.push(localItem);
+                  return;
+                }
+              }
+              list.push(remoteItem);
             });
 
             // Update local cache
@@ -878,7 +950,23 @@ export function subscribeStoreValue<T>(
           doc(dbInstance, "store", key),
           (snapshot) => {
             if (snapshot.exists()) {
-              const remoteVal = snapshot.data().value;
+              const remoteData = snapshot.data();
+              const remoteVal = remoteData?.value;
+              const remoteTime = remoteData?.updatedAt || 0;
+
+              let localTime = 0;
+              try {
+                const localMeta = localStorage.getItem(STORAGE_PREFIX + "store_meta_" + key);
+                if (localMeta) {
+                  localTime = JSON.parse(localMeta).updatedAt || 0;
+                }
+              } catch (e) {}
+
+              if (localTime > remoteTime) {
+                console.log(`Store value '${key}' snapshot ignored because local is newer.`);
+                return;
+              }
+
               localStorage.setItem(
                 STORAGE_PREFIX + "store_" + key,
                 JSON.stringify(remoteVal),

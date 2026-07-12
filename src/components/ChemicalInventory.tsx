@@ -145,6 +145,7 @@ export default function ChemicalInventory({ language, themeMode = "dark" }: Chem
   }, [newChemExpiry]);
   
   // Custom dialogs & notifications state
+  const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
   const [deleteConfirmName, setDeleteConfirmName] = useState<string | null>(null);
   const [toastMessage, setToastMessage] = useState<{ text: string; type: "success" | "error" | "info" } | null>(null);
 
@@ -626,6 +627,12 @@ export default function ChemicalInventory({ language, themeMode = "dark" }: Chem
   }
 
   const usageEntries: UsageEntry[] = [];
+  let deletedUsageKeys: string[] = [];
+  try {
+    const saved = localStorage.getItem("ALW_DELETED_USAGE_KEYS");
+    if (saved) deletedUsageKeys = JSON.parse(saved);
+  } catch (e) {}
+
   reports.forEach((rep: any) => {
     const facility = rep.facilityName || "Unknown Facility";
     const date = rep.dateOfOperation || rep.startDate || "N/A";
@@ -633,15 +640,18 @@ export default function ChemicalInventory({ language, themeMode = "dark" }: Chem
     
     if (rep.chemicals && Array.isArray(rep.chemicals)) {
       rep.chemicals.forEach((chem: any) => {
-        usageEntries.push({
-          facilityName: facility,
-          dateStr: date,
-          monthYear: monthYear,
-          chemicalName: chem.name || "Unknown Chemical",
-          amountUsed: chem.used || "0 mL",
-          batch: chem.batch || "N/A",
-          reportId: rep.id || ""
-        });
+        const usageKey = `${rep.id || ""}_${chem.name || "Unknown Chemical"}_${chem.used || "0 mL"}_${chem.batch || "N/A"}`;
+        if (!deletedUsageKeys.includes(usageKey)) {
+          usageEntries.push({
+            facilityName: facility,
+            dateStr: date,
+            monthYear: monthYear,
+            chemicalName: chem.name || "Unknown Chemical",
+            amountUsed: chem.used || "0 mL",
+            batch: chem.batch || "N/A",
+            reportId: rep.id || ""
+          });
+        }
       });
     }
   });
@@ -1097,14 +1107,33 @@ export default function ChemicalInventory({ language, themeMode = "dark" }: Chem
 
     // 2b. Subscribe to Chemical Received Logs from Firestore store in real-time
     const unsubscribeReceivedLogs = subscribeStoreValue<any[]>("chemicalReceivedLogs", [], (data) => {
-      if (data && data.length > 0) {
-        setHistoryLogs(data);
-        localStorage.setItem("ALW_STAR_CHEMICAL_RECEIVED_LOGS", JSON.stringify(data));
+      // Filter out any logs that are marked as deleted locally
+      let filteredData = data || [];
+      try {
+        const deletedKey = "ALW_DELETED_LOG_IDS";
+        const deletedList = JSON.parse(localStorage.getItem(deletedKey) || "[]");
+        if (deletedList.length > 0) {
+          filteredData = filteredData.filter((log: any) => !deletedList.includes(log.id));
+        }
+      } catch (e) {}
+
+      if (filteredData && filteredData.length > 0) {
+        setHistoryLogs(filteredData);
+        localStorage.setItem("ALW_STAR_CHEMICAL_RECEIVED_LOGS", JSON.stringify(filteredData));
       } else {
         // If empty on server, check if we have them locally
         const saved = localStorage.getItem("ALW_STAR_CHEMICAL_RECEIVED_LOGS");
-        if (saved && JSON.parse(saved).length > 0) {
-          setHistoryLogs(JSON.parse(saved));
+        let localSaved = saved ? JSON.parse(saved) : [];
+        try {
+          const deletedKey = "ALW_DELETED_LOG_IDS";
+          const deletedList = JSON.parse(localStorage.getItem(deletedKey) || "[]");
+          if (deletedList.length > 0) {
+            localSaved = localSaved.filter((log: any) => !deletedList.includes(log.id));
+          }
+        } catch (e) {}
+
+        if (localSaved.length > 0) {
+          setHistoryLogs(localSaved);
         } else {
           // Seed defaults
           seedDefaultReceivedLogs();
@@ -1335,7 +1364,7 @@ export default function ChemicalInventory({ language, themeMode = "dark" }: Chem
     }
   };
 
-  const handleDeleteChemical = async (name: string) => {
+  const handleDeleteChemical = async (id: string, name: string) => {
     if (!canDelete) {
       showToast(
         language === "bn" ? "কেমিক্যাল মুছে ফেলার অনুমতি নেই!" : "Deleting chemical is disabled (No delete permission)!",
@@ -1345,19 +1374,20 @@ export default function ChemicalInventory({ language, themeMode = "dark" }: Chem
     }
 
     // Set modern modal confirmation instead of window.confirm!
+    setDeleteConfirmId(id);
     setDeleteConfirmName(name);
   };
 
-  const executeDeleteChemical = async (name: string) => {
+  const executeDeleteChemical = async (id: string, name: string) => {
     try {
       setLoading(true);
 
       // Offline-First: update state and localStorage immediately
-      const updated = chemicals.filter(c => c.name !== name);
+      const updated = chemicals.filter(c => (c.id || c.name) !== id && c.name !== name);
       setChemicals(updated);
       localStorage.setItem("ALW_CHEMICAL_INVENTORY", JSON.stringify(updated));
 
-      await deleteDocument("chemicalInventory", name);
+      await deleteDocument("chemicalInventory", id);
       fetchInventory();
 
       showToast(
@@ -1417,7 +1447,7 @@ export default function ChemicalInventory({ language, themeMode = "dark" }: Chem
       localStorage.setItem("ALW_CHEMICAL_INVENTORY", JSON.stringify(updatedChems));
 
       // Sync to Firestore
-      await saveDocument("chemicalInventory", chemName, updatedChemData);
+      await saveDocument("chemicalInventory", chem.id || chem.name || chemName, updatedChemData);
       fetchInventory();
 
       showToast(
@@ -1450,6 +1480,17 @@ export default function ChemicalInventory({ language, themeMode = "dark" }: Chem
       const updatedLogs = historyLogs.filter(log => log.id !== logId);
       setHistoryLogs(updatedLogs);
       localStorage.setItem("ALW_STAR_CHEMICAL_RECEIVED_LOGS", JSON.stringify(updatedLogs));
+
+      // Save deleted log ID locally
+      try {
+        const deletedKey = "ALW_DELETED_LOG_IDS";
+        const deletedList = JSON.parse(localStorage.getItem(deletedKey) || "[]");
+        if (!deletedList.includes(logId)) {
+          deletedList.push(logId);
+          localStorage.setItem(deletedKey, JSON.stringify(deletedList));
+        }
+      } catch (e) {}
+
       await saveStoreValue("chemicalReceivedLogs", updatedLogs);
 
       // 2. Undo from chemicalInventory (deduct stock and remove/update batch)
@@ -1653,6 +1694,17 @@ export default function ChemicalInventory({ language, themeMode = "dark" }: Chem
 
         await saveDocument("chemicalInventory", chem.name, updatedChemData);
       }
+
+      // Save deleted usage entry locally to prevent resurrection
+      try {
+        const deletedKey = "ALW_DELETED_USAGE_KEYS";
+        const deletedList = JSON.parse(localStorage.getItem(deletedKey) || "[]");
+        const usageKey = `${reportId}_${entry.chemicalName}_${entry.amountUsed}_${entry.batch}`;
+        if (!deletedList.includes(usageKey)) {
+          deletedList.push(usageKey);
+          localStorage.setItem(deletedKey, JSON.stringify(deletedList));
+        }
+      } catch (e) {}
 
       showToast(
         language === "bn" ? `ব্যবহার রেকর্ডটি সফলভাবে মুছে ফেলা হয়েছে এবং মজুদ ফেরত দেওয়া হয়েছে!` : `Successfully deleted chemical usage and refunded stock!`,
@@ -1861,7 +1913,7 @@ export default function ChemicalInventory({ language, themeMode = "dark" }: Chem
                           <button
                             title={language === "bn" ? "মুছে ফেলুন" : "Delete chemical"}
                             type="button"
-                            onClick={() => handleDeleteChemical(chem.name)}
+                            onClick={() => handleDeleteChemical(chem.id || chem.name, chem.name)}
                             className="md:opacity-0 md:group-hover:opacity-100 md:pointer-events-none md:group-hover:pointer-events-auto transition-all duration-200 p-1.5 text-rose-500 hover:text-rose-400 hover:bg-rose-500/10 rounded-lg cursor-pointer inline-flex items-center justify-center active:scale-95"
                           >
                             <Trash2 className="w-4 h-4" />
@@ -2252,7 +2304,10 @@ export default function ChemicalInventory({ language, themeMode = "dark" }: Chem
             <div className="flex gap-2.5 justify-end">
               <button
                 type="button"
-                onClick={() => setDeleteConfirmName(null)}
+                onClick={() => {
+                  setDeleteConfirmId(null);
+                  setDeleteConfirmName(null);
+                }}
                 className={`px-4 py-2 rounded-xl text-xs font-bold border transition-colors ${isDark ? "bg-slate-800 border-slate-700 text-slate-300 hover:bg-slate-700" : "bg-slate-100 border-slate-300 text-slate-700 hover:bg-slate-250"}`}
               >
                 {language === "bn" ? "বাতিল" : "Cancel"}
@@ -2260,9 +2315,11 @@ export default function ChemicalInventory({ language, themeMode = "dark" }: Chem
               <button
                 type="button"
                 onClick={() => {
-                  const name = deleteConfirmName;
+                  const id = deleteConfirmId || deleteConfirmName || "";
+                  const name = deleteConfirmName || "";
+                  setDeleteConfirmId(null);
                   setDeleteConfirmName(null);
-                  executeDeleteChemical(name);
+                  executeDeleteChemical(id, name);
                 }}
                 className="px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold rounded-xl shadow-md transition-colors"
               >
@@ -4019,7 +4076,10 @@ export default function ChemicalInventory({ language, themeMode = "dark" }: Chem
             <div className="flex gap-2.5 justify-end">
               <button
                 type="button"
-                onClick={() => setDeleteConfirmName(null)}
+                onClick={() => {
+                  setDeleteConfirmId(null);
+                  setDeleteConfirmName(null);
+                }}
                 className={`px-4 py-2 rounded-xl text-xs font-bold border transition-colors ${isDark ? "bg-slate-800 border-slate-700 text-slate-300 hover:bg-slate-700" : "bg-slate-100 border-slate-300 text-slate-700 hover:bg-slate-250"}`}
               >
                 {language === "bn" ? "বাতিল" : "Cancel"}
@@ -4027,9 +4087,11 @@ export default function ChemicalInventory({ language, themeMode = "dark" }: Chem
               <button
                 type="button"
                 onClick={() => {
-                  const name = deleteConfirmName;
+                  const id = deleteConfirmId || deleteConfirmName || "";
+                  const name = deleteConfirmName || "";
+                  setDeleteConfirmId(null);
                   setDeleteConfirmName(null);
-                  executeDeleteChemical(name);
+                  executeDeleteChemical(id, name);
                 }}
                 className="px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold rounded-xl shadow-md transition-colors"
               >
