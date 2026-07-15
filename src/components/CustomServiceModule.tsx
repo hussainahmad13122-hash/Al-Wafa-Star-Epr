@@ -606,11 +606,39 @@ export default function CustomServiceModule({ language, isDark, reports = [], on
                 </div>
                 <div className="flex items-center gap-2">
                   <button
-                    onClick={() => {
-                      downloadFullReportPDF(activeReportDetails);
-                      setActiveReportDetails(null);
+                    onClick={async () => {
+                      const iframe = document.querySelector('iframe[title="Report Preview"]') as HTMLIFrameElement;
+                      if (iframe && iframe.contentWindow) {
+                        const originalTitle = document.title;
+                        let facilityNameStr = "Report";
+                        const fName = activeReportDetails.facilityName;
+                        if (fName) {
+                          if (typeof fName === "object") {
+                            facilityNameStr = (fName as any).name || (fName as any).facilityName || (fName as any).label || "Report";
+                          } else {
+                            facilityNameStr = String(fName);
+                          }
+                        }
+                        const cleanFacilityName = facilityNameStr.replace(/[\/\\:*?"<>|]/g, "_").trim();
+                        const cleanDate = (activeReportDetails.dateOfOperation || activeReportDetails.date || "NoDate").replace(/[\/\\:*?"<>|]/g, "-").trim();
+                        const filename = `${cleanFacilityName} - ${cleanDate}`;
+                        
+                        document.title = filename;
+                        if (iframe.contentWindow.document) {
+                          iframe.contentWindow.document.title = filename;
+                        }
+                        
+                        iframe.contentWindow.focus();
+                        iframe.contentWindow.print();
+                        
+                        setTimeout(() => {
+                          document.title = originalTitle;
+                        }, 1000);
+                      } else {
+                        await downloadFullReportPDF(activeReportDetails);
+                      }
                     }}
-                    className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-white font-black rounded-xl text-xs flex items-center gap-1.5 cursor-pointer transition duration-150 shadow border border-slate-700"
+                    className="px-4 py-2 bg-[#10B981] hover:bg-emerald-400 text-slate-950 font-black rounded-xl text-xs flex items-center gap-1.5 cursor-pointer transition duration-150 shadow border border-emerald-500/30"
                   >
                     <Printer className="w-3.5 h-3.5" />
                     <span>

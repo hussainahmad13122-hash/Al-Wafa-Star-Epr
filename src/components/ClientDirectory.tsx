@@ -2606,24 +2606,46 @@ export default function ClientDirectory({
               if (stateReports.length === 0) return null;
 
               const sortedStateReports = [...stateReports].sort((a, b) => {
-                const numA = parseInt(String(a.ticketNo || a.id || "").replace(/\D/g, ""), 10);
-                const numB = parseInt(String(b.ticketNo || b.id || "").replace(/\D/g, ""), 10);
-                
-                if (!isNaN(numA) && !isNaN(numB)) {
-                  if (numB !== numA) {
-                    return numB - numA; // Descending: higher ticket number first
-                  }
-                }
-                
                 const dateA = a.dateOfOperation || a.date || "";
                 const dateB = b.dateOfOperation || b.date || "";
-                if (dateA && dateB) {
-                  return dateB.localeCompare(dateA); // Descending: newer date first
+                if (dateA !== dateB) {
+                  return dateA.localeCompare(dateB); // Ascending: older date first, newer at bottom
+                }
+                
+                const parseTimeToMinutes = (timeStr: string): number => {
+                  if (!timeStr) return 0;
+                  const cleanStr = timeStr.trim().toUpperCase();
+                  const match = cleanStr.match(/^(\d+):(\d+)\s*(AM|PM)?/);
+                  if (!match) return 0;
+                  
+                  let hours = parseInt(match[1], 10);
+                  const minutes = parseInt(match[2], 10);
+                  const ampm = match[3];
+                  
+                  if (ampm === "PM" && hours < 12) {
+                    hours += 12;
+                  } else if (ampm === "AM" && hours === 12) {
+                    hours = 0;
+                  }
+                  
+                  return hours * 60 + minutes;
+                };
+                
+                const timeA = parseTimeToMinutes(a.startTime || "");
+                const timeB = parseTimeToMinutes(b.startTime || "");
+                if (timeA !== timeB) {
+                  return timeA - timeB; // Ascending: earlier time first, later time at bottom
+                }
+                
+                const numA = parseInt(String(a.ticketNo || a.id || "").replace(/\D/g, ""), 10);
+                const numB = parseInt(String(b.ticketNo || b.id || "").replace(/\D/g, ""), 10);
+                if (!isNaN(numA) && !isNaN(numB) && numA !== numB) {
+                  return numA - numB;
                 }
                 
                 const ticketA = String(a.ticketNo || a.id || "");
                 const ticketB = String(b.ticketNo || b.id || "");
-                return ticketB.localeCompare(ticketA);
+                return ticketA.localeCompare(ticketB);
               });
 
               return (
@@ -3344,11 +3366,39 @@ export default function ClientDirectory({
                   </div>
                   <div className="flex items-center gap-2">
                     <button
-                      onClick={() => {
-                        downloadFullReportPDF(report);
-                        setPreviewReport(null);
+                      onClick={async () => {
+                        const iframe = document.querySelector('iframe[title="Report Preview"]') as HTMLIFrameElement;
+                        if (iframe && iframe.contentWindow) {
+                          const originalTitle = document.title;
+                          let facilityNameStr = "Report";
+                          const fName = report.facilityName;
+                          if (fName) {
+                            if (typeof fName === "object") {
+                              facilityNameStr = (fName as any).name || (fName as any).facilityName || (fName as any).label || "Report";
+                            } else {
+                              facilityNameStr = String(fName);
+                            }
+                          }
+                          const cleanFacilityName = facilityNameStr.replace(/[\/\\:*?"<>|]/g, "_").trim();
+                          const cleanDate = (report.dateOfOperation || report.date || "NoDate").replace(/[\/\\:*?"<>|]/g, "-").trim();
+                          const filename = `${cleanFacilityName} - ${cleanDate}`;
+                          
+                          document.title = filename;
+                          if (iframe.contentWindow.document) {
+                            iframe.contentWindow.document.title = filename;
+                          }
+                          
+                          iframe.contentWindow.focus();
+                          iframe.contentWindow.print();
+                          
+                          setTimeout(() => {
+                            document.title = originalTitle;
+                          }, 1000);
+                        } else {
+                          await downloadFullReportPDF(report);
+                        }
                       }}
-                      className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-white font-black rounded-xl text-xs flex items-center gap-1.5 cursor-pointer transition duration-150 shadow border border-slate-700"
+                      className="px-4 py-2 bg-[#10B981] hover:bg-emerald-400 text-slate-950 font-black rounded-xl text-xs flex items-center gap-1.5 cursor-pointer transition duration-150 shadow border border-emerald-500/30"
                     >
                       <Printer className="w-3.5 h-3.5" />
                       <span>

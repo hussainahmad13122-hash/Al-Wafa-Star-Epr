@@ -441,10 +441,9 @@ export default function Dashboard({
     };
   }, []);
 
-  // 1. Identify unique centers from the dynamic locations list in the Location Map PLUS any completed/active reports
+  // 1. Identify unique centers from the dynamic locations list in the Location Map
   const allCentersList = Array.from(new Set([
-    ...(locations || []).map(l => l.name),
-    ...(reports || []).map(r => r.facilityName)
+    ...(locations || []).map(l => l.name)
   ])).filter(name => Boolean(name) && !deletedCenters.has(name)).sort();
 
   const totalCentersCount = allCentersList.length;
@@ -934,24 +933,46 @@ export default function Dashboard({
       return matchesSearch && matchesEmirate && matchesMonth;
     })
     .sort((a, b) => {
-      const numA = parseInt(String(a.ticketNo || a.id || "").replace(/\D/g, ""), 10);
-      const numB = parseInt(String(b.ticketNo || b.id || "").replace(/\D/g, ""), 10);
-      
-      if (!isNaN(numA) && !isNaN(numB)) {
-        if (numB !== numA) {
-          return numB - numA; // Descending: higher ticket number first
-        }
-      }
-      
       const dateA = a.dateOfOperation || "";
       const dateB = b.dateOfOperation || "";
-      if (dateA && dateB) {
-        return dateB.localeCompare(dateA); // Descending: newer date first
+      if (dateA !== dateB) {
+        return dateA.localeCompare(dateB); // Ascending: older date first, newer at bottom
+      }
+      
+      const parseTimeToMinutes = (timeStr: string): number => {
+        if (!timeStr) return 0;
+        const cleanStr = timeStr.trim().toUpperCase();
+        const match = cleanStr.match(/^(\d+):(\d+)\s*(AM|PM)?/);
+        if (!match) return 0;
+        
+        let hours = parseInt(match[1], 10);
+        const minutes = parseInt(match[2], 10);
+        const ampm = match[3];
+        
+        if (ampm === "PM" && hours < 12) {
+          hours += 12;
+        } else if (ampm === "AM" && hours === 12) {
+          hours = 0;
+        }
+        
+        return hours * 60 + minutes;
+      };
+      
+      const timeA = parseTimeToMinutes(a.startTime || "");
+      const timeB = parseTimeToMinutes(b.startTime || "");
+      if (timeA !== timeB) {
+        return timeA - timeB; // Ascending: earlier time first, later time at bottom
+      }
+      
+      const numA = parseInt(String(a.ticketNo || a.id || "").replace(/\D/g, ""), 10);
+      const numB = parseInt(String(b.ticketNo || b.id || "").replace(/\D/g, ""), 10);
+      if (!isNaN(numA) && !isNaN(numB) && numA !== numB) {
+        return numA - numB;
       }
       
       const ticketA = String(a.ticketNo || a.id || "");
       const ticketB = String(b.ticketNo || b.id || "");
-      return ticketB.localeCompare(ticketA);
+      return ticketA.localeCompare(ticketB);
     });
 
 
