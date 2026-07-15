@@ -22,20 +22,23 @@ interface LocationsRegistryProps {
   language: "en" | "ar" | "bn";
   locations: LocationRegistryItem[];
   setLocations: Dispatch<SetStateAction<LocationRegistryItem[]>>;
+  loggedInUser?: any;
 }
 
 export default function LocationsRegistry({
   language,
   locations,
   setLocations,
+  loggedInUser: propLoggedInUser
 }: LocationsRegistryProps) {
   const loggedInUserStrRaw = localStorage.getItem("ALW_STAR_LOGGED_IN_USER") || sessionStorage.getItem("ALW_STAR_LOGGED_IN_USER") || localStorage.getItem("ALW_LOGGED_IN_USER_V2");
-  let loggedInUser = null;
+  let localLoggedInUser = null;
   if (loggedInUserStrRaw) {
     try {
-      loggedInUser = JSON.parse(loggedInUserStrRaw);
+      localLoggedInUser = JSON.parse(loggedInUserStrRaw);
     } catch(err) {}
   }
+  const loggedInUser = propLoggedInUser || localLoggedInUser;
   const perms = getCurrentUserPermissions();
   const canAdd = perms.canCreateLocation ?? perms.canManageLocations;
   const canEdit = perms.canEditLocation ?? perms.canManageLocations;

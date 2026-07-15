@@ -156,6 +156,7 @@ interface CompletedRegistryProps {
   onUpdateReports?: (reports: ReportItem[]) => void;
   onEditReport?: (report: ReportItem) => void;
   supervisors?: SupervisorRegistryItem[];
+  loggedInUser?: any;
 }
 
 export default function CompletedRegistry({
@@ -165,15 +166,17 @@ export default function CompletedRegistry({
   onSelectReport,
   onUpdateReports,
   onEditReport,
-  supervisors = []
+  supervisors = [],
+  loggedInUser: propLoggedInUser
 }: CompletedRegistryProps) {
   const loggedInUserStrRaw = localStorage.getItem("ALW_STAR_LOGGED_IN_USER") || sessionStorage.getItem("ALW_STAR_LOGGED_IN_USER") || localStorage.getItem("ALW_LOGGED_IN_USER_V2");
-  let loggedInUser = null;
+  let localLoggedInUser = null;
   if (loggedInUserStrRaw) {
     try {
-      loggedInUser = JSON.parse(loggedInUserStrRaw);
+      localLoggedInUser = JSON.parse(loggedInUserStrRaw);
     } catch(err) {}
   }
+  const loggedInUser = propLoggedInUser || localLoggedInUser;
   const userAllowedEmirates = loggedInUser?.allowedEmirates || [];
   const hasRegionalRestriction = loggedInUser?.role !== "Admin" && userAllowedEmirates.length > 0;
 
@@ -303,7 +306,9 @@ export default function CompletedRegistry({
     const matchesSearch = r.facilityName?.toLowerCase().includes(completedSearch.toLowerCase()) || 
                           r.ticketNo?.toLowerCase().includes(completedSearch.toLowerCase()) ||
                           r.id?.toLowerCase().includes(completedSearch.toLowerCase());
-    const matchesEmirate = emirateFilter === "All" || r.emirate === emirateFilter;
+    const rEmirateClean = (r.emirate || "").trim().toLowerCase();
+    const fEmirateClean = (emirateFilter || "").trim().toLowerCase();
+    const matchesEmirate = emirateFilter === "All" || rEmirateClean === fEmirateClean;
     return matchesSearch && matchesEmirate;
   });
 
@@ -324,7 +329,24 @@ export default function CompletedRegistry({
         contentHtml = generateReportHTML(activeReportDetails, language);
       }
 
-      printHTMLContent(contentHtml);
+      let facilityNameStr = "Report";
+      const fName = activeReportDetails.facilityName;
+      if (fName) {
+        if (typeof fName === "object") {
+          facilityNameStr = (fName as any).name || (fName as any).facilityName || (fName as any).label || "Report";
+        } else {
+          facilityNameStr = String(fName);
+        }
+      }
+      const cleanFacilityName = facilityNameStr
+        .replace(/[\/\\:*?"<>|]/g, "_")
+        .trim();
+      const cleanDate = (activeReportDetails.dateOfOperation || activeReportDetails.date || "NoDate")
+        .replace(/[\/\\:*?"<>|]/g, "-")
+        .trim();
+      const filename = `${cleanFacilityName} - ${cleanDate}`;
+
+      await printHTMLContent(contentHtml, filename);
       setIsGeneratingPDF(false);
     } catch (e) {
       console.error(e);
@@ -438,31 +460,57 @@ export default function CompletedRegistry({
 
         {/* Completed Table */}
         <div className="overflow-x-auto">
-          {filteredCompletedReports.length === 0 ? (
-            <div className="p-12 text-center text-slate-400 space-y-2">
-              <span className="text-3xl block">📁</span>
-              <p className="text-[11px] font-bold">
-                {t.noMatched}
-              </p>
-            </div>
-          ) : (
-            <table className="w-full text-left text-xs border-collapse">
-              <thead>
-                <tr className="bg-slate-50 text-slate-500 border-b border-slate-200 uppercase font-mono tracking-wider text-[9px] select-none">
-                  <th className="py-3 px-4 font-black">{t.logId}</th>
-                  <th className="py-3 px-4 font-black">{t.facility}</th>
-                  <th className="py-3 px-4 font-black">{t.dateTime}</th>
-                  <th className="py-3 px-4 font-black">{t.paymentStatus}</th>
-                  <th className="py-3 px-4 font-black text-center">{t.action}</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100 font-medium">
-                {filteredCompletedReports.map((report, idx) => {
-                  const isFree = !report.billing?.amount || 
-                                 report.billing?.amount === 0 || 
-                                 String(report.billing?.amount).toLowerCase().trim() === "no charge" ||
-                                 String(report.billing?.amount).trim() === "" ||
-                                 String(report.billing?.amount).trim() === "No";
+          {(() => {
+            const sortedCompletedReports = [...filteredCompletedReports].sort((a, b) => {
+              const numA = parseInt(String(a.ticketNo || a.id || "").replace(/\D/g, ""), 10);
+              const numB = parseInt(String(b.ticketNo || b.id || "").replace(/\D/g, ""), 10);
+              
+              if (!isNaN(numA) && !isNaN(numB)) {
+                if (numB !== numA) {
+                  return numB - numA; // Descending: higher ticket number first
+                }
+              }
+              
+              const dateA = a.dateOfOperation || "";
+              const dateB = b.dateOfOperation || "";
+              if (dateA && dateB) {
+                return dateB.localeCompare(dateA); // Descending: newer date first
+              }
+              
+              const ticketA = String(a.ticketNo || a.id || "");
+              const ticketB = String(b.ticketNo || b.id || "");
+              return ticketB.localeCompare(ticketA);
+            });
+
+            if (sortedCompletedReports.length === 0) {
+              return (
+                <div className="p-12 text-center text-slate-400 space-y-2">
+                  <span className="text-3xl block">📁</span>
+                  <p className="text-[11px] font-bold">
+                    {t.noMatched}
+                  </p>
+                </div>
+              );
+            }
+
+            return (
+              <table className="w-full text-left text-xs border-collapse">
+                <thead>
+                  <tr className="bg-slate-50 text-slate-500 border-b border-slate-200 uppercase font-mono tracking-wider text-[9px] select-none">
+                    <th className="py-3 px-4 font-black">{t.logId}</th>
+                    <th className="py-3 px-4 font-black">{t.facility}</th>
+                    <th className="py-3 px-4 font-black">{t.dateTime}</th>
+                    <th className="py-3 px-4 font-black">{t.paymentStatus}</th>
+                    <th className="py-3 px-4 font-black text-center">{t.action}</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100 font-medium">
+                  {sortedCompletedReports.map((report, idx) => {
+                    const isFree = !report.billing?.amount || 
+                                   report.billing?.amount === 0 || 
+                                   String(report.billing?.amount).toLowerCase().trim() === "no charge" ||
+                                   String(report.billing?.amount).trim() === "" ||
+                                   String(report.billing?.amount).trim() === "No";
 
                   return (
                     <tr key={`${report.id}-${idx}`} className="hover:bg-slate-50/50 transition-colors">
@@ -612,7 +660,8 @@ export default function CompletedRegistry({
                 })}
               </tbody>
             </table>
-          )}
+            );
+          })()}
         </div>
       </div>
 

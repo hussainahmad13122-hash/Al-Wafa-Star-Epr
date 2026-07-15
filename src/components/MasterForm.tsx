@@ -22,10 +22,13 @@ import {
   X,
   Settings,
   Droplet,
-  ChevronDown
+  ChevronDown,
+  Search,
+  Copy,
+  Check
 } from "lucide-react";
 import { ReportItem, LocationRegistryItem, STANDARD_FACILITIES, EMIRATE_MAPPING_FACILITIES, getCurrentUserPermissions, AppUser } from "../types";
-import { saveDocument, saveStoreValue } from "../localDatabase";
+import { saveDocument, saveStoreValue, subscribeStoreValue } from "../localDatabase";
 import { generateReportHTML, printHTMLContent } from "./ClientDirectory";
 
 interface MasterFormProps {
@@ -415,6 +418,63 @@ export default function MasterForm({
     localStorage.setItem("ALW_DELETED_FACILITIES", JSON.stringify(nextList));
   };
   const [forceUpdateToggle, setForceUpdateToggle] = useState(0);
+
+  // Custom Notes Drawer Helper States
+  const [isNotesDrawerOpen, setIsNotesDrawerOpen] = useState(false);
+  const [copiedNoteId, setCopiedNoteId] = useState<string | null>(null);
+  const [noteSearchQuery, setNoteSearchQuery] = useState("");
+  const [selectedNoteCategory, setSelectedNoteCategory] = useState("All");
+  const [customNotesList, setCustomNotesList] = useState<any[]>([]);
+
+  // Subscribe to changes in custom notes store
+  useEffect(() => {
+    const defaultNotesList = [
+      {
+        id: "note-ants",
+        title: "Ant Control Operations",
+        category: "Ants",
+        lastUpdated: new Date().toLocaleDateString(),
+        content: `**Ant Control Operations Completed:**
+- Applied specialized sanitary bait gel to infested active areas.
+- Conducted a protective residual barrier spray along external structures & walls.
+- Placed defensive gel baiting inside cabinet crevices & food storage zones.
+- Advised client to keep the area clean, dry, and eliminate food crumbs for 7 days.`,
+      },
+      {
+        id: "note-drainflies",
+        title: "Drain Fly Control Operations",
+        category: "Drain Flies",
+        lastUpdated: new Date().toLocaleDateString(),
+        content: `**Drain Fly Control Operations Completed:**
+- Discharged bio-enzymatic drain cleaner inside floor sinks & drainpipes.
+- Performed warm water flush followed by localized chemical treatment.
+- Verified sticky insect traps and replaced worn-out adhesive inserts.
+- Advised routine drain maintenance flushing to avoid organic matter accumulation.`,
+      },
+      {
+        id: "note-rodents",
+        title: "Rodent Control Operations",
+        category: "Rodents",
+        lastUpdated: new Date().toLocaleDateString(),
+        content: `**Rodent Control Operations Completed:**
+- Positioned secure, tamper-resistant bait stations along the outer perimeters.
+- Replenished multi-catch locked stations with high-grade rodenticide blocks.
+- Advised sealing gaps, pipe inlets, and entryways with structural foam or steel mesh.`,
+      },
+    ];
+
+    const unsubNotes = subscribeStoreValue<any[]>(
+      "custom_space_notes_v3",
+      defaultNotesList,
+      (newNotes) => {
+        setCustomNotesList(newNotes);
+      }
+    );
+
+    return () => {
+      unsubNotes();
+    };
+  }, []);
 
   const userAllowedEmirates = loggedInUser?.allowedEmirates || [];
   const hasRegionalRestriction = loggedInUser?.role !== "Admin" && userAllowedEmirates.length > 0;
@@ -1267,7 +1327,25 @@ export default function MasterForm({
 
     try {
       const contentHtml = generateReportHTML(payload, language);
-      printHTMLContent(contentHtml);
+      
+      let facilityNameStr = "Report";
+      const fName = payload.facilityName;
+      if (fName) {
+        if (typeof fName === "object") {
+          facilityNameStr = (fName as any).name || (fName as any).facilityName || (fName as any).label || "Report";
+        } else {
+          facilityNameStr = String(fName);
+        }
+      }
+      const cleanFacilityName = facilityNameStr
+        .replace(/[\/\\:*?"<>|]/g, "_")
+        .trim();
+      const cleanDate = (payload.dateOfOperation || "NoDate")
+        .replace(/[\/\\:*?"<>|]/g, "-")
+        .trim();
+      const filename = `${cleanFacilityName} - ${cleanDate}`;
+
+      await printHTMLContent(contentHtml, filename);
     } catch (e) {
       console.error(e);
     }
@@ -1873,16 +1951,16 @@ export default function MasterForm({
         </div>
 
         <div className="flex items-center gap-2">
-          {!editingReport && (
-            <button
-              type="button"
-              onClick={prefillDefaultPaperData}
-              className="px-3.5 py-2 bg-emerald-600/10 hover:bg-emerald-600/20 text-emerald-400 hover:text-emerald-350 border border-emerald-500/20 rounded-xl text-[10.5px] font-extrabold cursor-pointer transition flex items-center gap-1"
-              title="Auto-fill with exact test entries from the uploaded photo"
-            >
-              📸 Prefill Photo Data
-            </button>
-          )}
+          <button
+            type="button"
+            onClick={() => setIsNotesDrawerOpen(true)}
+            className="px-3.5 py-2 bg-indigo-600/10 hover:bg-indigo-600/20 text-indigo-400 hover:text-indigo-350 border border-indigo-500/20 rounded-xl text-[10.5px] font-extrabold cursor-pointer transition flex items-center gap-1"
+            title={language === "bn" ? "কাস্টম নোটস প্যানেল ওপেন করুন" : "Open Custom Notes Panel"}
+          >
+            📋 {language === "bn" ? "কাস্টম নোটস" : "Custom Notes"}
+          </button>
+
+
           
           <button
             type="button"
@@ -4256,6 +4334,214 @@ export default function MasterForm({
           </div>
         </div>
       )}
+
+      {/* ================= CUSTOM NOTES DRAWER OVERLAY ================= */}
+      {isNotesDrawerOpen && (
+        <div 
+          className="fixed inset-0 bg-slate-950/60 backdrop-blur-xs z-[200] no-print-important transition-opacity duration-300"
+          onClick={() => setIsNotesDrawerOpen(false)}
+        />
+      )}
+
+      <div 
+        className={`fixed top-0 right-0 h-full w-full sm:w-[480px] bg-[#FFFDF3] border-l-2 border-slate-800 shadow-2xl z-[210] flex flex-col no-print-important transition-transform duration-300 ease-in-out font-sans ${
+          isNotesDrawerOpen ? "translate-x-0" : "translate-x-full"
+        }`}
+      >
+        {/* Drawer Header */}
+        <div className="p-4 border-b-2 border-slate-850 bg-slate-900 text-white flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <span className="text-lg">🗒️</span>
+            <div>
+              <h3 className="font-bold text-sm tracking-wider uppercase">
+                {language === "bn" ? "কাস্টম নোটস তালিকা" : "Custom Notes Helper"}
+              </h3>
+              <p className="text-[10px] text-slate-300">
+                {language === "bn" 
+                  ? "কপি করতে নোটে ক্লিক করুন, কপি হলে প্যানেল বন্ধ হয়ে যাবে" 
+                  : "Click any note to copy. Panel closes automatically after copying."}
+              </p>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={() => setIsNotesDrawerOpen(false)}
+            className="p-1.5 hover:bg-slate-800 rounded-lg text-slate-400 hover:text-white transition cursor-pointer"
+            title={language === "bn" ? "বন্ধ করুন" : "Close Notes Drawer"}
+          >
+            <X className="w-5 h-5" />
+          </button>
+        </div>
+
+        {/* Drawer Search & Filters */}
+        <div className="p-4 border-b border-slate-200 bg-slate-50 space-y-3">
+          {/* Search bar */}
+          <div className="relative">
+            <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+            <input
+              type="text"
+              placeholder={language === "bn" ? "নোট খুঁজুন..." : "Search notes..."}
+              value={noteSearchQuery}
+              onChange={(e) => setNoteSearchQuery(e.target.value)}
+              className="w-full pl-9 pr-4 py-2 bg-white border border-slate-300 rounded-xl text-xs focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 font-medium outline-none"
+            />
+            {noteSearchQuery && (
+              <button
+                type="button"
+                onClick={() => setNoteSearchQuery("")}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 font-bold"
+              >
+                ✕
+              </button>
+            )}
+          </div>
+
+          {/* Category Filter Pills */}
+          <div className="flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-thin">
+            {["All", ...Array.from(new Set(customNotesList.map(n => n.category || "Custom"))).filter(Boolean)].map((cat) => {
+              const isSelected = selectedNoteCategory === cat;
+              return (
+                <button
+                  key={cat}
+                  type="button"
+                  onClick={() => setSelectedNoteCategory(cat)}
+                  className={`px-2.5 py-1 text-[10px] font-bold rounded-lg border transition whitespace-nowrap cursor-pointer ${
+                    isSelected
+                      ? "bg-indigo-600 border-indigo-600 text-white shadow-xs"
+                      : "bg-white border-slate-200 text-slate-650 hover:bg-slate-100"
+                  }`}
+                >
+                  {cat}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Notes List Area */}
+        <div className="flex-1 overflow-y-auto p-4 space-y-3">
+          {(() => {
+            const filteredByCategory = selectedNoteCategory === "All"
+              ? customNotesList
+              : customNotesList.filter(n => n.category === selectedNoteCategory);
+
+            const finalFiltered = noteSearchQuery.trim() === ""
+              ? filteredByCategory
+              : filteredByCategory.filter(n => 
+                  (n.title || "").toLowerCase().includes(noteSearchQuery.toLowerCase()) || 
+                  (n.content || "").toLowerCase().includes(noteSearchQuery.toLowerCase()) ||
+                  (n.category || "").toLowerCase().includes(noteSearchQuery.toLowerCase())
+                );
+
+            if (finalFiltered.length === 0) {
+              return (
+                <div className="text-center py-8 text-slate-400 font-medium space-y-2">
+                  <div className="text-3xl">🔍</div>
+                  <p className="text-xs">
+                    {language === "bn" ? "কোন নোট পাওয়া যায়নি!" : "No notes found matching filters."}
+                  </p>
+                </div>
+              );
+            }
+
+            return finalFiltered.map((note) => {
+              const isCopied = copiedNoteId === note.id;
+              return (
+                <div
+                  key={note.id}
+                  onClick={() => {
+                    // Copy on click of the whole card
+                    const copyText = note.content;
+                    navigator.clipboard.writeText(copyText).then(() => {
+                      setCopiedNoteId(note.id);
+                      triggerToast(
+                        language === "bn" 
+                          ? `"${note.title}" কপি করা হয়েছে!` 
+                          : `Copied "${note.title}"!`, 
+                        "success"
+                      );
+                      setTimeout(() => {
+                        setCopiedNoteId(null);
+                        setIsNotesDrawerOpen(false); // Auto close
+                      }, 500);
+                    }).catch(() => {
+                      // fallback copy
+                      try {
+                        const el = document.createElement('textarea');
+                        el.value = copyText;
+                        document.body.appendChild(el);
+                        el.select();
+                        document.execCommand('copy');
+                        document.body.removeChild(el);
+                        setCopiedNoteId(note.id);
+                        triggerToast(
+                          language === "bn" 
+                            ? `"${note.title}" কপি করা হয়েছে!` 
+                            : `Copied "${note.title}"!`, 
+                          "success"
+                        );
+                        setTimeout(() => {
+                          setCopiedNoteId(null);
+                          setIsNotesDrawerOpen(false);
+                        }, 500);
+                      } catch (err) {
+                        triggerToast(language === "bn" ? "কপি করতে ব্যর্থ হয়েছে" : "Failed to copy", "error");
+                      }
+                    });
+                  }}
+                  className={`group p-3 border-2 rounded-xl text-left bg-white transition cursor-pointer relative hover:scale-[1.01] active:scale-[0.99] ${
+                    isCopied
+                      ? "border-emerald-500 bg-emerald-50/20 ring-2 ring-emerald-500/20"
+                      : "border-slate-200 hover:border-indigo-500 shadow-xs"
+                  }`}
+                  title={language === "bn" ? "কপি করতে এখানে ক্লিক করুন" : "Click to copy note content"}
+                >
+                  <div className="flex justify-between items-start gap-2 mb-1.5">
+                    <span className="px-2 py-0.5 text-[8.5px] font-black uppercase tracking-wider bg-slate-100 text-slate-700 border border-slate-200 rounded">
+                      {note.category || "Custom"}
+                    </span>
+                    <span
+                      className={`p-1 rounded-md border transition shrink-0 ${
+                        isCopied
+                          ? "bg-emerald-600 border-emerald-600 text-white"
+                          : "bg-slate-50 border-slate-200 text-slate-450 group-hover:text-indigo-600 group-hover:border-indigo-400 group-hover:bg-indigo-50"
+                      }`}
+                    >
+                      {isCopied ? (
+                        <Check className="w-3 h-3" />
+                      ) : (
+                        <Copy className="w-3 h-3" />
+                      )}
+                    </span>
+                  </div>
+
+                  <h4 className="text-xs font-bold text-slate-900 group-hover:text-indigo-600 transition mb-1">
+                    {note.title}
+                  </h4>
+
+                  <pre className="text-[10px] text-slate-600 font-medium whitespace-pre-wrap font-sans bg-slate-50/50 p-2 rounded-lg border border-slate-150/60 leading-relaxed overflow-hidden max-h-[140px]">
+                    {note.content}
+                  </pre>
+
+                  {isCopied && (
+                    <div className="absolute inset-0 bg-emerald-600/95 backdrop-blur-xs rounded-lg flex flex-col items-center justify-center text-white animate-fade-in z-10">
+                      <Check className="w-8 h-8 mb-1 animate-bounce" />
+                      <span className="text-xs font-black uppercase tracking-widest">
+                        {language === "bn" ? "সফলভাবে কপি হয়েছে!" : "COPIED SUCCESSFULLY!"}
+                      </span>
+                    </div>
+                  )}
+                </div>
+              );
+            });
+          })()}
+        </div>
+
+        {/* Drawer Footer info */}
+        <div className="p-3 border-t border-slate-200 bg-slate-50 text-center text-[9px] text-slate-450 font-semibold font-mono">
+          Al Wafa Star ERP Custom Notes Utility
+        </div>
+      </div>
     </div>
   );
 }

@@ -1777,6 +1777,7 @@ export default function App() {
               onSetThemeMode={handleSetThemeMode}
               isFullscreenLayout={isFullscreenLayout}
               onSetFullscreenLayout={handleSetFullscreenLayout}
+              loggedInUser={currentUser}
             />
           )}
 
@@ -1792,6 +1793,7 @@ export default function App() {
                 setEditingReport(report);
                 rawSetTab("master_form"); // use rawSetTab directly to prevent resetting editingReport inside the setTab wrapper
               }}
+              loggedInUser={currentUser}
             />
           )}
 
@@ -1800,6 +1802,7 @@ export default function App() {
               language={language}
               locations={filteredLocations}
               setLocations={setLocations}
+              loggedInUser={currentUser}
             />
           )}
 
@@ -1809,6 +1812,7 @@ export default function App() {
               locations={filteredLocations}
               supervisors={filteredSupervisors}
               setSupervisors={setSupervisors}
+              loggedInUser={currentUser}
             />
           )}
 
@@ -1818,6 +1822,7 @@ export default function App() {
               language={language}
               reports={filteredReports}
               onUpdateReports={saveReports}
+              loggedInUser={currentUser}
             />
           )}
 
@@ -1869,6 +1874,7 @@ export default function App() {
               language={language}
               isDark={themeMode === "dark"}
               defaultViewTab="projects"
+              loggedInUser={currentUser}
             />
           )}
 
@@ -1879,6 +1885,7 @@ export default function App() {
               reports={filteredReports}
               onEditReport={handleEditReport}
               onDeleteReport={handleDeleteReport}
+              loggedInUser={currentUser}
             />
           )}
 
@@ -1890,6 +1897,7 @@ export default function App() {
               reports={filteredReports}
               onUpdateReports={saveReports}
               onSelectClientToPrefill={handleSelectClientToPrefill}
+              loggedInUser={currentUser}
             />
           )}
 

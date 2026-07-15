@@ -19,6 +19,7 @@ interface CustomServiceModuleProps {
   reports?: ReportItem[];
   onEditReport?: (report: ReportItem) => void;
   onDeleteReport?: (id: string) => void;
+  loggedInUser?: any;
 }
 
 const formatFacilityType = (type: string, lang: "en" | "ar" | "bn") => {
@@ -99,14 +100,15 @@ const monthsList = {
   ]
 };
 
-export default function CustomServiceModule({ language, isDark, reports = [], onEditReport, onDeleteReport }: CustomServiceModuleProps) {
+export default function CustomServiceModule({ language, isDark, reports = [], onEditReport, onDeleteReport, loggedInUser: propLoggedInUser }: CustomServiceModuleProps) {
   const loggedInUserStrRaw = localStorage.getItem("ALW_STAR_LOGGED_IN_USER") || sessionStorage.getItem("ALW_STAR_LOGGED_IN_USER") || localStorage.getItem("ALW_LOGGED_IN_USER_V2");
-  let loggedInUser = null;
+  let localLoggedInUser = null;
   if (loggedInUserStrRaw) {
     try {
-      loggedInUser = JSON.parse(loggedInUserStrRaw);
+      localLoggedInUser = JSON.parse(loggedInUserStrRaw);
     } catch(err) {}
   }
+  const loggedInUser = propLoggedInUser || localLoggedInUser;
   const userAllowedEmirates = loggedInUser?.allowedEmirates || [];
   const hasRegionalRestriction = loggedInUser?.role !== "Admin" && userAllowedEmirates.length > 0;
 
@@ -124,6 +126,11 @@ export default function CustomServiceModule({ language, isDark, reports = [], on
 
   const [activeReportDetails, setActiveReportDetails] = useState<ReportItem | null>(null);
   const [activeSystemTab, setActiveSystemTab] = useState<"service" | "engineering">("service");
+  const [selectedReportIds, setSelectedReportIds] = useState<string[]>([]);
+
+  useEffect(() => {
+    setSelectedReportIds([]);
+  }, [activeSystemTab]);
 
   const [engineeringReports, setEngineeringReports] = useState<any[]>(() => {
     const saved = localStorage.getItem("ALW_ENGINEERING_REPORTS");
@@ -186,7 +193,9 @@ export default function CustomServiceModule({ language, isDark, reports = [], on
     const matchesSearch = r.facilityName?.toLowerCase().includes(completedSearch.toLowerCase()) || 
                           r.ticketNo?.toLowerCase().includes(completedSearch.toLowerCase()) ||
                           r.id?.toLowerCase().includes(completedSearch.toLowerCase());
-    const matchesEmirate = emirateFilter === "All" || r.emirate === emirateFilter;
+    const rEmirateClean = (r.emirate || "").trim().toLowerCase();
+    const fEmirateClean = (emirateFilter || "").trim().toLowerCase();
+    const matchesEmirate = emirateFilter === "All" || rEmirateClean === fEmirateClean;
     return matchesTabType && matchesMonth && matchesSearch && matchesEmirate;
   });
 
@@ -199,10 +208,42 @@ export default function CustomServiceModule({ language, isDark, reports = [], on
         contentHtml = generateReportHTML(report, language);
       }
 
-      printHTMLContent(contentHtml);
+      let facilityNameStr = "Report";
+      const fName = report.facilityName;
+      if (fName) {
+        if (typeof fName === "object") {
+          facilityNameStr = (fName as any).name || (fName as any).facilityName || (fName as any).label || "Report";
+        } else {
+          facilityNameStr = String(fName);
+        }
+      }
+      const cleanFacilityName = facilityNameStr
+        .replace(/[\/\\:*?"<>|]/g, "_")
+        .trim();
+      const cleanDate = (report.dateOfOperation || "NoDate")
+        .replace(/[\/\\:*?"<>|]/g, "-")
+        .trim();
+      const filename = `${cleanFacilityName} - ${cleanDate}`;
+
+      await printHTMLContent(contentHtml, filename);
     } catch (e) {
       console.error(e);
     }
+  };
+
+  const handleBulkDownload = async () => {
+    if (selectedReportIds.length === 0) return;
+
+    for (let i = 0; i < selectedReportIds.length; i++) {
+      const id = selectedReportIds[i];
+      const report = filteredCompletedReports.find((r) => r.id === id);
+      if (report) {
+        await downloadFullReportPDF(report);
+        await new Promise((resolve) => setTimeout(resolve, 800));
+      }
+    }
+
+    setSelectedReportIds([]);
   };
 
   return (
@@ -300,7 +341,7 @@ export default function CustomServiceModule({ language, isDark, reports = [], on
             </div>
           </div>
 
-          <div className={`overflow-x-auto ${isDark ? "bg-slate-800" : "bg-white"} rounded-b-2xl min-h-[500px]`}>
+          <div className={`overflow-x-auto ${isDark ? "bg-slate-800" : "bg-white"} ${selectedReportIds.length > 0 ? "" : "rounded-b-2xl"} min-h-[500px]`}>
             {filteredCompletedReports.length === 0 ? (
               <div className="p-12 text-center text-slate-400 space-y-2">
                 <span className="text-3xl block">📁</span>
@@ -320,7 +361,33 @@ export default function CustomServiceModule({ language, isDark, reports = [], on
                     </th>
                     <th className="py-3 px-4 font-black">{language === "bn" ? "তারিখ ও সময়" : "DATE & TIME"}</th>
                     <th className="py-3 px-4 font-black">{language === "bn" ? "পেমেন্ট অবস্থা" : "BILLING CASH STATUS"}</th>
-                    <th className="py-3 px-4 font-black text-center">{language === "bn" ? "অ্যাকশন" : "ACTIONS"}</th>
+                    <th className="py-3 px-4 font-black text-center">
+                      <div className="flex items-center justify-center gap-2">
+                        <span>{language === "bn" ? "অ্যাকশন" : "ACTIONS"}</span>
+                        <input
+                          type="checkbox"
+                          checked={filteredCompletedReports.length > 0 && filteredCompletedReports.every(r => selectedReportIds.includes(r.id))}
+                          ref={(input) => {
+                            if (input) {
+                              const some = filteredCompletedReports.some(r => selectedReportIds.includes(r.id));
+                              const all = filteredCompletedReports.every(r => selectedReportIds.includes(r.id));
+                              input.indeterminate = some && !all;
+                            }
+                          }}
+                          onChange={(e) => {
+                            if (e.target.checked) {
+                              const newIds = filteredCompletedReports.map(r => r.id);
+                              setSelectedReportIds(prev => Array.from(new Set([...prev, ...newIds])));
+                            } else {
+                              const idsToRemove = filteredCompletedReports.map(r => r.id);
+                              setSelectedReportIds(prev => prev.filter(id => !idsToRemove.includes(id)));
+                            }
+                          }}
+                          title={language === "bn" ? "সব সিলেক্ট করুন" : "Select All"}
+                          className="w-3.5 h-3.5 rounded border-slate-350 text-indigo-600 focus:ring-indigo-500 cursor-pointer ml-1"
+                        />
+                      </div>
+                    </th>
                   </tr>
                 </thead>
                 <tbody className={`divide-y font-medium ${isDark ? "divide-slate-700/50" : "divide-slate-100"}`}>
@@ -475,6 +542,19 @@ export default function CustomServiceModule({ language, isDark, reports = [], on
                                 <Trash2 className="w-4 h-4" />
                               </button>
                             )}
+                            <input
+                              type="checkbox"
+                              checked={selectedReportIds.includes(report.id)}
+                              onChange={(e) => {
+                                if (e.target.checked) {
+                                  setSelectedReportIds(prev => [...prev, report.id]);
+                                } else {
+                                  setSelectedReportIds(prev => prev.filter(id => id !== report.id));
+                                }
+                              }}
+                              onClick={(e) => e.stopPropagation()}
+                              className="w-4 h-4 rounded border-slate-350 text-indigo-600 focus:ring-indigo-500 cursor-pointer ml-1 shrink-0"
+                            />
                           </div>
                         </td>
                       </tr>
@@ -484,6 +564,21 @@ export default function CustomServiceModule({ language, isDark, reports = [], on
               </table>
             )}
           </div>
+          {selectedReportIds.length > 0 && (
+            <div className={`p-4 border-t flex items-center justify-between text-xs font-bold ${isDark ? "bg-slate-900/90 border-slate-700 text-slate-300" : "bg-slate-50 border-slate-200 text-slate-700"} rounded-b-2xl`}>
+              <div>
+                {language === "bn" 
+                  ? `মোট ${selectedReportIds.length} টি রিপোর্ট নির্বাচিত` 
+                  : `${selectedReportIds.length} report(s) selected`}
+              </div>
+              <button
+                onClick={handleBulkDownload}
+                className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-black rounded-lg text-xs flex items-center gap-1.5 cursor-pointer transition active:scale-95 shadow-md"
+              >
+                📥 <span>{language === "bn" ? "ডাউনলোড করুন" : "Download Selected"}</span>
+              </button>
+            </div>
+          )}
         </div>
       </div>
 

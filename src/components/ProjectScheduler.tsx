@@ -224,16 +224,18 @@ interface ProjectSchedulerProps {
   language: AppLanguage;
   isDark: boolean;
   defaultViewTab?: string;
+  loggedInUser?: any;
 }
 
-export default function ProjectScheduler({ language, isDark }: ProjectSchedulerProps) {
+export default function ProjectScheduler({ language, isDark, loggedInUser: propLoggedInUser }: ProjectSchedulerProps) {
   const loggedInUserStrRaw = localStorage.getItem("ALW_STAR_LOGGED_IN_USER") || sessionStorage.getItem("ALW_STAR_LOGGED_IN_USER") || localStorage.getItem("ALW_LOGGED_IN_USER_V2");
-  let loggedInUser = null;
+  let localLoggedInUser = null;
   if (loggedInUserStrRaw) {
     try {
-      loggedInUser = JSON.parse(loggedInUserStrRaw);
+      localLoggedInUser = JSON.parse(loggedInUserStrRaw);
     } catch(err) {}
   }
+  const loggedInUser = propLoggedInUser || localLoggedInUser;
   const isVisitor = !getCurrentUserPermissions().canManageScheduler;
   
   const userAllowedEmirates = loggedInUser?.allowedEmirates || [];

@@ -58,6 +58,7 @@ interface ClientDirectoryProps {
   language: "en" | "ar" | "bn";
   reports: ReportItem[];
   onUpdateReports: (newReports: ReportItem[]) => void;
+  loggedInUser?: any;
 }
 
 export const generateReportHTML = (report: any, language: string) => {
@@ -751,9 +752,16 @@ export const generateReportHTML = (report: any, language: string) => {
                         </div>
                     </td>
                 </tr>
+            </tbody>
+        </table>
 
+        <!-- FORCE PAGE BREAK BEFORE SECTION 5 -->
+        <div style="page-break-before: always; break-before: page; height: 1px; clear: both;"></div>
+
+        <table style="width: 100%; border: none; padding: 0; margin: 0; border-spacing: 0; background: transparent;">
+            <tbody style="display: table-row-group;">
                 <!-- CHEMICAL DOSAGES TABLE IN SEPARATE ROW TO PREVENT SPLITTING -->
-                <tr style="border: none; page-break-before: always; break-before: page; page-break-inside: avoid; break-inside: avoid;">
+                <tr style="border: none; page-break-inside: avoid; break-inside: avoid;">
                     <td style="padding: 0; border: none; background: transparent;">
                         <div class="section-box" style="page-break-inside: avoid; break-inside: avoid;">
                             <div class="section-header" style="color: #003366;">5. Chemical Dosages & Dilution Doses Registered:</div>
@@ -961,68 +969,129 @@ export const generateReportHTML = (report: any, language: string) => {
   return htmlContent;
 };
 
-export const printHTMLContent = (htmlContent: string) => {
-  try {
-    const frameId = "alwafa-print-frame";
-    let iframe = document.getElementById(frameId) as HTMLIFrameElement;
-    if (iframe) {
-      document.body.removeChild(iframe);
+export const printHTMLContent = (htmlContent: string, title?: string): Promise<void> => {
+  return new Promise<void>((resolve) => {
+    const originalTitle = document.title;
+    if (title) {
+      document.title = title;
     }
 
-    iframe = document.createElement("iframe");
-    iframe.id = frameId;
-    iframe.style.position = "fixed";
-    iframe.style.left = "-10000px";
-    iframe.style.top = "-10000px";
-    iframe.style.width = "1024px";
-    iframe.style.height = "1448px";
-    iframe.style.border = "none";
-    iframe.style.zIndex = "-99999";
-    iframe.style.display = "block";
-    iframe.style.visibility = "visible";
-    document.body.appendChild(iframe);
+    let resolved = false;
+    const cleanUpAndResolve = () => {
+      if (resolved) return;
+      resolved = true;
+      if (title) {
+        document.title = originalTitle;
+      }
+      resolve();
+    };
 
-    const doc = iframe.contentWindow?.document || iframe.contentDocument;
-    if (doc) {
-      doc.open();
-      doc.write(htmlContent);
-      doc.close();
+    try {
+      const frameId = `alwafa-print-frame-${Math.random().toString(36).substring(7)}`;
+      const iframe = document.createElement("iframe");
+      iframe.id = frameId;
+      iframe.style.position = "fixed";
+      iframe.style.left = "-10000px";
+      iframe.style.top = "-10000px";
+      iframe.style.width = "1024px";
+      iframe.style.height = "1448px";
+      iframe.style.border = "none";
+      iframe.style.zIndex = "-99999";
+      iframe.style.display = "block";
+      iframe.style.visibility = "visible";
+      document.body.appendChild(iframe);
 
-      setTimeout(() => {
-        try {
-          iframe.contentWindow?.focus();
-          iframe.contentWindow?.print();
-        } catch (printErr) {
-          console.error(
-            "Iframe print failed, falling back to window.open",
-            printErr,
-          );
-          const printWindow = window.open("", "_blank");
-          if (printWindow) {
-            printWindow.document.open();
-            printWindow.document.write(htmlContent);
-            printWindow.document.close();
-            setTimeout(() => {
-              printWindow.focus();
-              printWindow.print();
-            }, 600);
-          }
+      const doc = iframe.contentWindow?.document || iframe.contentDocument;
+      if (doc) {
+        doc.open();
+        doc.write(htmlContent);
+        doc.close();
+        if (title) {
+          doc.title = title;
         }
-      }, 600);
+
+        // Handle print closure using afterprint
+        iframe.contentWindow?.addEventListener("afterprint", () => {
+          cleanUpAndResolve();
+          setTimeout(() => {
+            if (iframe && iframe.parentNode) {
+              iframe.parentNode.removeChild(iframe);
+            }
+          }, 1000);
+        });
+
+        // Failsafe in case afterprint is not supported or missed
+        setTimeout(() => {
+          cleanUpAndResolve();
+          setTimeout(() => {
+            if (iframe && iframe.parentNode) {
+              iframe.parentNode.removeChild(iframe);
+            }
+          }, 1000);
+        }, 20000); // 20-second failsafe to give user time to save
+
+        setTimeout(() => {
+          try {
+            iframe.contentWindow?.focus();
+            iframe.contentWindow?.print();
+          } catch (printErr) {
+            console.error(
+              "Iframe print failed, falling back to window.open",
+              printErr,
+            );
+            const printWindow = window.open("", "_blank");
+            if (printWindow) {
+              printWindow.document.open();
+              printWindow.document.write(htmlContent);
+              printWindow.document.close();
+              if (title) {
+                printWindow.document.title = title;
+              }
+              printWindow.addEventListener("afterprint", () => {
+                cleanUpAndResolve();
+                printWindow.close();
+              });
+              setTimeout(() => {
+                cleanUpAndResolve();
+              }, 20000);
+              setTimeout(() => {
+                printWindow.focus();
+                printWindow.print();
+              }, 600);
+            } else {
+              cleanUpAndResolve();
+            }
+          }
+        }, 600);
+      } else {
+        cleanUpAndResolve();
+      }
+    } catch (err) {
+      console.error("Failed to setup print iframe:", err);
+      const printWindow = window.open("", "_blank");
+      if (printWindow) {
+        printWindow.document.open();
+        printWindow.document.write(htmlContent);
+        printWindow.document.close();
+        if (title) {
+          printWindow.document.title = title;
+        }
+        printWindow.addEventListener("afterprint", () => {
+          cleanUpAndResolve();
+          printWindow.close();
+        });
+        setTimeout(() => {
+          cleanUpAndResolve();
+        }, 20000);
+        setTimeout(() => {
+          printWindow.focus();
+          printWindow.print();
+        }, 600);
+      } else {
+        cleanUpAndResolve();
+      }
     }
-  } catch (err) {
-    console.error("Failed to setup print iframe:", err);
-    const printWindow = window.open("", "_blank");
-    if (printWindow) {
-      printWindow.document.open();
-      printWindow.document.write(htmlContent);
-      printWindow.document.close();
-      setTimeout(() => {
-        printWindow.focus();
-        printWindow.print();
-      }, 600);
-    }
-  }
+  });
 };
 
 export const generateEngineeringHTML = (report: any, language: string) => {
@@ -1507,14 +1576,18 @@ export default function ClientDirectory({
   language,
   reports,
   onUpdateReports,
+  loggedInUser: propLoggedInUser
 }: ClientDirectoryProps) {
   const loggedInUserStrRaw = localStorage.getItem("ALW_STAR_LOGGED_IN_USER") || sessionStorage.getItem("ALW_STAR_LOGGED_IN_USER") || localStorage.getItem("ALW_LOGGED_IN_USER_V2");
-  let loggedInUser = null;
+  let localLoggedInUser = null;
   if (loggedInUserStrRaw) {
     try {
-      loggedInUser = JSON.parse(loggedInUserStrRaw);
+      localLoggedInUser = JSON.parse(loggedInUserStrRaw);
     } catch(err) {}
   }
+  const loggedInUser = propLoggedInUser || localLoggedInUser;
+  const userAllowedEmirates = loggedInUser?.allowedEmirates || [];
+  const hasRegionalRestriction = loggedInUser?.role !== "Admin" && userAllowedEmirates.length > 0;
   const isVisitor = !getCurrentUserPermissions().canEditReport;
 
   const [search, setSearch] = useState("");
@@ -1616,7 +1689,22 @@ export default function ClientDirectory({
     customNameOverride?: string,
   ) => {
     try {
-      const defaultName = `AlWafaStar-${report.facilityName ? report.facilityName.substring(0, 20) : "Report"}-${report.ticketNo || report.id}`;
+      let facilityNameStr = "Report";
+      const fName = report.facilityName;
+      if (fName) {
+        if (typeof fName === "object") {
+          facilityNameStr = (fName as any).name || (fName as any).facilityName || (fName as any).label || "Report";
+        } else {
+          facilityNameStr = String(fName);
+        }
+      }
+      const cleanFacilityName = facilityNameStr
+        .replace(/[\/\\:*?"<>|]/g, "_")
+        .trim();
+      const cleanDate = (report.dateOfOperation || report.date || "NoDate")
+        .replace(/[\/\\:*?"<>|]/g, "-")
+        .trim();
+      const defaultName = `${cleanFacilityName} - ${cleanDate}`;
       let customFileName = customNameOverride || defaultName;
 
       if (!customFileName) return;
@@ -1624,7 +1712,7 @@ export default function ClientDirectory({
       const contentHtml = report.rawEngineeringData
         ? generateEngineeringHTML(report.rawEngineeringData, language)
         : generateReportHTML(report, language);
-      printHTMLContent(contentHtml);
+      await printHTMLContent(contentHtml, customFileName);
     } catch (err) {
       console.error(err);
       alert("Failed to create PDF view.");
@@ -1645,8 +1733,7 @@ export default function ClientDirectory({
       const id = selectedReportIds[i];
       const report = activeExcelReports.find((r) => r.id === id);
       if (report) {
-        const defaultName = `AlWafaStar-${report.facilityName ? report.facilityName.substring(0, 20) : "Report"}-${report.ticketNo || report.id}`;
-        await downloadFullReportPDF(report, defaultName);
+        await downloadFullReportPDF(report);
         await new Promise((resolve) => setTimeout(resolve, 800));
       }
     }
@@ -1954,15 +2041,17 @@ export default function ClientDirectory({
     },
   ];
 
-  const emirates = [
-    "ALL",
-    "Ajman",
-    "Dubai",
-    "Sharjah",
-    "Umm Al Quwain",
-    "Ras Al Khaimah",
-    "Fujairah",
-  ];
+  const emirates = hasRegionalRestriction
+    ? ["ALL", ...userAllowedEmirates]
+    : [
+        "ALL",
+        "Ajman",
+        "Dubai",
+        "Sharjah",
+        "Umm Al Quwain",
+        "Ras Al Khaimah",
+        "Fujairah",
+      ];
 
   // Search filter for option 1 Locations Cards
   const filteredLocs = locations.filter((loc) => {
@@ -2173,6 +2262,14 @@ export default function ClientDirectory({
       // Show only completed service reports as requested
       const isServiceReport = r.workStatus === "Completed" || !r.workStatus;
       if (!isServiceReport) return false;
+
+      // Restrict based on regional limits if not Admin
+      if (hasRegionalRestriction) {
+        const isAllowed = userAllowedEmirates.some(
+          (e) => e.toLowerCase() === (r.emirate || "").toLowerCase()
+        );
+        if (!isAllowed) return false;
+      }
 
       // Note: If a row is added directly from the spreadsheet, it should always be visible so adding/editing is seamless.
       const isManuallyAddedInExcel =
@@ -2487,6 +2584,14 @@ export default function ClientDirectory({
             "Fujairah",
             "Al Dhaid",
           ]
+            .filter((state) => {
+              if (hasRegionalRestriction) {
+                return userAllowedEmirates.some(
+                  (e) => e.toLowerCase() === state.toLowerCase()
+                );
+              }
+              return true;
+            })
             .filter(
               (state) =>
                 selectedEmirate === "ALL" ||
@@ -2499,6 +2604,27 @@ export default function ClientDirectory({
                   emirateState.toLowerCase(),
               );
               if (stateReports.length === 0) return null;
+
+              const sortedStateReports = [...stateReports].sort((a, b) => {
+                const numA = parseInt(String(a.ticketNo || a.id || "").replace(/\D/g, ""), 10);
+                const numB = parseInt(String(b.ticketNo || b.id || "").replace(/\D/g, ""), 10);
+                
+                if (!isNaN(numA) && !isNaN(numB)) {
+                  if (numB !== numA) {
+                    return numB - numA; // Descending: higher ticket number first
+                  }
+                }
+                
+                const dateA = a.dateOfOperation || a.date || "";
+                const dateB = b.dateOfOperation || b.date || "";
+                if (dateA && dateB) {
+                  return dateB.localeCompare(dateA); // Descending: newer date first
+                }
+                
+                const ticketA = String(a.ticketNo || a.id || "");
+                const ticketB = String(b.ticketNo || b.id || "");
+                return ticketB.localeCompare(ticketA);
+              });
 
               return (
                 <div
@@ -2594,7 +2720,7 @@ export default function ClientDirectory({
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-slate-800">
-                        {stateReports.map((report, idx) => {
+                        {sortedStateReports.map((report, idx) => {
                           const isReadonly =
                             report.workStatus === "Completed" &&
                             report.reportText !==

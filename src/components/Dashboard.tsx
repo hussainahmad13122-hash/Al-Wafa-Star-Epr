@@ -184,6 +184,7 @@ interface DashboardProps {
   onSetThemeMode?: (mode: "dark" | "light") => void;
   isFullscreenLayout?: boolean;
   onSetFullscreenLayout?: (val: boolean) => void;
+  loggedInUser?: any;
 }
 
 interface ScheduleRouteDutyModalProps {
@@ -384,14 +385,16 @@ export default function Dashboard({
   onSetThemeMode,
   isFullscreenLayout,
   onSetFullscreenLayout,
+  loggedInUser: propLoggedInUser
 }: DashboardProps) {
   const loggedInUserStrRaw = localStorage.getItem("ALW_STAR_LOGGED_IN_USER") || sessionStorage.getItem("ALW_STAR_LOGGED_IN_USER") || localStorage.getItem("ALW_LOGGED_IN_USER_V2");
-  let loggedInUser = null;
+  let localLoggedInUser = null;
   if (loggedInUserStrRaw) {
     try {
-      loggedInUser = JSON.parse(loggedInUserStrRaw);
+      localLoggedInUser = JSON.parse(loggedInUserStrRaw);
     } catch(err) {}
   }
+  const loggedInUser = propLoggedInUser || localLoggedInUser;
   const userAllowedEmirates = loggedInUser?.allowedEmirates || [];
   const hasRegionalRestriction = loggedInUser?.role !== "Admin" && userAllowedEmirates.length > 0;
 
@@ -438,9 +441,10 @@ export default function Dashboard({
     };
   }, []);
 
-  // 1. Identify unique centers from the dynamic locations list in the Location Map
+  // 1. Identify unique centers from the dynamic locations list in the Location Map PLUS any completed/active reports
   const allCentersList = Array.from(new Set([
-    ...(locations || []).map(l => l.name)
+    ...(locations || []).map(l => l.name),
+    ...(reports || []).map(r => r.facilityName)
   ])).filter(name => Boolean(name) && !deletedCenters.has(name)).sort();
 
   const totalCentersCount = allCentersList.length;
@@ -828,7 +832,7 @@ export default function Dashboard({
       categories: ["General Pest Control (GPC)"],
       areas: ["Rooms", "Toilets", "Kitchen"],
       reportText: "General pest control sanitation maintenance operational update scheduled.",
-      workStatus: "In Progress",
+      workStatus: "Completed",
       methods: ["Spraying"],
       chemicals: [],
       infestation: {},
@@ -868,7 +872,24 @@ export default function Dashboard({
         contentHtml = generateReportHTML(activeReportDetails, language);
       }
 
-      printHTMLContent(contentHtml);
+      let facilityNameStr = "Report";
+      const fName = activeReportDetails.facilityName;
+      if (fName) {
+        if (typeof fName === "object") {
+          facilityNameStr = (fName as any).name || (fName as any).facilityName || (fName as any).label || "Report";
+        } else {
+          facilityNameStr = String(fName);
+        }
+      }
+      const cleanFacilityName = facilityNameStr
+        .replace(/[\/\\:*?"<>|]/g, "_")
+        .trim();
+      const cleanDate = (activeReportDetails.dateOfOperation || activeReportDetails.date || "NoDate")
+        .replace(/[\/\\:*?"<>|]/g, "-")
+        .trim();
+      const filename = `${cleanFacilityName} - ${cleanDate}`;
+
+      await printHTMLContent(contentHtml, filename);
       setIsGeneratingPDF(false);
     } catch (e) {
       console.error(e);
@@ -900,7 +921,9 @@ export default function Dashboard({
       const matchesSearch = r.facilityName?.toLowerCase().includes(completedSearch.toLowerCase()) || 
                             r.ticketNo?.toLowerCase().includes(completedSearch.toLowerCase()) ||
                             r.id?.toLowerCase().includes(completedSearch.toLowerCase());
-      const matchesEmirate = emirateFilter === "All" || r.emirate === emirateFilter;
+      const rEmirateClean = (r.emirate || "").trim().toLowerCase();
+      const fEmirateClean = (emirateFilter || "").trim().toLowerCase();
+      const matchesEmirate = emirateFilter === "All" || rEmirateClean === fEmirateClean;
 
       let matchesMonth = true;
       if (monthFilter !== "All") {
@@ -911,9 +934,24 @@ export default function Dashboard({
       return matchesSearch && matchesEmirate && matchesMonth;
     })
     .sort((a, b) => {
+      const numA = parseInt(String(a.ticketNo || a.id || "").replace(/\D/g, ""), 10);
+      const numB = parseInt(String(b.ticketNo || b.id || "").replace(/\D/g, ""), 10);
+      
+      if (!isNaN(numA) && !isNaN(numB)) {
+        if (numB !== numA) {
+          return numB - numA; // Descending: higher ticket number first
+        }
+      }
+      
       const dateA = a.dateOfOperation || "";
       const dateB = b.dateOfOperation || "";
-      return dateA.localeCompare(dateB);
+      if (dateA && dateB) {
+        return dateB.localeCompare(dateA); // Descending: newer date first
+      }
+      
+      const ticketA = String(a.ticketNo || a.id || "");
+      const ticketB = String(b.ticketNo || b.id || "");
+      return ticketB.localeCompare(ticketA);
     });
 
 

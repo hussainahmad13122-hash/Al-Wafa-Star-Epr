@@ -34,6 +34,7 @@ interface SupervisorsRegistryProps {
   locations: LocationRegistryItem[];
   supervisors: SupervisorRegistryItem[];
   setSupervisors: Dispatch<SetStateAction<SupervisorRegistryItem[]>>;
+  loggedInUser?: any;
 }
 
 const PRESET_EMOJIS = [
@@ -66,14 +67,16 @@ export default function SupervisorsRegistry({
   locations,
   supervisors,
   setSupervisors,
+  loggedInUser: propLoggedInUser
 }: SupervisorsRegistryProps) {
   const loggedInUserStrRaw = localStorage.getItem("ALW_STAR_LOGGED_IN_USER") || sessionStorage.getItem("ALW_STAR_LOGGED_IN_USER") || localStorage.getItem("ALW_LOGGED_IN_USER_V2");
-  let loggedInUser = null;
+  let localLoggedInUser = null;
   if (loggedInUserStrRaw) {
     try {
-      loggedInUser = JSON.parse(loggedInUserStrRaw);
+      localLoggedInUser = JSON.parse(loggedInUserStrRaw);
     } catch(err) {}
   }
+  const loggedInUser = propLoggedInUser || localLoggedInUser;
   const perms = getCurrentUserPermissions();
   const canAdd = perms.canCreateSupervisor ?? perms.canManageSupervisors;
   const canEdit = perms.canEditSupervisor ?? perms.canManageSupervisors;

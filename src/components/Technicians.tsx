@@ -82,6 +82,7 @@ interface TechniciansProps {
   reports?: ReportItem[];
   onUpdateReports?: (reports: ReportItem[]) => void;
   onSelectClientToPrefill?: (client: any) => void;
+  loggedInUser?: any;
 }
 
 export default function Technicians({
@@ -91,14 +92,16 @@ export default function Technicians({
   reports = [],
   onUpdateReports,
   onSelectClientToPrefill,
+  loggedInUser: propLoggedInUser
 }: TechniciansProps) {
   const loggedInUserStrRaw = localStorage.getItem("ALW_STAR_LOGGED_IN_USER") || sessionStorage.getItem("ALW_STAR_LOGGED_IN_USER") || localStorage.getItem("ALW_LOGGED_IN_USER_V2");
-  let loggedInUser = null;
+  let localLoggedInUser = null;
   if (loggedInUserStrRaw) {
     try {
-      loggedInUser = JSON.parse(loggedInUserStrRaw);
+      localLoggedInUser = JSON.parse(loggedInUserStrRaw);
     } catch(err) {}
   }
+  const loggedInUser = propLoggedInUser || localLoggedInUser;
   const userAllowedEmirates = loggedInUser?.allowedEmirates || [];
   const hasRegionalRestriction = loggedInUser?.role !== "Admin" && userAllowedEmirates.length > 0;
 
