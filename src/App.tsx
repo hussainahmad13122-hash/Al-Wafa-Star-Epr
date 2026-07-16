@@ -1548,9 +1548,22 @@ export default function App() {
   const hasRegionalRestriction = currentUser?.role !== "Admin" && userAllowedEmirates.length > 0;
 
   const filteredReports = hasRegionalRestriction
-    ? reports.filter((r) =>
-        userAllowedEmirates.some((e) => e.toLowerCase() === (r.emirate || "").toLowerCase())
-      )
+    ? reports.filter((r) => {
+        const rEmirate = (r.emirate || "").trim().toLowerCase();
+        if (rEmirate && userAllowedEmirates.some((e) => e.toLowerCase() === rEmirate)) {
+          return true;
+        }
+        const matchedLoc = locations.find(
+          (l) => l.name && r.facilityName && l.name.trim().toLowerCase() === r.facilityName.trim().toLowerCase()
+        );
+        if (matchedLoc) {
+          const locEmirate = (matchedLoc.emirate || "").trim().toLowerCase();
+          if (locEmirate && userAllowedEmirates.some((e) => e.toLowerCase() === locEmirate)) {
+            return true;
+          }
+        }
+        return false;
+      })
     : reports;
 
   const filteredLocations = hasRegionalRestriction
@@ -1794,6 +1807,7 @@ export default function App() {
                 rawSetTab("master_form"); // use rawSetTab directly to prevent resetting editingReport inside the setTab wrapper
               }}
               loggedInUser={currentUser}
+              isDark={themeMode === "dark"}
             />
           )}
 

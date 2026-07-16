@@ -449,11 +449,20 @@ export default function EngineeringReport({
   const userAllowedEmirates = loggedInUser?.allowedEmirates || [];
   const hasRegionalRestriction = loggedInUser?.role !== "Admin" && userAllowedEmirates.length > 0;
 
-  const displayReports = hasRegionalRestriction
+  const displayReports = [...(hasRegionalRestriction
     ? savedReports.filter((r) =>
         userAllowedEmirates.some((e) => e.toLowerCase() === (r.emirate || "").toLowerCase())
       )
-    : savedReports;
+    : savedReports)].sort((a, b) => {
+      const dateA = a.date || "";
+      const dateB = b.date || "";
+      if (dateA !== dateB) {
+        return dateA.localeCompare(dateB);
+      }
+      const timeA = a.createdAt || "";
+      const timeB = b.createdAt || "";
+      return timeA.localeCompare(timeB);
+    });
 
   // Active view: "list" or "create" or "print-preview"
   const [activeSegment, setActiveSegment] = useState<

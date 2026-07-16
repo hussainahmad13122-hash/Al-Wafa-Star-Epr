@@ -197,6 +197,60 @@ export default function CustomServiceModule({ language, isDark, reports = [], on
     const fEmirateClean = (emirateFilter || "").trim().toLowerCase();
     const matchesEmirate = emirateFilter === "All" || rEmirateClean === fEmirateClean;
     return matchesTabType && matchesMonth && matchesSearch && matchesEmirate;
+  }).sort((a, b) => {
+    const dateA = a.dateOfOperation || "";
+    const dateB = b.dateOfOperation || "";
+    if (dateA !== dateB) {
+      return dateB.localeCompare(dateA); // Descending: newer date first, older at bottom
+    }
+
+    const parseTimeToMinutes = (report: typeof a): number => {
+      const timeStr = report.startTime;
+      if (timeStr && timeStr !== "N/A") {
+        const cleanStr = timeStr.trim().toUpperCase();
+        const match = cleanStr.match(/^(\d+):(\d+)\s*(AM|PM)?/);
+        if (match) {
+          let hours = parseInt(match[1], 10);
+          const minutes = parseInt(match[2], 10);
+          const ampm = match[3];
+          
+          if (ampm === "PM" && hours < 12) {
+            hours += 12;
+          } else if (ampm === "AM" && hours === 12) {
+            hours = 0;
+          }
+          
+          return hours * 60 + minutes;
+        }
+      }
+      
+      if (report.rawEngineeringData?.createdAt) {
+        try {
+          const dateObj = new Date(report.rawEngineeringData.createdAt);
+          if (!isNaN(dateObj.getTime())) {
+            return dateObj.getHours() * 60 + dateObj.getMinutes();
+          }
+        } catch (e) {}
+      }
+      
+      return 0;
+    };
+
+    const timeA = parseTimeToMinutes(a);
+    const timeB = parseTimeToMinutes(b);
+    if (timeA !== timeB) {
+      return timeB - timeA; // Descending: later time first, earlier time at bottom
+    }
+
+    const numA = parseInt(String(a.ticketNo || a.id || "").replace(/\D/g, ""), 10);
+    const numB = parseInt(String(b.ticketNo || b.id || "").replace(/\D/g, ""), 10);
+    if (!isNaN(numA) && !isNaN(numB) && numA !== numB) {
+      return numB - numA; // Descending: higher number first
+    }
+
+    const ticketA = String(a.ticketNo || a.id || "");
+    const ticketB = String(b.ticketNo || b.id || "");
+    return ticketB.localeCompare(ticketA); // Descending
   });
 
   const downloadFullReportPDF = async (report: ReportItem) => {
@@ -234,13 +288,54 @@ export default function CustomServiceModule({ language, isDark, reports = [], on
   const handleBulkDownload = async () => {
     if (selectedReportIds.length === 0) return;
 
-    for (let i = 0; i < selectedReportIds.length; i++) {
-      const id = selectedReportIds[i];
-      const report = filteredCompletedReports.find((r) => r.id === id);
-      if (report) {
-        await downloadFullReportPDF(report);
-        await new Promise((resolve) => setTimeout(resolve, 800));
+    const selectedReports = selectedReportIds
+      .map((id) => filteredCompletedReports.find((r) => r.id === id))
+      .filter((r): r is ReportItem => !!r);
+
+    if (selectedReports.length === 0) return;
+
+    if (selectedReports.length === 1) {
+      await downloadFullReportPDF(selectedReports[0]);
+      setSelectedReportIds([]);
+      return;
+    }
+
+    try {
+      const firstReport = selectedReports[0];
+      const firstReportHTML = firstReport.rawEngineeringData 
+        ? generateEngineeringHTML(firstReport.rawEngineeringData, language)
+        : generateReportHTML(firstReport, language);
+
+      const headSplit = firstReportHTML.split(/<body[^>]*>/i);
+      const headPart = headSplit[0];
+
+      const bodiesList: string[] = [];
+
+      for (const r of selectedReports) {
+        const html = r.rawEngineeringData 
+          ? generateEngineeringHTML(r.rawEngineeringData, language)
+          : generateReportHTML(r, language);
+
+        const bodyContentMatch = html.match(/<body[^>]*>([\s\S]*)<\/body>/i);
+        if (bodyContentMatch && bodyContentMatch[1]) {
+          bodiesList.push(bodyContentMatch[1]);
+        } else {
+          bodiesList.push(html);
+        }
       }
+
+      const combinedBody = bodiesList.join(
+        '\n<div style="page-break-before: always; break-before: page; height: 1px; clear: both;"></div>\n'
+      );
+
+      const finalHTML = `${headPart}\n<body>\n${combinedBody}\n</body>\n</html>`;
+
+      const dateStr = new Date().toISOString().split("T")[0];
+      const filename = `AL_WAFA_STAR_Bulk_Reports_${dateStr}`;
+
+      await printHTMLContent(finalHTML, filename);
+    } catch (e) {
+      console.error("Bulk printing failed", e);
     }
 
     setSelectedReportIds([]);
@@ -516,7 +611,7 @@ export default function CustomServiceModule({ language, isDark, reports = [], on
                             {onEditReport && !report.rawEngineeringData && (
                               <button
                                 onClick={() => onEditReport(report)}
-                                className={`opacity-0 group-hover:opacity-100 p-1.5 rounded-lg active:scale-95 transition-all text-[11px] border cursor-pointer ${isDark ? "bg-amber-500/10 hover:bg-amber-500/20 text-amber-500 border-amber-500/20" : "bg-amber-50 hover:bg-amber-100 text-amber-600 border-amber-100"}`}
+                                className={`p-1.5 rounded-lg active:scale-95 transition-all text-[11px] border cursor-pointer ${isDark ? "bg-amber-500/10 hover:bg-amber-500/20 text-amber-500 border-amber-500/20" : "bg-amber-50 hover:bg-amber-100 text-amber-600 border-amber-100"}`}
                                 title={language === "bn" ? "এডিট" : "Edit"}
                               >
                                 <Edit3 className="w-4 h-4" />
@@ -536,7 +631,7 @@ export default function CustomServiceModule({ language, isDark, reports = [], on
                                     onDeleteReport(report.id);
                                   }
                                 }}
-                                className={`opacity-0 group-hover:opacity-100 p-1.5 rounded-lg active:scale-95 transition-all text-[11px] border cursor-pointer ${isDark ? "bg-red-500/10 hover:bg-red-500/20 text-red-500 border-red-500/20" : "bg-red-50 hover:bg-red-100 text-red-600 border-red-100"}`}
+                                className={`p-1.5 rounded-lg active:scale-95 transition-all text-[11px] border cursor-pointer ${isDark ? "bg-red-500/10 hover:bg-red-500/20 text-red-500 border-red-500/20" : "bg-red-50 hover:bg-red-100 text-red-600 border-red-100"}`}
                                 title={language === "bn" ? "ডিলিট" : "Delete"}
                               >
                                 <Trash2 className="w-4 h-4" />
@@ -620,7 +715,7 @@ export default function CustomServiceModule({ language, isDark, reports = [], on
                           }
                         }
                         const cleanFacilityName = facilityNameStr.replace(/[\/\\:*?"<>|]/g, "_").trim();
-                        const cleanDate = (activeReportDetails.dateOfOperation || activeReportDetails.date || "NoDate").replace(/[\/\\:*?"<>|]/g, "-").trim();
+                        const cleanDate = (activeReportDetails.dateOfOperation || "NoDate").replace(/[\/\\:*?"<>|]/g, "-").trim();
                         const filename = `${cleanFacilityName} - ${cleanDate}`;
                         
                         document.title = filename;

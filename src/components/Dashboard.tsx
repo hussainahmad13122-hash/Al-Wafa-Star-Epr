@@ -441,9 +441,10 @@ export default function Dashboard({
     };
   }, []);
 
-  // 1. Identify unique centers from the dynamic locations list in the Location Map
+  // 1. Identify unique centers from the dynamic locations list in the Location Map PLUS any facility name in reports
   const allCentersList = Array.from(new Set([
-    ...(locations || []).map(l => l.name)
+    ...(locations || []).map(l => l.name),
+    ...(reports || []).map(r => r.facilityName)
   ])).filter(name => Boolean(name) && !deletedCenters.has(name)).sort();
 
   const totalCentersCount = allCentersList.length;
@@ -914,7 +915,7 @@ export default function Dashboard({
     }, 500);
   };
 
-  // Filter completed items and sort chronologically ascending
+  // Filter completed items and sort chronologically descending
   const filteredCompletedReports = completedReports
     .filter(r => {
       const matchesSearch = r.facilityName?.toLowerCase().includes(completedSearch.toLowerCase()) || 
@@ -936,7 +937,7 @@ export default function Dashboard({
       const dateA = a.dateOfOperation || "";
       const dateB = b.dateOfOperation || "";
       if (dateA !== dateB) {
-        return dateA.localeCompare(dateB); // Ascending: older date first, newer at bottom
+        return dateB.localeCompare(dateA); // Descending: newer date first, older at bottom
       }
       
       const parseTimeToMinutes = (timeStr: string): number => {
@@ -961,18 +962,18 @@ export default function Dashboard({
       const timeA = parseTimeToMinutes(a.startTime || "");
       const timeB = parseTimeToMinutes(b.startTime || "");
       if (timeA !== timeB) {
-        return timeA - timeB; // Ascending: earlier time first, later time at bottom
+        return timeB - timeA; // Descending: later time first, earlier time at bottom
       }
       
       const numA = parseInt(String(a.ticketNo || a.id || "").replace(/\D/g, ""), 10);
       const numB = parseInt(String(b.ticketNo || b.id || "").replace(/\D/g, ""), 10);
       if (!isNaN(numA) && !isNaN(numB) && numA !== numB) {
-        return numA - numB;
+        return numB - numA; // Descending: higher number first
       }
       
       const ticketA = String(a.ticketNo || a.id || "");
       const ticketB = String(b.ticketNo || b.id || "");
-      return ticketA.localeCompare(ticketB);
+      return ticketB.localeCompare(ticketA); // Descending
     });
 
 

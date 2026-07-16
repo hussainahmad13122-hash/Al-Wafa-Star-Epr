@@ -157,6 +157,7 @@ interface CompletedRegistryProps {
   onEditReport?: (report: ReportItem) => void;
   supervisors?: SupervisorRegistryItem[];
   loggedInUser?: any;
+  isDark?: boolean;
 }
 
 export default function CompletedRegistry({
@@ -167,7 +168,8 @@ export default function CompletedRegistry({
   onUpdateReports,
   onEditReport,
   supervisors = [],
-  loggedInUser: propLoggedInUser
+  loggedInUser: propLoggedInUser,
+  isDark = false
 }: CompletedRegistryProps) {
   const loggedInUserStrRaw = localStorage.getItem("ALW_STAR_LOGGED_IN_USER") || sessionStorage.getItem("ALW_STAR_LOGGED_IN_USER") || localStorage.getItem("ALW_LOGGED_IN_USER_V2");
   let localLoggedInUser = null;
@@ -372,16 +374,18 @@ export default function CompletedRegistry({
   };
 
   return (
-    <div id="erp-completed-services-view" className="space-y-6 pb-16 font-sans">
+    <div id="erp-completed-services-view" className={`space-y-6 pb-16 font-sans ${isDark ? "text-slate-200" : "text-slate-800"}`}>
       
       {/* Visual Title Banner Row */}
-      <div className="bg-white border border-slate-200 p-6 md:p-8 rounded-3xl shadow-sm flex flex-col md:flex-row justify-between items-start md:items-center gap-4 animate-fadeIn">
+      <div className={`p-6 md:p-8 rounded-3xl shadow-sm flex flex-col md:flex-row justify-between items-start md:items-center gap-4 animate-fadeIn border ${
+        isDark ? "bg-slate-900 border-slate-800 text-slate-100" : "bg-white border-slate-200 text-slate-900"
+      }`}>
         <div className="space-y-1">
-          <h1 className="text-2xl font-black tracking-tight text-slate-900 flex items-center gap-2">
+          <h1 className={`text-2xl font-black tracking-tight flex items-center gap-2 ${isDark ? "text-slate-100" : "text-slate-900"}`}>
             <CheckCircle2 className="w-7 h-7 text-emerald-500 animate-pulse" />
             <span>{t.title}</span>
           </h1>
-          <p className="text-xs text-slate-500 max-w-2xl font-medium">
+          <p className={`text-xs max-w-2xl font-medium ${isDark ? "text-slate-400" : "text-slate-500"}`}>
             {t.subtitle}
           </p>
         </div>
@@ -394,14 +398,18 @@ export default function CompletedRegistry({
       </div>
 
       {/* Main Ledger Section mirroring Dashboard */}
-      <div className="bg-white border border-slate-200/95 rounded-2xl shadow-sm overflow-hidden animate-fadeIn">
-        <div className="p-5 md:p-6 bg-gradient-to-r from-slate-50 to-slate-100 border-b border-slate-200 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+      <div className={`border rounded-2xl shadow-sm overflow-hidden animate-fadeIn ${
+        isDark ? "bg-slate-800 border-slate-700/80" : "bg-white border-slate-200/95"
+      }`}>
+        <div className={`p-5 md:p-6 border-b flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 ${
+          isDark ? "bg-slate-900/40 border-slate-700" : "bg-gradient-to-r from-slate-50 to-slate-100 border-slate-200"
+        }`}>
           <div>
-            <h2 className="text-base font-black text-slate-900 flex items-center gap-2">
+            <h2 className={`text-base font-black flex items-center gap-2 ${isDark ? "text-slate-100" : "text-slate-900"}`}>
               <CheckCircle2 className="w-5 h-5 text-emerald-500" />
               <span>{language === "bn" ? "সম্পন্ন হওয়া সার্ভিসসমূহের তালিকা" : "Completed Services Ledger"}</span>
             </h2>
-            <p className="text-[11px] text-slate-500 font-medium">
+            <p className={`text-[11px] font-medium ${isDark ? "text-slate-400" : "text-slate-500"}`}>
               {language === "bn" ? "সিস্টেম ডাটাবেসে সফলভাবে সাবমিট ও রেজিস্টার হওয়া চিকিৎসার রেকর্ড।" : "Live list of processed operations saved securely inside central medical logbook."}
             </p>
           </div>
@@ -409,13 +417,15 @@ export default function CompletedRegistry({
           <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
             {/* Month Filter Dropdown */}
             <div className="relative text-xs">
-              <span className="absolute inset-y-0 left-0 flex items-center pl-2.5 pointer-events-none text-slate-400">
+              <span className={`absolute inset-y-0 left-0 flex items-center pl-2.5 pointer-events-none ${isDark ? "text-slate-500" : "text-slate-400"}`}>
                 <Calendar className="w-3.5 h-3.5" />
               </span>
               <select
                 value={monthFilter}
                 onChange={(e) => setMonthFilter(e.target.value)}
-                className="bg-white border border-slate-350 text-slate-800 text-[11px] font-bold pl-8 pr-2 py-1.5 rounded-lg outline-none cursor-pointer focus:border-indigo-500"
+                className={`border text-[11px] font-bold pl-8 pr-2 py-1.5 rounded-lg outline-none cursor-pointer focus:border-indigo-500 ${
+                  isDark ? "bg-slate-900 border-slate-600 text-slate-200" : "bg-white border-slate-350 text-slate-800"
+                }`}
               >
                 {(monthsList[language] || monthsList.en).map((m) => (
                   <option key={m.value} value={m.value}>
@@ -429,7 +439,9 @@ export default function CompletedRegistry({
             <select
               value={emirateFilter}
               onChange={(e) => setEmirateFilter(e.target.value)}
-              className="bg-white border border-slate-350 text-slate-800 text-[11px] font-bold px-2 py-1.5 rounded-lg outline-none cursor-pointer focus:border-indigo-500"
+              className={`border text-[11px] font-bold px-2 py-1.5 rounded-lg outline-none cursor-pointer focus:border-indigo-500 ${
+                isDark ? "bg-slate-900 border-slate-600 text-slate-200" : "bg-white border-slate-350 text-slate-800"
+              }`}
             >
               <option value="All">{t.allEmirates}</option>
               {(() => {
@@ -444,7 +456,7 @@ export default function CompletedRegistry({
 
             {/* Keyword Search */}
             <div className="relative w-full sm:w-48 text-xs">
-              <span className="absolute inset-y-0 left-0 flex items-center pl-2.5 pointer-events-none text-slate-400">
+              <span className={`absolute inset-y-0 left-0 flex items-center pl-2.5 pointer-events-none ${isDark ? "text-slate-500" : "text-slate-400"}`}>
                 <Search className="w-3.5 h-3.5" />
               </span>
               <input
@@ -452,20 +464,22 @@ export default function CompletedRegistry({
                 value={completedSearch}
                 onChange={(e) => setCompletedSearch(e.target.value)}
                 placeholder={t.searchPlaceholder}
-                className="w-full bg-white text-slate-800 text-[11px] pl-8 pr-2 py-1.5 border border-slate-350 rounded-lg outline-none focus:border-indigo-500"
+                className={`w-full text-[11px] pl-8 pr-2 py-1.5 border rounded-lg outline-none focus:border-indigo-500 ${
+                  isDark ? "bg-slate-900 border-slate-600 text-slate-200 placeholder-slate-500" : "bg-white border-slate-350 text-slate-800 placeholder-slate-400"
+                }`}
               />
             </div>
           </div>
         </div>
 
         {/* Completed Table */}
-        <div className="overflow-x-auto">
+        <div className={`overflow-x-auto ${isDark ? "bg-slate-800" : "bg-white"}`}>
           {(() => {
             const sortedCompletedReports = [...filteredCompletedReports].sort((a, b) => {
               const dateA = a.dateOfOperation || "";
               const dateB = b.dateOfOperation || "";
               if (dateA !== dateB) {
-                return dateA.localeCompare(dateB); // Ascending: older date first, newer at bottom
+                return dateB.localeCompare(dateA); // Descending: newer date first, older at bottom
               }
               
               const parseTimeToMinutes = (timeStr: string): number => {
@@ -490,18 +504,18 @@ export default function CompletedRegistry({
               const timeA = parseTimeToMinutes(a.startTime || "");
               const timeB = parseTimeToMinutes(b.startTime || "");
               if (timeA !== timeB) {
-                return timeA - timeB; // Ascending: earlier time first, later time at bottom
+                return timeB - timeA; // Descending: later time first, earlier time at bottom
               }
               
               const numA = parseInt(String(a.ticketNo || a.id || "").replace(/\D/g, ""), 10);
               const numB = parseInt(String(b.ticketNo || b.id || "").replace(/\D/g, ""), 10);
               if (!isNaN(numA) && !isNaN(numB) && numA !== numB) {
-                return numA - numB;
+                return numB - numA; // Descending: higher number first
               }
               
               const ticketA = String(a.ticketNo || a.id || "");
               const ticketB = String(b.ticketNo || b.id || "");
-              return ticketA.localeCompare(ticketB);
+              return ticketB.localeCompare(ticketA); // Descending
             });
 
             if (sortedCompletedReports.length === 0) {
@@ -518,7 +532,9 @@ export default function CompletedRegistry({
             return (
               <table className="w-full text-left text-xs border-collapse">
                 <thead>
-                  <tr className="bg-slate-50 text-slate-500 border-b border-slate-200 uppercase font-mono tracking-wider text-[9px] select-none">
+                  <tr className={`border-b uppercase font-mono tracking-wider text-[9px] select-none ${
+                    isDark ? "bg-slate-900/60 text-slate-400 border-slate-700" : "bg-slate-50 text-slate-500 border-slate-200"
+                  }`}>
                     <th className="py-3 px-4 font-black">{t.logId}</th>
                     <th className="py-3 px-4 font-black">{t.facility}</th>
                     <th className="py-3 px-4 font-black">{t.dateTime}</th>
@@ -526,7 +542,7 @@ export default function CompletedRegistry({
                     <th className="py-3 px-4 font-black text-center">{t.action}</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-slate-100 font-medium">
+                <tbody className={`font-medium ${isDark ? "divide-y divide-slate-700" : "divide-y divide-slate-100"}`}>
                   {sortedCompletedReports.map((report, idx) => {
                     const isFree = !report.billing?.amount || 
                                    report.billing?.amount === 0 || 
@@ -535,15 +551,17 @@ export default function CompletedRegistry({
                                    String(report.billing?.amount).trim() === "No";
 
                   return (
-                    <tr key={`${report.id}-${idx}`} className="hover:bg-slate-50/50 transition-colors">
+                    <tr key={`${report.id}-${idx}`} className={`border-b transition-colors ${
+                      isDark ? "hover:bg-slate-700/40 border-slate-700/60" : "hover:bg-slate-50/50 border-slate-100"
+                    }`}>
                       <td className="py-3 px-4">
-                        <span className="block text-slate-550 font-mono text-[10.5px] font-bold">{report.id}</span>
+                        <span className={`block font-mono text-[10.5px] font-bold ${isDark ? "text-slate-300" : "text-slate-550"}`}>{report.id}</span>
                         {(() => {
                           const getCreatorDisplayName = (rep: typeof report) => {
                             if (rep.createdBy && rep.createdBy.username) {
                               const rawUser = rep.createdBy.username;
                               if (rawUser === "hussainahmad13122@gmail.com" || rawUser === "admin") {
-                                return "Admin";
+                                  return "Admin";
                               }
                               let clean = rawUser.split("@")[0];
                               clean = clean.replace(/[\._-]/g, " ");
@@ -612,32 +630,38 @@ export default function CompletedRegistry({
                                   {initials}
                                 </div>
                               )}
-                              <span className="text-[10px] text-slate-500 dark:text-slate-350 font-bold max-w-[120px] truncate" title={creatorName}>
+                              <span className={`text-[10px] font-bold max-w-[120px] truncate ${isDark ? "text-slate-400" : "text-slate-500"}`} title={creatorName}>
                                 {creatorName}
                               </span>
                             </div>
                           );
                         })()}
                       </td>
-                      <td className="py-3 px-4 text-slate-900">
+                      <td className={`py-3 px-4 ${isDark ? "text-slate-100" : "text-slate-900"}`}>
                         <span className="font-extrabold text-[12px] block">{report.facilityName}</span>
                         <span className="text-[10px] text-slate-400 block">{report.emirate} • {formatFacilityType(report.facilityType, language)}</span>
                       </td>
                       <td className="py-3 px-4">
-                        <span className="text-slate-700 block font-bold">{report.dateOfOperation}</span>
+                        <span className={`block font-bold ${isDark ? "text-slate-200" : "text-slate-700"}`}>{report.dateOfOperation}</span>
                         <span className="text-[10px] text-slate-400 block font-mono">{report.startTime} - {report.endTime}</span>
                       </td>
                       <td className="py-3 px-4">
                         {isFree ? (
-                          <span className="text-[9.5px] bg-slate-100 text-slate-500 border border-slate-200 px-2 py-0.5 rounded font-bold uppercase">
+                          <span className={`text-[9.5px] border px-2 py-0.5 rounded font-bold uppercase ${
+                            isDark ? "bg-slate-900 text-slate-400 border-slate-700" : "bg-slate-100 text-slate-500 border-slate-200"
+                          }`}>
                             {t.complimentary}
                           </span>
                         ) : (
                           <div className="space-y-0.5">
-                            <span className="text-emerald-700 font-extrabold bg-emerald-50 text-[11px] px-2 py-0.5 rounded border border-emerald-100 inline-block font-mono">
+                            <span className={`font-extrabold text-[11px] px-2 py-0.5 rounded border inline-block font-mono ${
+                              isDark ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/20" : "bg-emerald-50 text-emerald-700 border-emerald-100"
+                            }`}>
                               {report.billing?.amount} AED
                             </span>
-                            <span className="text-[9px] text-slate-400 block font-bold uppercase pl-1">
+                            <span className={`text-[9px] block font-bold uppercase pl-1 ${
+                              isDark ? "text-slate-500" : "text-slate-400"
+                            }`}>
                               • Paid ({report.billing?.method || "Cash"})
                             </span>
                           </div>
@@ -652,7 +676,11 @@ export default function CompletedRegistry({
                                 onEditReport(report);
                               }
                             }}
-                            className="px-2.5 py-1.5 bg-amber-50 hover:bg-amber-100 border border-amber-200 text-amber-700 hover:text-amber-800 font-extrabold rounded-lg text-[10.5px] inline-flex items-center gap-1 cursor-pointer transition active:scale-95 shadow-xs"
+                            className={`px-2.5 py-1.5 rounded-lg text-[10.5px] inline-flex items-center gap-1 cursor-pointer transition active:scale-95 shadow-xs font-extrabold border ${
+                              isDark
+                                ? "bg-amber-500/10 hover:bg-amber-500/20 text-amber-400 border-amber-500/20"
+                                : "bg-amber-50 hover:bg-amber-100 text-amber-700 border-amber-200"
+                            }`}
                             title={t.edit}
                           >
                             📝 <span>{t.edit}</span>
@@ -661,7 +689,11 @@ export default function CompletedRegistry({
                           {/* VIEW BUTTON - MIDDLE */}
                           <button
                             onClick={() => setActiveReportDetails(report)}
-                            className="px-2.5 py-1.5 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 text-indigo-700 hover:text-indigo-800 font-extrabold rounded-lg text-[10.5px] inline-flex items-center gap-1 cursor-pointer transition active:scale-95 shadow-xs"
+                            className={`px-2.5 py-1.5 rounded-lg text-[10.5px] inline-flex items-center gap-1 cursor-pointer transition active:scale-95 shadow-xs font-extrabold border ${
+                              isDark
+                                ? "bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-400 border-indigo-500/20"
+                                : "bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border-indigo-200"
+                            }`}
                             title={t.viewPdf}
                           >
                             👁️ <span>{t.viewPdf}</span>
@@ -670,7 +702,11 @@ export default function CompletedRegistry({
                           {/* DELETE BUTTON - RIGHT */}
                           <button
                             onClick={() => setDeleteConfirmReport(report)}
-                            className="px-2.5 py-1.5 bg-rose-50 hover:bg-rose-100 border border-rose-200 text-rose-700 hover:text-rose-800 border border-rose-200 font-extrabold rounded-lg text-[10.5px] inline-flex items-center gap-1 cursor-pointer transition active:scale-95 shadow-xs"
+                            className={`px-2.5 py-1.5 rounded-lg text-[10.5px] inline-flex items-center gap-1 cursor-pointer transition active:scale-95 shadow-xs font-extrabold border ${
+                              isDark
+                                ? "bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border-rose-500/20"
+                                : "bg-rose-50 hover:bg-rose-100 text-rose-700 border-rose-200"
+                            }`}
                             title={t.delete}
                           >
                             🗑️ <span>{t.delete}</span>

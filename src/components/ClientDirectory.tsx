@@ -1729,13 +1729,55 @@ export default function ClientDirectory({
     );
     if (!confirmDownload) return;
 
-    for (let i = 0; i < selectedReportIds.length; i++) {
-      const id = selectedReportIds[i];
-      const report = activeExcelReports.find((r) => r.id === id);
-      if (report) {
-        await downloadFullReportPDF(report);
-        await new Promise((resolve) => setTimeout(resolve, 800));
+    const selectedReports = selectedReportIds
+      .map((id) => activeExcelReports.find((r) => r.id === id))
+      .filter((r) => !!r);
+
+    if (selectedReports.length === 0) return;
+
+    if (selectedReports.length === 1) {
+      await downloadFullReportPDF(selectedReports[0]);
+      setSelectedReportIds([]);
+      setIsDeleteSelectionMode(false);
+      return;
+    }
+
+    try {
+      const firstReport = selectedReports[0];
+      const firstReportHTML = firstReport.rawEngineeringData 
+        ? generateEngineeringHTML(firstReport.rawEngineeringData, language)
+        : generateReportHTML(firstReport, language);
+
+      const headSplit = firstReportHTML.split(/<body[^>]*>/i);
+      const headPart = headSplit[0];
+
+      const bodiesList: string[] = [];
+
+      for (const r of selectedReports) {
+        const html = r.rawEngineeringData 
+          ? generateEngineeringHTML(r.rawEngineeringData, language)
+          : generateReportHTML(r, language);
+
+        const bodyContentMatch = html.match(/<body[^>]*>([\s\S]*)<\/body>/i);
+        if (bodyContentMatch && bodyContentMatch[1]) {
+          bodiesList.push(bodyContentMatch[1]);
+        } else {
+          bodiesList.push(html);
+        }
       }
+
+      const combinedBody = bodiesList.join(
+        '\n<div style="page-break-before: always; break-before: page; height: 1px; clear: both;"></div>\n'
+      );
+
+      const finalHTML = `${headPart}\n<body>\n${combinedBody}\n</body>\n</html>`;
+
+      const dateStr = new Date().toISOString().split("T")[0];
+      const filename = `AL_WAFA_STAR_Bulk_Reports_${dateStr}`;
+
+      await printHTMLContent(finalHTML, filename);
+    } catch (e) {
+      console.error("Bulk printing failed", e);
     }
 
     setSelectedReportIds([]);
@@ -3380,7 +3422,7 @@ export default function ClientDirectory({
                             }
                           }
                           const cleanFacilityName = facilityNameStr.replace(/[\/\\:*?"<>|]/g, "_").trim();
-                          const cleanDate = (report.dateOfOperation || report.date || "NoDate").replace(/[\/\\:*?"<>|]/g, "-").trim();
+                          const cleanDate = (report.dateOfOperation || "NoDate").replace(/[\/\\:*?"<>|]/g, "-").trim();
                           const filename = `${cleanFacilityName} - ${cleanDate}`;
                           
                           document.title = filename;
