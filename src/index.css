@@ -100,7 +100,9 @@ body.pdf-download-active #mobile-hamburger-nav {
   .print-sheet-paper,
   .print-sheet-paper *,
   #printable-document-sheet,
-  #printable-document-sheet * {
+  #printable-document-sheet *,
+  #printable-salary-receipt,
+  #printable-salary-receipt * {
     visibility: visible !important;
   }
 
@@ -145,7 +147,8 @@ body.pdf-download-active #mobile-hamburger-nav {
 
   /* Style our main printable elements so they utilize full portrait pages elegantly */
   form#master-well-form,
-  .print-sheet-paper {
+  .print-sheet-paper,
+  #printable-salary-receipt {
     position: absolute !important;
     left: 0 !important;
     top: 0 !important;

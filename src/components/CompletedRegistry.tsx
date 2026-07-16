@@ -185,6 +185,8 @@ export default function CompletedRegistry({
   const [completedSearch, setCompletedSearch] = useState("");
   const [emirateFilter, setEmirateFilter] = useState("All");
   const [monthFilter, setMonthFilter] = useState<string>(String(new Date().getMonth() + 1));
+  const [selectedReportIds, setSelectedReportIds] = useState<Set<string>>(new Set());
+  const [downloadProgress, setDownloadProgress] = useState<string | null>(null);
 
   useEffect(() => {
     if (hasRegionalRestriction && userAllowedEmirates.length > 0) {
@@ -314,6 +316,108 @@ export default function CompletedRegistry({
     return matchesSearch && matchesEmirate;
   });
 
+  const parseTimeToMinutes = (timeStr: string): number => {
+    if (!timeStr) return 0;
+    const cleanStr = timeStr.trim().toUpperCase();
+    const match = cleanStr.match(/^(\d+):(\d+)\s*(AM|PM)?/);
+    if (!match) return 0;
+    
+    let hours = parseInt(match[1], 10);
+    const minutes = parseInt(match[2], 10);
+    const ampm = match[3];
+    
+    if (ampm === "PM" && hours < 12) {
+      hours += 12;
+    } else if (ampm === "AM" && hours === 12) {
+      hours = 0;
+    }
+    
+    return hours * 60 + minutes;
+  };
+
+  const sortedCompletedReports = [...filteredCompletedReports].sort((a, b) => {
+    const dateA = a.dateOfOperation || "";
+    const dateB = b.dateOfOperation || "";
+    if (dateA !== dateB) {
+      return dateB.localeCompare(dateA); // Descending: newer date first, older at bottom
+    }
+    
+    const timeA = parseTimeToMinutes(a.startTime || "");
+    const timeB = parseTimeToMinutes(b.startTime || "");
+    if (timeA !== timeB) {
+      return timeB - timeA; // Descending: later time first, earlier time at bottom
+    }
+    
+    const numA = parseInt(String(a.ticketNo || a.id || "").replace(/\D/g, ""), 10);
+    const numB = parseInt(String(b.ticketNo || b.id || "").replace(/\D/g, ""), 10);
+    if (!isNaN(numA) && !isNaN(numB) && numA !== numB) {
+      return numB - numA; // Descending: higher number first
+    }
+    
+    const ticketA = String(a.ticketNo || a.id || "");
+    const ticketB = String(b.ticketNo || b.id || "");
+    return ticketB.localeCompare(ticketA); // Descending
+  });
+
+  const handleDownloadSelectedPDFs = async () => {
+    const selectedReports = sortedCompletedReports.filter(r => selectedReportIds.has(r.id));
+    if (selectedReports.length === 0) return;
+
+    setIsGeneratingPDF(true);
+    setDownloadProgress(language === "bn" ? "ডাউনলোড শুরু হচ্ছে..." : "Initializing downloads...");
+    try {
+      let count = 0;
+      for (const report of selectedReports) {
+        count++;
+        setDownloadProgress(
+          language === "bn" 
+            ? `${count} / ${selectedReports.length} নম্বর ফাইলটি তৈরি হচ্ছে...` 
+            : `Generating file ${count} of ${selectedReports.length}...`
+        );
+        const isEngineering = !!report.rawEngineeringData;
+        let contentHtml = "";
+        if (isEngineering) {
+          contentHtml = generateEngineeringHTML(report.rawEngineeringData, language);
+        } else {
+          contentHtml = generateReportHTML(report, language);
+        }
+
+        let facilityNameStr = "Report";
+        const fName = report.facilityName;
+        if (fName) {
+          if (typeof fName === "object") {
+            facilityNameStr = (fName as any).name || (fName as any).facilityName || (fName as any).label || "Report";
+          } else {
+            facilityNameStr = String(fName);
+          }
+        }
+        const cleanFacilityName = facilityNameStr
+          .replace(/[\/\\:*?"<>|]/g, "_")
+          .trim();
+        const cleanDate = (report.dateOfOperation || "NoDate")
+          .replace(/[\/\\:*?"<>|]/g, "-")
+          .trim();
+        const filename = `${cleanFacilityName} - ${cleanDate}`;
+
+        // Print/Download this file
+        await printHTMLContent(contentHtml, filename);
+        
+        // Wait 1.2 seconds between files to allow browser to handle the print windows/dialogs safely
+        await new Promise((resolve) => setTimeout(resolve, 1200));
+      }
+      
+      setSelectedReportIds(new Set());
+      setDownloadProgress(language === "bn" ? "সবগুলো ফাইল সফলভাবে তৈরি হয়েছে!" : "All files generated successfully!");
+      setTimeout(() => setDownloadProgress(null), 3000);
+    } catch (err) {
+      console.error("Batch download error:", err);
+      setDownloadProgress(language === "bn" ? "ডাউনলোডে ত্রুটি হয়েছে!" : "Error during batch download!");
+      setTimeout(() => setDownloadProgress(null), 3000);
+    } finally {
+      setIsGeneratingPDF(false);
+    }
+  };
+
   const [isGeneratingPDF, setIsGeneratingPDF] = useState(false);
 
   const handleDownloadPDF = async () => {
@@ -375,6 +479,7 @@ export default function CompletedRegistry({
 
   return (
     <div id="erp-completed-services-view" className={`space-y-6 pb-16 font-sans ${isDark ? "text-slate-200" : "text-slate-800"}`}>
+      <div className="no-print space-y-6">
       
       {/* Visual Title Banner Row */}
       <div className={`p-6 md:p-8 rounded-3xl shadow-sm flex flex-col md:flex-row justify-between items-start md:items-center gap-4 animate-fadeIn border ${
@@ -472,52 +577,56 @@ export default function CompletedRegistry({
           </div>
         </div>
 
+        {/* Batch Actions Bar */}
+        {selectedReportIds.size > 0 && (
+          <div className={`p-4 border-b flex flex-col sm:flex-row justify-between items-center gap-3 animate-fadeIn ${
+            isDark ? "bg-indigo-950/40 border-indigo-500/20 text-slate-100" : "bg-indigo-50/70 border-indigo-100 text-indigo-950"
+          }`}>
+            <div className="flex items-center gap-2">
+              <span className="text-sm">🗂️</span>
+              <p className="text-xs font-bold">
+                {language === "bn" 
+                  ? `${selectedReportIds.size} টি ফাইল নির্বাচিত করা হয়েছে` 
+                  : `${selectedReportIds.size} files selected for batch download`}
+              </p>
+            </div>
+            <div className="flex items-center gap-2 w-full sm:w-auto justify-end">
+              <button
+                onClick={() => setSelectedReportIds(new Set())}
+                className={`px-3 py-1.5 text-[10.5px] rounded-lg font-bold transition active:scale-95 cursor-pointer border ${
+                  isDark ? "bg-slate-800 hover:bg-slate-700 text-slate-300 border-slate-700" : "bg-white hover:bg-slate-100 text-slate-700 border-slate-200"
+                }`}
+              >
+                {language === "bn" ? "নির্বাচন মুছুন" : "Clear Selection"}
+              </button>
+              <button
+                onClick={handleDownloadSelectedPDFs}
+                disabled={isGeneratingPDF}
+                className={`px-4 py-1.5 text-[10.5px] rounded-lg font-black text-white transition active:scale-95 cursor-pointer bg-gradient-to-r from-emerald-600 to-teal-500 hover:from-emerald-500 hover:to-teal-400 shadow-md ${
+                  isGeneratingPDF ? "opacity-50 cursor-not-allowed animate-pulse" : ""
+                }`}
+              >
+                {isGeneratingPDF ? (
+                  <span>{downloadProgress || (language === "bn" ? "প্রস্তুত হচ্ছে..." : "Processing...")}</span>
+                ) : (
+                  <span>📥 {language === "bn" ? "নির্বাচিত ফাইলগুলো ডাউনলোড করুন" : "Download Selected PDFs (Separate Files)"}</span>
+                )}
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Progress Alert */}
+        {downloadProgress && selectedReportIds.size === 0 && (
+          <div className="p-4 bg-emerald-500/10 border-b border-emerald-500/20 text-emerald-400 text-xs font-bold flex items-center gap-2 animate-fadeIn">
+            <span className="w-2 h-2 bg-emerald-500 rounded-full animate-ping" />
+            <span>{downloadProgress}</span>
+          </div>
+        )}
+
         {/* Completed Table */}
         <div className={`overflow-x-auto ${isDark ? "bg-slate-800" : "bg-white"}`}>
           {(() => {
-            const sortedCompletedReports = [...filteredCompletedReports].sort((a, b) => {
-              const dateA = a.dateOfOperation || "";
-              const dateB = b.dateOfOperation || "";
-              if (dateA !== dateB) {
-                return dateB.localeCompare(dateA); // Descending: newer date first, older at bottom
-              }
-              
-              const parseTimeToMinutes = (timeStr: string): number => {
-                if (!timeStr) return 0;
-                const cleanStr = timeStr.trim().toUpperCase();
-                const match = cleanStr.match(/^(\d+):(\d+)\s*(AM|PM)?/);
-                if (!match) return 0;
-                
-                let hours = parseInt(match[1], 10);
-                const minutes = parseInt(match[2], 10);
-                const ampm = match[3];
-                
-                if (ampm === "PM" && hours < 12) {
-                  hours += 12;
-                } else if (ampm === "AM" && hours === 12) {
-                  hours = 0;
-                }
-                
-                return hours * 60 + minutes;
-              };
-              
-              const timeA = parseTimeToMinutes(a.startTime || "");
-              const timeB = parseTimeToMinutes(b.startTime || "");
-              if (timeA !== timeB) {
-                return timeB - timeA; // Descending: later time first, earlier time at bottom
-              }
-              
-              const numA = parseInt(String(a.ticketNo || a.id || "").replace(/\D/g, ""), 10);
-              const numB = parseInt(String(b.ticketNo || b.id || "").replace(/\D/g, ""), 10);
-              if (!isNaN(numA) && !isNaN(numB) && numA !== numB) {
-                return numB - numA; // Descending: higher number first
-              }
-              
-              const ticketA = String(a.ticketNo || a.id || "");
-              const ticketB = String(b.ticketNo || b.id || "");
-              return ticketB.localeCompare(ticketA); // Descending
-            });
-
             if (sortedCompletedReports.length === 0) {
               return (
                 <div className="p-12 text-center text-slate-400 space-y-2">
@@ -535,6 +644,20 @@ export default function CompletedRegistry({
                   <tr className={`border-b uppercase font-mono tracking-wider text-[9px] select-none ${
                     isDark ? "bg-slate-900/60 text-slate-400 border-slate-700" : "bg-slate-50 text-slate-500 border-slate-200"
                   }`}>
+                    <th className="py-3 px-4 font-black text-center w-10">
+                      <input
+                        type="checkbox"
+                        checked={sortedCompletedReports.length > 0 && sortedCompletedReports.every(r => selectedReportIds.has(r.id))}
+                        onChange={(e) => {
+                          if (e.target.checked) {
+                            setSelectedReportIds(new Set(sortedCompletedReports.map(r => r.id)));
+                          } else {
+                            setSelectedReportIds(new Set());
+                          }
+                        }}
+                        className="rounded border-slate-300 text-indigo-650 focus:ring-indigo-500 w-3.5 h-3.5 cursor-pointer accent-indigo-600"
+                      />
+                    </th>
                     <th className="py-3 px-4 font-black">{t.logId}</th>
                     <th className="py-3 px-4 font-black">{t.facility}</th>
                     <th className="py-3 px-4 font-black">{t.dateTime}</th>
@@ -554,6 +677,22 @@ export default function CompletedRegistry({
                     <tr key={`${report.id}-${idx}`} className={`border-b transition-colors ${
                       isDark ? "hover:bg-slate-700/40 border-slate-700/60" : "hover:bg-slate-50/50 border-slate-100"
                     }`}>
+                      <td className="py-3 px-4 text-center">
+                        <input
+                          type="checkbox"
+                          checked={selectedReportIds.has(report.id)}
+                          onChange={(e) => {
+                            const newSet = new Set(selectedReportIds);
+                            if (e.target.checked) {
+                              newSet.add(report.id);
+                            } else {
+                              newSet.delete(report.id);
+                            }
+                            setSelectedReportIds(newSet);
+                          }}
+                          className="rounded border-slate-300 text-indigo-650 focus:ring-indigo-500 w-3.5 h-3.5 cursor-pointer accent-indigo-600"
+                        />
+                      </td>
                       <td className="py-3 px-4">
                         <span className={`block font-mono text-[10.5px] font-bold ${isDark ? "text-slate-300" : "text-slate-550"}`}>{report.id}</span>
                         {(() => {
@@ -776,6 +915,7 @@ export default function CompletedRegistry({
           </div>
         </div>
       )}
+      </div>
 
       {/* COMPREHENSIVE VIEW & PRINT MODAL OVERLAY */}
       {activeReportDetails && (

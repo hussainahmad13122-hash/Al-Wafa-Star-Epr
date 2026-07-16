@@ -894,7 +894,8 @@ export default function Technicians({
         </div>
       )}
 
-      {/* Title Header Panel */}
+      <div className="no-print space-y-6">
+        {/* Title Header Panel */}
       <div className="bg-white border-2 border-slate-900 p-6 rounded-2xl shadow-sm flex flex-col md:flex-row justify-between items-start md:items-center gap-4 animate-fadeIn">
         <div className="space-y-1">
           <div className="flex items-center gap-2">
@@ -1871,6 +1872,7 @@ export default function Technicians({
           </div>
         </div>
       )}
+      </div>
 
       {/* ================= 📝 PRINT FORM VIEW DISPLAY GENERATOR MODAL ("ক্লিক করে ফরম চলে আসবে") ================= */}
       {activeFormPrintItem && (

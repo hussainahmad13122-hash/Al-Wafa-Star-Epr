@@ -404,6 +404,7 @@ export default function TimesheetPayroll({
 
   return (
     <div className={`p-4 md:p-6 lg:p-8 space-y-6 ${isDark ? "text-white" : "text-slate-800"}`}>
+      <div className="no-print space-y-6">
       
       {/* Header Info Panel */}
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-gradient-to-r from-teal-900 via-slate-900 to-indigo-950 p-6 md:p-8 rounded-3xl border border-slate-700/50 text-white shadow-xl">
@@ -540,6 +541,7 @@ export default function TimesheetPayroll({
             </p>
           )}
         </div>
+      </div>
       </div>
 
       {/* ======================= TAB 1: ATTENDANCE TIMESHEET GRID ======================= */}
@@ -916,7 +918,7 @@ export default function TimesheetPayroll({
       {activeSubTab === "slips" && (
         <div className="space-y-6 max-w-4xl mx-auto">
           {/* Header configuration for printable slip */}
-          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 p-4 bg-slate-50 dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800">
+          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 p-4 bg-slate-50 dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 no-print">
             <div className="flex items-center gap-2">
               <label className="text-xs font-black text-slate-500 uppercase tracking-wider">{t("Select Staff For Pay Slip:", "কর্মকর্তার নাম নির্বাচন করুন:")}</label>
               <select

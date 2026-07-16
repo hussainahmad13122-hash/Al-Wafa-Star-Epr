@@ -1057,12 +1057,12 @@ export const printHTMLContent = (htmlContent: string, title?: string): Promise<v
               setTimeout(() => {
                 printWindow.focus();
                 printWindow.print();
-              }, 600);
+              }, 1500);
             } else {
               cleanUpAndResolve();
             }
           }
-        }, 600);
+        }, 1500);
       } else {
         cleanUpAndResolve();
       }

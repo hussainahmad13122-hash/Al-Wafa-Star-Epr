@@ -447,7 +447,14 @@ export default function Dashboard({
     ...(reports || []).map(r => r.facilityName)
   ])).filter(name => Boolean(name) && !deletedCenters.has(name)).sort();
 
-  const totalCentersCount = allCentersList.length;
+  // The base registered locations from the actual Location Map database (filtering out deleted)
+  const registeredLocationsList = Array.from(new Set(
+    (locations || [])
+      .map(l => l.name)
+      .filter(name => Boolean(name) && !deletedCenters.has(name))
+  )).sort();
+
+  const totalCentersCount = registeredLocationsList.length;
 
   // State for editing notes on an existing partial report
   const [editingPartialReportId, setEditingPartialReportId] = useState<string | null>(null);
@@ -568,37 +575,57 @@ export default function Dashboard({
   // 2. Completed checks (Show all completed reports chronologically to avoid auto-deletion/filtering):
   // A facility is completed if we have at least one successfully submitted report with Completed status
   const completedReports = reports.filter(r => {
-    // Only count centers that are actually present in the valid locations list
-    if (!allCentersList.includes(r.facilityName)) return false;
-
     const isCompleted = r.workStatus === "Completed" || !r.workStatus;
     return isCompleted;
   });
-  const completedCount = completedReports.length;
 
-  // Set of completed facility names
-  const completedFacilityNames = new Set(completedReports.map(r => r.facilityName));
+  // Filter completed reports by selected month and emirate for active counting
+  const completedReportsForActiveMonth = completedReports.filter(r => {
+    const rEmirateClean = (r.emirate || "").trim().toLowerCase();
+    const fEmirateClean = (emirateFilter || "").trim().toLowerCase();
+    const matchesEmirate = emirateFilter === "All" || rEmirateClean === fEmirateClean;
+
+    let matchesMonth = true;
+    if (monthFilter !== "All") {
+      const { month } = getReportMonthAndYear(r.dateOfOperation);
+      matchesMonth = String(month) === monthFilter;
+    }
+    return matchesEmirate && matchesMonth;
+  });
+
+  const completedCount = completedReportsForActiveMonth.length;
+  const completedFacilityNamesInMonth = new Set(completedReportsForActiveMonth.map(r => r.facilityName));
 
   // Partially Completed checks:
   // A facility is partially completed if its work status shows progress or is designated Partial
   const partiallyCompletedReports = reports.filter(r => {
-    // Only count centers that are actually present in the valid locations list
-    if (!allCentersList.includes(r.facilityName)) return false;
-
     const isPartialStatus = r.workStatus === "Partially Completed" || 
                             r.workStatus === "In Progress" || 
                             r.workStatus === "Follow-Up Required";
-    
     return isPartialStatus;
   });
+
+  // Filter partially completed reports by selected month and emirate
+  const partiallyCompletedReportsForActiveMonth = partiallyCompletedReports.filter(r => {
+    const rEmirateClean = (r.emirate || "").trim().toLowerCase();
+    const fEmirateClean = (emirateFilter || "").trim().toLowerCase();
+    const matchesEmirate = emirateFilter === "All" || rEmirateClean === fEmirateClean;
+
+    let matchesMonth = true;
+    if (monthFilter !== "All") {
+      const { month } = getReportMonthAndYear(r.dateOfOperation);
+      matchesMonth = String(month) === monthFilter;
+    }
+    return matchesEmirate && matchesMonth;
+  });
   
-  // Filter out any that actually have a "Completed" status in another report (to avoid duplicates)
-  const filteredPartiallyCompletedReports = partiallyCompletedReports.filter(r => 
-    !completedFacilityNames.has(r.facilityName)
+  // Filter out any that actually have a "Completed" status in another report in the same month (to avoid duplicates)
+  const filteredPartiallyCompletedReports = partiallyCompletedReportsForActiveMonth.filter(r => 
+    !completedFacilityNamesInMonth.has(r.facilityName)
   );
   const partiallyCompletedCount = filteredPartiallyCompletedReports.length;
   // Set of partially completed facility names
-  const partiallyCompletedFacilityNames = new Set(filteredPartiallyCompletedReports.map(r => r.facilityName));
+  const partiallyCompletedFacilityNamesInMonth = new Set(filteredPartiallyCompletedReports.map(r => r.facilityName));
 
   // Stable next due date calculator for non-completed centers
   const getDeterministicDueDateAndDiff = (facilityName: string) => {
@@ -643,8 +670,8 @@ export default function Dashboard({
 
   // 3. Not Completed list: centers in our list that don't have any completed AND don't have partially completed reports yet
   // Sorted so overdue ones (diffDays < 0) come first, followed by upcoming ones (diffDays >= 0) sorted ascending
-  const incompleteCentersList = allCentersList
-    .filter(name => !completedFacilityNames.has(name) && !partiallyCompletedFacilityNames.has(name))
+  const incompleteCentersList = registeredLocationsList
+    .filter(name => !completedFacilityNamesInMonth.has(name) && !partiallyCompletedFacilityNamesInMonth.has(name))
     .sort((a, b) => {
       const diffA = getDeterministicDueDateAndDiff(a).diffDays;
       const diffB = getDeterministicDueDateAndDiff(b).diffDays;
@@ -979,6 +1006,7 @@ export default function Dashboard({
 
   return (
     <div className="space-y-6">
+      <div className="no-print space-y-6">
 
       {/* Top Control Bar & Action */}
       <div className="flex flex-col sm:flex-row justify-between w-full animate-fadeIn items-center gap-4 bg-[#1e293b]/50 p-3 rounded-2xl border border-slate-700/50 backdrop-blur-md shadow-lg">
@@ -1763,6 +1791,7 @@ export default function Dashboard({
             </div>
           </div>
         )}
+      </div>
       </div>
       {/* ================= COMPREHENSIVE DIRECT VIEW & PRINT MODAL OVERLAY ================= */}
       {activeReportDetails && (
