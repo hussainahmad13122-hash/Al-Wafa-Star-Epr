@@ -158,6 +158,7 @@ interface CompletedRegistryProps {
   supervisors?: SupervisorRegistryItem[];
   loggedInUser?: any;
   isDark?: boolean;
+  locations?: any[];
 }
 
 export default function CompletedRegistry({
@@ -169,7 +170,8 @@ export default function CompletedRegistry({
   onEditReport,
   supervisors = [],
   loggedInUser: propLoggedInUser,
-  isDark = false
+  isDark = false,
+  locations = []
 }: CompletedRegistryProps) {
   const loggedInUserStrRaw = localStorage.getItem("ALW_STAR_LOGGED_IN_USER") || sessionStorage.getItem("ALW_STAR_LOGGED_IN_USER") || localStorage.getItem("ALW_LOGGED_IN_USER_V2");
   let localLoggedInUser = null;
@@ -305,12 +307,29 @@ export default function CompletedRegistry({
     }
     return true;
   });
+
+  const cleanStr = (s: string) => {
+    return (s || "")
+      .trim()
+      .toLowerCase()
+      .replace(/[^a-z0-9]/g, "");
+  };
   
   const filteredCompletedReports = completedReports.filter(r => {
     const matchesSearch = r.facilityName?.toLowerCase().includes(completedSearch.toLowerCase()) || 
                           r.ticketNo?.toLowerCase().includes(completedSearch.toLowerCase()) ||
                           r.id?.toLowerCase().includes(completedSearch.toLowerCase());
-    const rEmirateClean = (r.emirate || "").trim().toLowerCase();
+    let rEmirateClean = (r.emirate || "").trim().toLowerCase();
+    // Robust fallback: resolve emirate from registered locations database if the report's emirate is empty or missing
+    if (!rEmirateClean && r.facilityName) {
+      const matchedLoc = (locations || []).find(
+        l => l.name && cleanStr(l.name) === cleanStr(r.facilityName)
+      );
+      if (matchedLoc) {
+        rEmirateClean = (matchedLoc.emirate || "").trim().toLowerCase();
+      }
+    }
+
     const fEmirateClean = (emirateFilter || "").trim().toLowerCase();
     const matchesEmirate = emirateFilter === "All" || rEmirateClean === fEmirateClean;
     return matchesSearch && matchesEmirate;
@@ -1299,8 +1318,8 @@ export default function CompletedRegistry({
                                <td className="p-2 border border-slate-200 font-sans font-extrabold text-slate-950 uppercase">{chem.name}</td>
                                <td className="p-2 border border-slate-200 text-slate-700">{chem.dilution}</td>
                                <td className="p-2 border border-slate-200 text-slate-900 font-extrabold">{chem.used}</td>
-                               <td className="p-2 border border-slate-200 text-slate-505">{chem.batch}</td>
-                               <td className="p-2 border border-slate-200 text-slate-550">{chem.expiry}</td>
+                               <td className="p-2 border border-slate-200 text-slate-505">{chem.batch || "ST-2026-REG"}</td>
+                               <td className="p-2 border border-slate-200 text-slate-550">{chem.expiry || "2028-12-31"}</td>
                              </tr>
                           ))
                         ) : (

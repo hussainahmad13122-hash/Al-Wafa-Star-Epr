@@ -419,6 +419,13 @@ export default function MasterForm({
   };
   const [forceUpdateToggle, setForceUpdateToggle] = useState(0);
 
+  // Synchronize Quick Link Emirate Filter with the report's selected Emirate
+  useEffect(() => {
+    if (emirate) {
+      setQuickLinkEmirateFilter(emirate);
+    }
+  }, [emirate]);
+
   // Custom Notes Drawer Helper States
   const [isNotesDrawerOpen, setIsNotesDrawerOpen] = useState(false);
   const [copiedNoteId, setCopiedNoteId] = useState<string | null>(null);

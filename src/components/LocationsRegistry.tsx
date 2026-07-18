@@ -75,6 +75,7 @@ export default function LocationsRegistry({
         "Umm Al Quwain",
         "Ras Al Khaimah",
         "Fujairah",
+        "Other",
       ];
 
   // Quick cell update handler
@@ -277,11 +278,15 @@ export default function LocationsRegistry({
               (emirateFilter || "").toLowerCase() === (em || "").toLowerCase(),
           )
           .map((emirateState) => {
-            const emirateLocations = filteredLocs.filter(
-              (l) =>
-                (l.emirate || "").toLowerCase() ===
-                (emirateState || "").toLowerCase(),
-            );
+            const emirateLocations = filteredLocs.filter((l) => {
+              const locEmirate = (l.emirate || "").trim().toLowerCase();
+              const currentEmirate = (emirateState || "").trim().toLowerCase();
+              if (currentEmirate === "other") {
+                const recognizedEmirates = ["abu dhabi", "ajman", "sharjah", "dubai", "umm al quwain", "ras al khaimah", "fujairah"];
+                return !locEmirate || !recognizedEmirates.includes(locEmirate);
+              }
+              return locEmirate === currentEmirate;
+            });
 
             if (emirateLocations.length === 0 && emirateFilter === "ALL")
               return null;

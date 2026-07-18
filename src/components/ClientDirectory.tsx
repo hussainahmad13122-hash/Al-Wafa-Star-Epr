@@ -768,11 +768,9 @@ export const generateReportHTML = (report: any, language: string) => {
                             <table class="chemical-table">
                                 <thead>
                                     <tr>
-                                        <th style="text-align: left; width: 35%; background-color: #002244;">Chemical Name</th>
-                                        <th style="text-align: left; width: 20%; background-color: #002244;">Dilution Rate</th>
-                                        <th style="text-align: left; width: 15%; background-color: #002244;">Qty Spec</th>
-                                        <th style="text-align: left; width: 15%; background-color: #002244;">Batch Number</th>
-                                        <th style="text-align: left; width: 15%; background-color: #002244;">Expiry Date</th>
+                                        <th style="text-align: left; width: 50%; background-color: #002244;">Chemical Name</th>
+                                        <th style="text-align: left; width: 30%; background-color: #002244;">Dilution Rate</th>
+                                        <th style="text-align: left; width: 20%; background-color: #002244;">Qty Spec</th>
                                     </tr>
                                 </thead>
                                 <tbody>
@@ -786,15 +784,13 @@ export const generateReportHTML = (report: any, language: string) => {
                                             <td style="font-weight: bold; text-transform: uppercase; font-size: 9px;">${chem.name}</td>
                                             <td style="font-weight: bold;">${chem.dilution || "10ml / 1 L"}</td>
                                             <td style="font-weight: bold; color: #ef1c24;">${chem.used || "100 ML"}</td>
-                                            <td style="font-family: monospace; font-weight: bold;">${chem.batch || "ST-2026-REG"}</td>
-                                            <td style="font-family: monospace; font-weight: bold;">${chem.expiry || "2028-12-31"}</td>
                                         </tr>
                                     `,
                                             )
                                             .join("")
                                         : `
                                         <tr>
-                                            <td colspan="5" style="text-align: center; font-style: italic; color: #64748b; padding: 10px;">
+                                            <td colspan="3" style="text-align: center; font-style: italic; color: #64748b; padding: 10px;">
                                                 ${language === "bn" ? "কোন রাসায়নিক ব্যবহার করা হয়নি" : "No chemical material usage logs"}
                                             </td>
                                         </tr>

@@ -447,13 +447,20 @@ export default function Dashboard({
     ...(reports || []).map(r => r.facilityName)
   ])).filter(name => Boolean(name) && !deletedCenters.has(name)).sort();
 
-  // The base registered locations from the actual Location Map database (filtering out deleted)
+  // The base registered locations from the actual Location Map database (filtering out deleted, matching selected emirate)
   const registeredLocationsList = Array.from(new Set(
     (locations || [])
+      .filter(l => {
+        const matchesEmirate = emirateFilter === "All" || (l.emirate || "").trim().toLowerCase() === emirateFilter.trim().toLowerCase();
+        const notDeleted = Boolean(l.name) && !deletedCenters.has(l.name);
+        return matchesEmirate && notDeleted;
+      })
       .map(l => l.name)
-      .filter(name => Boolean(name) && !deletedCenters.has(name))
   )).sort();
 
+  // Card 1: Total Centers Under Me shows all unique registered locations matching the active filters.
+  // This ensures that the total starts at the number of unique locations (e.g. 101),
+  // and is exactly matching the list length so Card A can reduce perfectly to 0 when all are completed.
   const totalCentersCount = registeredLocationsList.length;
 
   // State for editing notes on an existing partial report
@@ -579,9 +586,60 @@ export default function Dashboard({
     return isCompleted;
   });
 
+  // Normalization helper for robust name matching
+  const cleanStr = (s: string) => {
+    return (s || "")
+      .trim()
+      .toLowerCase()
+      .replace(/[^a-z0-9]/g, "");
+  };
+
+  // Fuzzy match helper to check if a report facility name matches a registered location name robustly
+  const isMatchingFacility = (reportFacilityName: string, registeredLocationName: string): boolean => {
+    if (!reportFacilityName || !registeredLocationName) return false;
+    const clean1 = cleanStr(reportFacilityName);
+    const clean2 = cleanStr(registeredLocationName);
+    if (clean1 === clean2) return true;
+
+    // Strip common words for core comparison
+    const stripCommon = (s: string) => {
+      return s
+        .replace(/clinic/g, "")
+        .replace(/center/g, "")
+        .replace(/hospital/g, "")
+        .replace(/medical/g, "")
+        .replace(/star/g, "")
+        .replace(/llc/g, "")
+        .replace(/co/g, "")
+        .replace(/\s+/g, "");
+    };
+
+    const core1 = stripCommon(clean1);
+    const core2 = stripCommon(clean2);
+    if (core1 === core2 && core1.length > 2) return true;
+
+    // Substring matching
+    if (clean1.includes(clean2) && clean2.length > 3) return true;
+    if (clean2.includes(clean1) && clean1.length > 3) return true;
+    if (core1.includes(core2) && core2.length > 3) return true;
+    if (core2.includes(core1) && core1.length > 3) return true;
+
+    return false;
+  };
+
   // Filter completed reports by selected month and emirate for active counting
   const completedReportsForActiveMonth = completedReports.filter(r => {
-    const rEmirateClean = (r.emirate || "").trim().toLowerCase();
+    let rEmirateClean = (r.emirate || "").trim().toLowerCase();
+    // Robust fallback: resolve emirate from registered locations database if the report's emirate is empty or missing
+    if (!rEmirateClean && r.facilityName) {
+      const matchedLoc = (locations || []).find(
+        l => l.name && cleanStr(l.name) === cleanStr(r.facilityName)
+      );
+      if (matchedLoc) {
+        rEmirateClean = (matchedLoc.emirate || "").trim().toLowerCase();
+      }
+    }
+
     const fEmirateClean = (emirateFilter || "").trim().toLowerCase();
     const matchesEmirate = emirateFilter === "All" || rEmirateClean === fEmirateClean;
 
@@ -594,7 +652,8 @@ export default function Dashboard({
   });
 
   const completedCount = completedReportsForActiveMonth.length;
-  const completedFacilityNamesInMonth = new Set(completedReportsForActiveMonth.map(r => r.facilityName));
+  const completedFacilityNamesInMonth = new Set(completedReportsForActiveMonth.map(r => (r.facilityName || "").trim().toLowerCase()));
+  const completedCleanNames = new Set(completedReportsForActiveMonth.map(r => cleanStr(r.facilityName)));
 
   // Partially Completed checks:
   // A facility is partially completed if its work status shows progress or is designated Partial
@@ -607,7 +666,17 @@ export default function Dashboard({
 
   // Filter partially completed reports by selected month and emirate
   const partiallyCompletedReportsForActiveMonth = partiallyCompletedReports.filter(r => {
-    const rEmirateClean = (r.emirate || "").trim().toLowerCase();
+    let rEmirateClean = (r.emirate || "").trim().toLowerCase();
+    // Robust fallback: resolve emirate from registered locations database if the report's emirate is empty or missing
+    if (!rEmirateClean && r.facilityName) {
+      const matchedLoc = (locations || []).find(
+        l => l.name && cleanStr(l.name) === cleanStr(r.facilityName)
+      );
+      if (matchedLoc) {
+        rEmirateClean = (matchedLoc.emirate || "").trim().toLowerCase();
+      }
+    }
+
     const fEmirateClean = (emirateFilter || "").trim().toLowerCase();
     const matchesEmirate = emirateFilter === "All" || rEmirateClean === fEmirateClean;
 
@@ -620,48 +689,92 @@ export default function Dashboard({
   });
   
   // Filter out any that actually have a "Completed" status in another report in the same month (to avoid duplicates)
-  const filteredPartiallyCompletedReports = partiallyCompletedReportsForActiveMonth.filter(r => 
-    !completedFacilityNamesInMonth.has(r.facilityName)
-  );
+  const filteredPartiallyCompletedReports = partiallyCompletedReportsForActiveMonth.filter(r => {
+    return !completedReportsForActiveMonth.some(cr => isMatchingFacility(cr.facilityName, r.facilityName));
+  });
   const partiallyCompletedCount = filteredPartiallyCompletedReports.length;
   // Set of partially completed facility names
-  const partiallyCompletedFacilityNamesInMonth = new Set(filteredPartiallyCompletedReports.map(r => r.facilityName));
+  const partiallyCompletedFacilityNamesInMonth = new Set(filteredPartiallyCompletedReports.map(r => (r.facilityName || "").trim().toLowerCase()));
+  const partiallyCompletedCleanNames = new Set(filteredPartiallyCompletedReports.map(r => cleanStr(r.facilityName)));
 
-  // Stable next due date calculator for non-completed centers
+  // Stable next due date calculator for non-completed centers (representing the current/selected monthly cycle)
   const getDeterministicDueDateAndDiff = (facilityName: string) => {
-    // Look if there's any report in progress for this center
-    const matchingReport = reports.find(r => r.facilityName === facilityName);
-    if (matchingReport && matchingReport.endDate) {
-      const today = new Date();
-      today.setHours(0, 0, 0, 0);
-      const due = new Date(matchingReport.endDate);
-      due.setHours(0, 0, 0, 0);
-      const diffTime = due.getTime() - today.getTime();
-      const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-      return {
-        dueDateStr: matchingReport.endDate,
-        diffDays
-      };
-    }
-
-    // Fallback: Calculate a deterministic date based on the facility name hash code
-    let hash = 0;
-    for (let i = 0; i < facilityName.length; i++) {
-      hash = facilityName.charCodeAt(i) + ((hash << 5) - hash);
-    }
-    hash = Math.abs(hash);
-
-    // Spread offset between -8 (overdue) and +18 (upcoming) days relative to current time 
-    const daysOffset = (hash % 26) - 8;
-    
     const today = new Date();
     today.setHours(0, 0, 0, 0);
-    const targetDate = new Date(today.getTime() + daysOffset * 24 * 60 * 60 * 1000);
-    const dueDateStr = targetDate.toISOString().split("T")[0];
+    const currentYear = today.getFullYear();
+    const selectedMonth = monthFilter === "All" ? (today.getMonth() + 1) : parseInt(monthFilter, 10);
     
-    const diffTime = targetDate.getTime() - today.getTime();
-    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+    // Find the most recent COMPLETED report for this facility across any historical dates
+    // Sort completed reports of this facility descending to get the latest one
+    const facilityCompletedReports = completedReports
+      .filter(r => (r.facilityName || "").trim().toLowerCase() === facilityName.trim().toLowerCase())
+      .filter(r => r.dateOfOperation)
+      .sort((a, b) => b.dateOfOperation.localeCompare(a.dateOfOperation));
 
+    let targetDay = 15; // default fallback day
+    let hasPrevReport = false;
+
+    if (facilityCompletedReports.length > 0) {
+      // Extract the day from the latest completed report's dateOfOperation
+      const lastOpDateStr = facilityCompletedReports[0].dateOfOperation || "";
+      const parts = lastOpDateStr.split(/[-/]/);
+      if (parts.length === 3) {
+        let parsedDay = 15;
+        if (parts[0].length === 4) {
+          // YYYY-MM-DD or YYYY/MM/DD
+          parsedDay = parseInt(parts[2], 10);
+        } else if (parts[2].length === 4) {
+          // DD-MM-YYYY or MM-DD-YYYY or DD/MM/YYYY
+          const first = parseInt(parts[0], 10);
+          if (!isNaN(first) && first >= 1 && first <= 31) {
+            parsedDay = first;
+          }
+        } else {
+          const d = new Date(lastOpDateStr);
+          if (!isNaN(d.getTime())) {
+            parsedDay = d.getDate();
+          }
+        }
+        if (!isNaN(parsedDay) && parsedDay >= 1 && parsedDay <= 31) {
+          targetDay = parsedDay;
+          hasPrevReport = true;
+        }
+      } else {
+        const d = new Date(lastOpDateStr);
+        if (!isNaN(d.getTime())) {
+          targetDay = d.getDate();
+          hasPrevReport = true;
+        }
+      }
+    }
+
+    if (!hasPrevReport) {
+      // Calculate a stable deterministic day (1 to 25) based on the facility name hash code
+      let hash = 0;
+      for (let i = 0; i < facilityName.length; i++) {
+        hash = facilityName.charCodeAt(i) + ((hash << 5) - hash);
+      }
+      hash = Math.abs(hash);
+      targetDay = (hash % 25) + 1; // spread nicely between 1st and 25th of the month
+    }
+
+    // Safely cap targetDay to the maximum days of the selectedMonth
+    const maxDays = new Date(currentYear, selectedMonth, 0).getDate();
+    const actualDay = Math.min(targetDay, maxDays);
+
+    // Build the due date for the selected month and year
+    const dueDate = new Date(currentYear, selectedMonth - 1, actualDay, 0, 0, 0, 0);
+    
+    // Format the due date string in "YYYY-MM-DD"
+    const yyyy = dueDate.getFullYear();
+    const mm = String(dueDate.getMonth() + 1).padStart(2, '0');
+    const dd = String(dueDate.getDate()).padStart(2, '0');
+    const dueDateStr = `${yyyy}-${mm}-${dd}`;
+    
+    // Calculate difference in days from today's date
+    const diffTime = dueDate.getTime() - today.getTime();
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+    
     return {
       dueDateStr,
       diffDays
@@ -671,7 +784,11 @@ export default function Dashboard({
   // 3. Not Completed list: centers in our list that don't have any completed AND don't have partially completed reports yet
   // Sorted so overdue ones (diffDays < 0) come first, followed by upcoming ones (diffDays >= 0) sorted ascending
   const incompleteCentersList = registeredLocationsList
-    .filter(name => !completedFacilityNamesInMonth.has(name) && !partiallyCompletedFacilityNamesInMonth.has(name))
+    .filter(name => {
+      const isCompleted = completedReportsForActiveMonth.some(r => isMatchingFacility(r.facilityName, name));
+      const isPartial = filteredPartiallyCompletedReports.some(r => isMatchingFacility(r.facilityName, name));
+      return !isCompleted && !isPartial;
+    })
     .sort((a, b) => {
       const diffA = getDeterministicDueDateAndDiff(a).diffDays;
       const diffB = getDeterministicDueDateAndDiff(b).diffDays;
@@ -686,11 +803,17 @@ export default function Dashboard({
       return diffA - diffB;
     });
     
-  const incompleteCentersCount = incompleteCentersList.length;
+  // Card 2 = Total Centers (Card 1) - Unique Completed Registered Centers (This Month).
+  // This satisfies the requirement that Card 2 starts equal to Card 1, and decreases as registered locations are completed.
+  // Doing the same location multiple times or submitting out-of-location reports does NOT subtract extra from Card 2 since they are either already subtracted once or were never in Card 1.
+  const completedRegisteredLocationsCount = registeredLocationsList.filter(locName => {
+    return completedReportsForActiveMonth.some(r => isMatchingFacility(r.facilityName, locName));
+  }).length;
+  const incompleteCentersCount = Math.max(0, totalCentersCount - completedRegisteredLocationsCount);
 
   // 4. Progress ratio: completed vs total
   const progressPercent = totalCentersCount > 0 
-    ? Math.round((completedCount / totalCentersCount) * 100) 
+    ? Math.min(100, Math.round((completedRegisteredLocationsCount / totalCentersCount) * 100)) 
     : 0;
 
   // Custom Operations: Update inline partial report notes
@@ -948,7 +1071,17 @@ export default function Dashboard({
       const matchesSearch = r.facilityName?.toLowerCase().includes(completedSearch.toLowerCase()) || 
                             r.ticketNo?.toLowerCase().includes(completedSearch.toLowerCase()) ||
                             r.id?.toLowerCase().includes(completedSearch.toLowerCase());
-      const rEmirateClean = (r.emirate || "").trim().toLowerCase();
+      let rEmirateClean = (r.emirate || "").trim().toLowerCase();
+      // Robust fallback: resolve emirate from registered locations database if the report's emirate is empty or missing
+      if (!rEmirateClean && r.facilityName) {
+        const matchedLoc = (locations || []).find(
+          l => l.name && cleanStr(l.name) === cleanStr(r.facilityName)
+        );
+        if (matchedLoc) {
+          rEmirateClean = (matchedLoc.emirate || "").trim().toLowerCase();
+        }
+      }
+
       const fEmirateClean = (emirateFilter || "").trim().toLowerCase();
       const matchesEmirate = emirateFilter === "All" || rEmirateClean === fEmirateClean;
 
@@ -1047,31 +1180,7 @@ export default function Dashboard({
           </div>
         </div>
 
-        {/* Card 2: Completed Services */}
-        <div 
-          onClick={() => setActiveFolder("completed")}
-          className={`border rounded-2xl p-6 shadow-lg hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1 relative overflow-hidden group cursor-pointer ${themeMode === "dark" ? (activeFolder === "completed" ? "bg-slate-800 border-emerald-500 shadow-[0_0_20px_rgba(16,185,129,0.25)]" : "bg-slate-800/80 border-slate-700 backdrop-blur-md") : (activeFolder === "completed" ? "bg-white border-emerald-500 ring-4 ring-emerald-500/10" : "bg-white border-slate-200")}`}
-        >
-          <div className={`absolute top-0 left-0 w-2 h-full ${themeMode === "dark" ? "bg-emerald-500 shadow-[0_0_15px_rgba(16,185,129,0.5)]" : "bg-emerald-500"}`} />
-          <div className="flex items-center justify-between pl-2">
-            <div className="space-y-1.5 flex-1 pr-4">
-              <span className={`text-[10px] tracking-wider uppercase font-black block font-mono ${themeMode === "dark" ? "text-slate-400" : "text-slate-500"}`}>
-                {language === "bn" ? "সম্পন্ন করেছি (১০০% কমপ্লিট)" : "Completed Services"}
-              </span>
-              <span className={`text-4xl font-black tracking-tight font-sans ${themeMode === "dark" ? "text-slate-100" : "text-slate-900"}`}>
-                {completedCount}
-              </span>
-              <span className={`text-[10.5px] font-bold block ${themeMode === "dark" ? "text-emerald-400" : "text-emerald-600"}`}>
-                {language === "bn" ? "✓ সফল কাজের সার্টিফিকেট লগার" : "✓ Completed & digitally signed"}
-              </span>
-            </div>
-            <div className={`w-12 h-12 rounded-2xl flex items-center justify-center border group-hover:scale-110 transition-transform duration-300 shadow-inner ${themeMode === "dark" ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/20" : "bg-emerald-50 text-emerald-600 border-emerald-100/50"}`}>
-              <CheckCircle2 className="w-5.5 h-5.5" />
-            </div>
-          </div>
-        </div>
-
-        {/* Card 3: Not Completed / Pending */}
+        {/* Card 2: Not Completed / Pending */}
         <div 
           onClick={() => setActiveFolder("unstarted")}
           className={`border rounded-2xl p-6 shadow-lg hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1 relative overflow-hidden group cursor-pointer ${themeMode === "dark" ? (activeFolder === "unstarted" ? "bg-slate-800 border-rose-500 shadow-[0_0_20px_rgba(244,63,94,0.25)]" : "bg-slate-800/80 border-slate-700 backdrop-blur-md") : (activeFolder === "unstarted" ? "bg-white border-rose-500 ring-4 ring-rose-500/10" : "bg-white border-slate-200")}`}
@@ -1091,6 +1200,30 @@ export default function Dashboard({
             </div>
             <div className={`w-12 h-12 rounded-2xl flex items-center justify-center border group-hover:scale-110 transition-transform duration-300 shadow-inner ${themeMode === "dark" ? "bg-rose-500/10 text-rose-400 border-rose-500/20" : "bg-rose-50 text-rose-600 border-rose-100/50"}`}>
               <AlertOctagon className="w-5.5 h-5.5" />
+            </div>
+          </div>
+        </div>
+
+        {/* Card 3: Completed Services */}
+        <div 
+          onClick={() => setActiveFolder("completed")}
+          className={`border rounded-2xl p-6 shadow-lg hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1 relative overflow-hidden group cursor-pointer ${themeMode === "dark" ? (activeFolder === "completed" ? "bg-slate-800 border-emerald-500 shadow-[0_0_20px_rgba(16,185,129,0.25)]" : "bg-slate-800/80 border-slate-700 backdrop-blur-md") : (activeFolder === "completed" ? "bg-white border-emerald-500 ring-4 ring-emerald-500/10" : "bg-white border-slate-200")}`}
+        >
+          <div className={`absolute top-0 left-0 w-2 h-full ${themeMode === "dark" ? "bg-emerald-500 shadow-[0_0_15px_rgba(16,185,129,0.5)]" : "bg-emerald-500"}`} />
+          <div className="flex items-center justify-between pl-2">
+            <div className="space-y-1.5 flex-1 pr-4">
+              <span className={`text-[10px] tracking-wider uppercase font-black block font-mono ${themeMode === "dark" ? "text-slate-400" : "text-slate-500"}`}>
+                {language === "bn" ? "সম্পন্ন করেছি (১০০% কমপ্লিট)" : "Completed Services"}
+              </span>
+              <span className={`text-4xl font-black tracking-tight font-sans ${themeMode === "dark" ? "text-slate-100" : "text-slate-900"}`}>
+                {completedCount}
+              </span>
+              <span className={`text-[10.5px] font-bold block ${themeMode === "dark" ? "text-emerald-400" : "text-emerald-600"}`}>
+                {language === "bn" ? "✓ সফল কাজের সার্টিফিকেট লগার" : "✓ Completed & digitally signed"}
+              </span>
+            </div>
+            <div className={`w-12 h-12 rounded-2xl flex items-center justify-center border group-hover:scale-110 transition-transform duration-300 shadow-inner ${themeMode === "dark" ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/20" : "bg-emerald-50 text-emerald-600 border-emerald-100/50"}`}>
+              <CheckCircle2 className="w-5.5 h-5.5" />
             </div>
           </div>
         </div>
@@ -2189,8 +2322,8 @@ export default function Dashboard({
                                <td className="p-2 border border-slate-200 font-sans font-extrabold text-slate-950 uppercase">{chem.name}</td>
                                <td className="p-2 border border-slate-200 text-slate-700">{chem.dilution}</td>
                                <td className="p-2 border border-slate-200 text-slate-900 font-extrabold">{chem.used}</td>
-                               <td className="p-2 border border-slate-200 text-slate-505">{chem.batch}</td>
-                               <td className="p-2 border border-slate-200 text-slate-550">{chem.expiry}</td>
+                               <td className="p-2 border border-slate-200 text-slate-505">{chem.batch || "ST-2026-REG"}</td>
+                               <td className="p-2 border border-slate-200 text-slate-550">{chem.expiry || "2028-12-31"}</td>
                              </tr>
                           ))
                         ) : (

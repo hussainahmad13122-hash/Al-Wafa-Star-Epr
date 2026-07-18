@@ -148,6 +148,25 @@ const addDaysToDate = (dateStr: string, daysInput: number | string): string => {
   return `${nextY}-${nextM}-${nextD}`;
 };
 
+const addMonthsToDate = (dateStr: string, months = 1): string => {
+  if (!dateStr) return "";
+  const normalized = normalizeDateToYYYYMMDD(dateStr);
+  const parts = normalized.split("-");
+  if (parts.length !== 3) return "";
+  const year = parseInt(parts[0], 10);
+  const month = parseInt(parts[1], 10); // 1-indexed
+  const day = parseInt(parts[2], 10);
+  
+  const temp = new Date(year, month - 1 + months, 1);
+  const lastDay = new Date(temp.getFullYear(), temp.getMonth() + 1, 0).getDate();
+  const targetDay = Math.min(day, lastDay);
+  
+  const nextY = temp.getFullYear();
+  const nextM = String(temp.getMonth() + 1).padStart(2, "0");
+  const nextD = String(targetDay).padStart(2, "0");
+  return `${nextY}-${nextM}-${nextD}`;
+};
+
 const isEmirateMatch = (allowed: string, target: string): boolean => {
   if (!allowed || !target) return false;
   const aLower = allowed.toLowerCase().trim();
@@ -263,9 +282,12 @@ export default function ProjectScheduler({ language, isDark, loggedInUser: propL
   // Navigation tabs: 'diary' (New Diary sketch layout), 'calendar' (Traditional calendar), or 'projects' (List of hospitals)
   const [activeTab, setActiveTab] = useState<'diary' | 'calendar' | 'projects'>('diary');
 
-  // Calendar states (Default June 2026 for simulation/preview accuracy)
-  const [currentDate, setCurrentDate] = useState<Date>(new Date(2026, 5, 1)); 
-  const [selectedDateStr, setSelectedDateStr] = useState<string>("2026-06-13");
+  // Calendar states (Default to current date for running month display)
+  const [currentDate, setCurrentDate] = useState<Date>(new Date()); 
+  const [selectedDateStr, setSelectedDateStr] = useState<string>(() => {
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+  });
 
   // Core registries
   const [projectsList, setProjectsList] = useState<HospitalProject[]>([]);
@@ -290,7 +312,10 @@ export default function ProjectScheduler({ language, isDark, loggedInUser: propL
   const [newGroupName, setNewGroupName] = useState("");
   const [newGroupTeam, setNewGroupTeam] = useState("");
   const [newGroupNotes, setNewGroupNotes] = useState("");
-  const [newGroupDateStr, setNewGroupDateStr] = useState("2026-06-13");
+  const [newGroupDateStr, setNewGroupDateStr] = useState(() => {
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+  });
   const [newGroupIntervalDays, setNewGroupIntervalDays] = useState<number | "">(30);
   const [newGroupStartTime, setNewGroupStartTime] = useState("");
 
@@ -425,9 +450,45 @@ export default function ProjectScheduler({ language, isDark, loggedInUser: propL
     };
   }, []);
 
-  // Automatic reset/renewal of expired groups has been disabled as requested by the user,
-  // to ensure that completed data is never deleted automatically when the month ends.
-  // Manual renewal is still fully supported via the renewal button.
+  // Automatic rolling/resetting of past-due groups to the next month keeping same day of month, as requested
+  useEffect(() => {
+    if (groupsList.length === 0 || isVisitor) return;
+
+    let changed = false;
+    const d = new Date();
+    const todayStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+
+    const updated = groupsList.map(g => {
+      if (g.isEmergency) return g;
+
+      const normDate = normalizeDateToYYYYMMDD(g.dateStr);
+      if (normDate < todayStr) {
+        changed = true;
+        
+        const nextDateStr = addMonthsToDate(g.dateStr, 1);
+        const calculatedNextDate = addMonthsToDate(nextDateStr, 1);
+        const freshTasks = g.tasks.map(t => ({ ...t, status: "pending" as const }));
+        
+        console.log(`Auto-rolling group "${g.name}" from ${g.dateStr} to ${nextDateStr}`);
+
+        return {
+          ...g,
+          dateStr: nextDateStr,
+          nextDateStr: calculatedNextDate,
+          tasks: freshTasks
+        };
+      }
+      return g;
+    });
+
+    if (changed) {
+      saveGroups(updated);
+      triggerToast(language === "bn"
+        ? "অতীতের তারিখের গ্রুপগুলো স্বয়ংক্রিয়ভাবে পরবর্তী মাসে স্থানান্তরিত করা হয়েছে!"
+        : "Past-due groups have been automatically rolled over to the next month!"
+      );
+    }
+  }, [groupsList, isVisitor, language]);
 
   // Save utilities
   const saveProjects = (list: HospitalProject[]) => {
@@ -1176,10 +1237,28 @@ export default function ProjectScheduler({ language, isDark, loggedInUser: propL
 
   // Calendar days grid generator
   const calendarDays = [];
-  for (let i = 0; i < firstDayIndex; i++) {
-    calendarDays.push(null);
+  
+  // Fill leading days of the previous month
+  const daysInPrevMonth = new Date(year, month, 0).getDate();
+  const prevMonth = month === 0 ? 11 : month - 1;
+  const prevYear = month === 0 ? year - 1 : year;
+  for (let i = firstDayIndex - 1; i >= 0; i--) {
+    const prevDayNum = daysInPrevMonth - i;
+    const dayStr = `${prevYear}-${String(prevMonth + 1).padStart(2, '0')}-${String(prevDayNum).padStart(2, '0')}`;
+    const dateObj = new Date(prevYear, prevMonth, prevDayNum);
+    const isSunday = dateObj.getDay() === 0;
+    const dayGroups = groupsList.filter(g => normalizeDateToYYYYMMDD(g.dateStr) === dayStr).filter(isGroupAllowedForUser);
+
+    calendarDays.push({
+      dayNum: prevDayNum,
+      dateStr: dayStr,
+      isSunday,
+      groups: dayGroups,
+      isCurrentMonth: false
+    });
   }
 
+  // Fill current month days
   for (let day = 1; day <= daysInMonth; day++) {
     const dayStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
     const dateObj = new Date(year, month, day);
@@ -1190,14 +1269,619 @@ export default function ProjectScheduler({ language, isDark, loggedInUser: propL
       dayNum: day,
       dateStr: dayStr,
       isSunday,
-      groups: dayGroups
+      groups: dayGroups,
+      isCurrentMonth: true
+    });
+  }
+
+  // Fill trailing days of the next month to complete standard 6-row (42 cells) grid
+  const currentCellCount = calendarDays.length;
+  const remainingCells = 42 - currentCellCount;
+  const nextMonth = month === 11 ? 0 : month + 1;
+  const nextYear = month === 11 ? year + 1 : year;
+  for (let day = 1; day <= remainingCells; day++) {
+    const dayStr = `${nextYear}-${String(nextMonth + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+    const dateObj = new Date(nextYear, nextMonth, day);
+    const isSunday = dateObj.getDay() === 0;
+    const dayGroups = groupsList.filter(g => normalizeDateToYYYYMMDD(g.dateStr) === dayStr).filter(isGroupAllowedForUser);
+
+    calendarDays.push({
+      dayNum: day,
+      dateStr: dayStr,
+      isSunday,
+      groups: dayGroups,
+      isCurrentMonth: false
     });
   }
 
   const isSelectedDateSunday = new Date(selectedDateStr).getDay() === 0;
-  const groupsOnSelectedDate = groupsList.filter(g => normalizeDateToYYYYMMDD(g.dateStr) === normalizeDateToYYYYMMDD(selectedDateStr)).filter(isGroupAllowedForUser);
+  const groupsOnSelectedDate = groupsList.filter(g => {
+    const normG = normalizeDateToYYYYMMDD(g.dateStr);
+    const normT = normalizeDateToYYYYMMDD(selectedDateStr);
+    if (normG === normT) return true;
+    
+    // Fallback for past days: if the group has rolled over to the future, match if its past cycle was on normT
+    if (normT < normG && !g.isEmergency) {
+      for (let m = 1; m <= 12; m++) {
+        if (normalizeDateToYYYYMMDD(addMonthsToDate(g.dateStr, -m)) === normT) {
+          return true;
+        }
+      }
+    }
+    return false;
+  }).filter(isGroupAllowedForUser);
 
   const visibleGroups = groupsList.filter(isGroupAllowedForUser);
+
+  const handleSwapGroupTaskProject = (groupId: string, taskId: string, projectId: string) => {
+    const updated = groupsList.map(g => {
+      if (g.id === groupId) {
+        return {
+          ...g,
+          tasks: g.tasks.map(t => t.id === taskId ? { ...t, projectId: projectId } : t)
+        };
+      }
+      return g;
+    });
+    saveGroups(updated);
+    const p = projectsList.find(proj => proj.id === projectId);
+    if (p) {
+      triggerToast(`Swapped clinic to: ${p.name}`);
+    }
+  };
+
+  const handleUpdateTaskNotes = (groupId: string, taskId: string, notesStr: string) => {
+    const updated = groupsList.map(g => {
+      if (g.id === groupId) {
+        return {
+          ...g,
+          tasks: g.tasks.map(t => t.id === taskId ? { ...t, notes: notesStr } : t)
+        };
+      }
+      return g;
+    });
+    saveGroups(updated);
+  };
+
+  const renderGroupCards = (groupsToRender: DutyGroup[]) => {
+    return groupsToRender.map((group) => {
+      const isExpanded = expandedDetailsMap[group.id] || false;
+      const isAddingActive = addingToGroupMap[group.id] || false;
+      const comp = isGroupCompleted(group);
+
+      // Let's filter out hospitals already allocated inside this specific card
+      const nonAllocatedProjects = projectsList.filter(
+        p => !group.tasks.some(t => t.projectId === p.id)
+      );
+
+      return (
+        <div
+          key={group.id}
+          data-group-card="true"
+          className={`rounded-2xl border shadow-md transition-all flex flex-col justify-between relative group duration-200 hover:shadow-lg ${
+            isDark 
+              ? group.isEmergency 
+                ? "bg-[#1E1719]/95 border-rose-950/60 hover:border-rose-500 hover:scale-[1.01] border-l-[6px] border-l-rose-500 shadow-rose-500/5"
+                : comp
+                  ? "bg-[#0F1D17]/95 border-emerald-950/80 hover:border-emerald-500 hover:scale-[1.01] border-l-[6px] border-l-emerald-500 shadow-emerald-500/5 ring-1 ring-emerald-500/30"
+                  : "bg-[#131B2D]/95 border-slate-800 hover:border-slate-700 hover:scale-[1.01]" 
+              : group.isEmergency
+                ? "bg-[#FFF9F9] border-rose-200 hover:border-rose-400 hover:scale-[1.01] text-slate-900 border-l-[6px] border-b-[3px] border-l-rose-500 shadow-rose-500/5"
+                : comp
+                  ? "bg-[#F4FAF7] border-[#BADBCC] hover:border-[#8ED3B1] hover:scale-[1.01] text-slate-950 border-l-[6px] border-b-[3px] border-l-[#10B981] ring-1 ring-emerald-400/20"
+                  : "bg-[#FFFDF6] border-[#E8DDCD] hover:border-[#D4C3A9] hover:scale-[1.01] text-slate-900 border-l-[6px] border-b-[3px] border-l-stone-400"
+          }`}
+        >
+          {/* Notebook Clip Header Accent */}
+          <div className="absolute top-0 inset-x-0 h-1.5 bg-slate-350 bg-slate-300 dark:bg-slate-800 pointer-events-none opacity-40" />
+          {comp && (
+            <div className="absolute top-0 inset-x-0 h-1.5 bg-emerald-500 pointer-events-none" />
+          )}
+
+          <div className="p-4 space-y-3.5 flex-1 select-none">
+            
+            {/* Card Title Header with Sequence Name & Delete icon */}
+            <div className="flex flex-col gap-2.5 pb-2 border-b border-dashed border-slate-300/65 dark:border-slate-800">
+              {/* First Row: Group Name on left, Actions on right */}
+              <div className="flex items-center justify-between gap-1">
+                <div className="flex items-center gap-1.5 min-w-0 relative flex-1">
+                  {group.isEmergency ? (
+                    <AlertTriangle className="w-4 h-4 text-rose-500 shrink-0 animate-pulse" />
+                  ) : (
+                    <Layers className="w-4 h-4 text-indigo-400 shrink-0" />
+                  )}
+                  <div className="relative flex items-center gap-1 min-w-0 flex-1 flex-wrap">
+                    <button
+                      type="button"
+                      onClick={() => setActiveGroupNameDropdownId(activeGroupNameDropdownId === group.id ? null : group.id)}
+                      className={`flex items-center gap-1 text-[13.5px] font-black tracking-tight font-sans uppercase hover:text-indigo-500 dark:hover:text-sky-200 transition-colors select-none cursor-pointer truncate ${
+                        group.isEmergency
+                          ? "text-rose-600 dark:text-rose-400"
+                          : "text-stone-850 dark:text-sky-300"
+                      }`}
+                      title="Click to select/change group name"
+                    >
+                      <span className="truncate">{group.name}</span>
+                      <ChevronDown className="w-4 h-4 text-[#10B981] dark:text-[#10B981] shrink-0" />
+                    </button>
+
+                    {comp && (
+                      <span className="px-1.5 py-0.5 rounded-md bg-emerald-500 text-white text-[9px] font-black uppercase tracking-wider flex items-center gap-0.5 shrink-0 select-none scale-90">
+                        <Check className="w-2.5 h-2.5 stroke-[3]" />
+                        <span>{language === "bn" ? "সম্পূর্ণ" : "Done"}</span>
+                      </span>
+                    )}
+
+                    {/* Dropdown Menu */}
+                    {activeGroupNameDropdownId === group.id && (
+                      <>
+                        {/* Click-outside backdrop */}
+                        <div 
+                          className="fixed inset-0 z-40 cursor-default" 
+                          onClick={() => setActiveGroupNameDropdownId(null)} 
+                        />
+                        <div className="absolute left-0 top-full mt-2 w-48 rounded-xl shadow-xl border border-stone-200 dark:border-slate-800 bg-white dark:bg-slate-900 py-1.5 z-50 animate-fade-in text-xs max-h-60 overflow-y-auto">
+                          <div className="px-2.5 py-1 text-[10px] font-extrabold uppercase tracking-wider text-slate-400 dark:text-slate-500">
+                            Select Region / Group Name
+                          </div>
+                          <div className="border-b border-stone-100 dark:border-slate-800/60 my-1" />
+                          
+                          {/* Presets */}
+                          {[
+                            "DUBAY",
+                            "SHARH",
+                            "DUBAI",
+                            "SHARJAH",
+                            "ABU DHABI",
+                            "AJMAN",
+                            "UMM AL QUWAIN",
+                            "RAS AL KHAIMAH",
+                            "FUJAIRAH",
+                            "AL AIN",
+                            "GROUP 1",
+                            "GROUP 2",
+                            "GROUP 3",
+                            "GROUP 4",
+                            "GROUP 5",
+                            "GROUP 6",
+                            "GROUP 7",
+                            "GROUP 8",
+                            "GROUP 9",
+                            "GROUP 10"
+                          ].map((namePreset) => (
+                            <button
+                              key={namePreset}
+                              type="button"
+                              onClick={() => {
+                                handleRenameGroup(group.id, namePreset);
+                                setActiveGroupNameDropdownId(null);
+                              }}
+                              className={`w-full text-left px-3 py-1.5 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors flex items-center justify-between font-bold ${
+                                group.name.toUpperCase() === namePreset 
+                                  ? "text-indigo-600 dark:text-sky-400 bg-indigo-50/40 dark:bg-sky-950/20" 
+                                  : "text-slate-700 dark:text-slate-300"
+                              }`}
+                            >
+                              <span>{namePreset}</span>
+                              {group.name.toUpperCase() === namePreset && (
+                                <Check className="w-3.5 h-3.5 text-indigo-500 dark:text-sky-400" />
+                              )}
+                            </button>
+                          ))}
+
+                          <div className="border-t border-stone-100 dark:border-slate-800/60 my-1.5 pt-1.5 px-2">
+                            <input 
+                              type="text"
+                              placeholder="Custom name..."
+                              className="w-full px-2 py-1 text-xs border border-stone-300 dark:border-slate-700 rounded-md bg-stone-50 dark:bg-slate-950 text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter') {
+                                  const val = e.currentTarget.value.trim();
+                                  if (val) {
+                                    handleRenameGroup(group.id, val);
+                                    setActiveGroupNameDropdownId(null);
+                                  }
+                                }
+                              }}
+                            />
+                          </div>
+                        </div>
+                      </>
+                    )}
+                  </div>
+                </div>
+
+                {/* Quick Group Actions */}
+                <div className="flex items-center gap-1.5 shrink-0">
+                  {/* Edit Group Card Button */}
+                  <button
+                    type="button"
+                    onClick={() => setEditingGroup(group)}
+                    className="p-1 text-sky-500 hover:bg-sky-500/10 rounded-lg transition-all border-none bg-transparent cursor-pointer flex items-center justify-center"
+                    title={language === "bn" ? "কার্ডের তথ্য এডিট করুন" : "Edit group card details"}
+                  >
+                    <Edit className="w-3.5 h-3.5" />
+                  </button>
+
+                  {/* Renew / Reset Button */}
+                  {!group.isEmergency && (
+                    <button
+                      type="button"
+                      onClick={() => handleRenewGroup(group.id)}
+                      className="p-1 text-[#10B981] dark:text-teal-400 hover:bg-teal-500/10 rounded-lg transition-all border-none bg-transparent cursor-pointer flex items-center justify-center"
+                      title={language === "bn" ? "এখনই মেয়াদ নবায়ন করুন (নতুনভাবে শুরু)" : "Renew / Reset group now"}
+                    >
+                      <RotateCcw className="w-3.5 h-3.5 text-[#10B981]" />
+                    </button>
+                  )}
+
+                  <button
+                    type="button"
+                    onClick={() => handleDeleteGroup(group.id)}
+                    className="p-1 px-1.5 text-rose-500 hover:bg-rose-500/10 rounded-lg transition-all border-none bg-transparent cursor-pointer flex items-center justify-center"
+                    title="Delete entire group"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              </div>
+
+              {/* Second Row: Interactive Inline Date Changer and Starting Time with full width flexibility */}
+              <div className="flex flex-col gap-1 w-full pt-0.5">
+                <div className="grid grid-cols-2 gap-1.5 w-full">
+                  {/* Left part: Date Input */}
+                  <div className="flex items-center gap-1 w-full" title={language === "bn" ? "অপারেশন তারিখ" : "Operation target date"}>
+                    <div className="flex items-center gap-0.5 shrink-0 text-slate-400 dark:text-slate-500">
+                      <Calendar className="w-3 h-3 text-[#10B981]" />
+                      <span className="text-[8px] font-extrabold uppercase tracking-tighter">
+                        {language === "bn" ? "তারিখ:" : "Target:"}
+                      </span>
+                    </div>
+                    <input
+                      type="date"
+                      value={normalizeDateToYYYYMMDD(group.dateStr)}
+                      onChange={(e) => handleRescheduleGroupDate(group.id, e.target.value)}
+                      className={`flex-1 min-w-0 p-0.5 px-1 border font-mono text-[10.5px] font-bold rounded-lg focus:outline-none focus:ring-1 focus:ring-[#10B981] shadow-sm cursor-pointer transition-all ${
+                        isDark 
+                          ? "bg-slate-900 border-slate-700/60 text-teal-400 hover:border-slate-500" 
+                          : "bg-stone-50 border-stone-300 text-stone-900 hover:bg-stone-100 hover:border-stone-400 focus:bg-white"
+                      }`}
+                      title="Modify operating schedule date for this entire group"
+                    />
+                  </div>
+
+                  {/* Right part: Starting Time Input */}
+                  <div className="flex items-center gap-1 w-full" title={language === "bn" ? "কাজ শুরুর সময়" : "Shift starting time"}>
+                    <div className="flex items-center gap-0.5 shrink-0 text-slate-400 dark:text-slate-500">
+                      <Clock className="w-3 h-3 text-[#10B981]" />
+                      <span className="text-[8px] font-extrabold uppercase tracking-tighter">
+                        {language === "bn" ? "সময়:" : "Start:"}
+                      </span>
+                    </div>
+                    <input
+                      type="time"
+                      value={group.startTime || ""}
+                      onChange={(e) => handleUpdateGroupStartTime(group.id, e.target.value)}
+                      className={`flex-1 min-w-0 p-0.5 px-1 border font-mono text-[10.5px] font-bold rounded-lg focus:outline-none focus:ring-1 focus:ring-[#10B981] shadow-sm cursor-pointer transition-all ${
+                        isDark 
+                          ? "bg-slate-900 border-slate-700/60 text-teal-400 hover:border-slate-500" 
+                          : "bg-stone-50 border-stone-300 text-stone-900 hover:bg-stone-100 hover:border-stone-400 focus:bg-white"
+                      }`}
+                      title="Modify operating starting time for this group"
+                    />
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Numbered Clinics List Display */}
+            <div className="space-y-2">
+              {group.tasks.length === 0 ? (
+                <div className="py-8 text-center text-stone-400 dark:text-slate-500 text-[11px] italic">
+                  {language === "bn" ? "কোন ক্লিনিক যুক্ত করা হয়নি" : "No clinics added yet"}
+                </div>
+              ) : (
+                <div className="space-y-2 max-h-[250px] overflow-y-auto pr-0.5">
+                  {[...group.tasks]
+                    .sort((a, b) => {
+                      if (a.status === "completed" && b.status !== "completed") return 1;
+                      if (a.status !== "completed" && b.status === "completed") return -1;
+                      return 0;
+                    })
+                    .map((task, index) => {
+                    const pInfo = projectsList.find(p => p.id === task.projectId);
+                    const isLarge = pInfo?.isLargeSite || false;
+                    const isTaskExpanded = !!expandedDetailsMap[`${group.id}-${task.id}`];
+
+                    return (
+                      <div key={task.id} className="flex items-center gap-1.5 relative group">
+                        {/* Rounded Task card block */}
+                        <div
+                          className={`p-2 rounded-xl border flex-1 min-w-0 transition-all text-xs font-semibold relative ${
+                            task.status === "completed"
+                              ? (isDark ? "bg-emerald-500/5 border-emerald-950 text-emerald-400" : "bg-emerald-50/75 border-emerald-150 text-emerald-900")
+                              : task.status === "in_progress"
+                              ? (isDark ? "bg-amber-500/5 border-amber-950 text-amber-500" : "bg-amber-50/70 border-amber-150 text-amber-900")
+                              : (isDark ? "bg-slate-950/40 border-slate-800 text-slate-100" : "bg-white border-stone-200 text-stone-850")
+                          }`}
+                        >
+                          {/* List Row: Index + Hospital Name + Checkmark edit clinic select dropdown */}
+                          <div className="flex items-start justify-between gap-1.5">
+                            <div className="flex-1 flex items-start gap-1 min-w-0">
+                              <span className="font-mono text-[11px] font-extrabold text-slate-400 shrink-0 mt-[2px]">
+                                {index + 1}.
+                              </span>
+                              <div 
+                                onClick={() => setActiveSwapTaskId(task.id)}
+                                className="space-y-0.5 min-w-0 flex-1 cursor-pointer hover:underline transition-all"
+                                title="Click to swap/change clinic"
+                              >
+                                <p className={`font-black leading-tight text-[12.5px] break-words ${isDark ? "text-white font-extrabold" : "text-stone-850"}`}>
+                                  {pInfo?.name || "Deleted register Clinic"}
+                                </p>
+                              </div>
+                            </div>
+
+                            {/* Interactive toggle for Config Dropdown (arrow icon / chevron) */}
+                            <div className="relative shrink-0 mr-1 pr-0.5 flex items-center gap-1">
+                              {/* Status Check badge button */}
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleToggleTaskStatus(group.id, task.id, task.status);
+                                }}
+                                className="w-5 h-5 flex items-center justify-center relative cursor-pointer hover:bg-slate-500/10 rounded-lg transition-all"
+                                title={language === "bn" ? "সার্ভিস স্ট্যাটাস পরিবর্তন করুন" : "Change service status"}
+                              >
+                                <Check className={`w-3.5 h-3.5 stroke-[2.5] ${
+                                  task.status === "completed"
+                                    ? "text-[#10B981]"
+                                    : task.status === "in_progress"
+                                    ? "text-amber-550 dark:text-amber-500"
+                                    : "text-slate-400 dark:text-slate-500"
+                                }`} />
+                                {task.notes && task.notes.trim().length > 0 && (
+                                  <span className="absolute -top-0.5 -right-0.5 w-1.5 h-1.5 bg-blue-500 dark:bg-sky-400 rounded-full animate-pulse" />
+                                )}
+                              </button>
+
+                              {/* Dropdown triggers for additional swap option */}
+                              {activeSwapTaskId === task.id && (
+                                <>
+                                  <div className="fixed inset-0 z-45" onClick={() => {
+                                    setActiveSwapTaskId(null);
+                                    setSwapSearchQuery("");
+                                  }} />
+                                  <div className="absolute right-0 top-full mt-2 w-64 rounded-xl shadow-2xl border border-stone-250 dark:border-slate-800 bg-white dark:bg-slate-900 py-2 z-50 animate-fade-in text-xs">
+                                    <div className="px-3 py-1 font-extrabold uppercase tracking-wide text-stone-400 dark:text-slate-500 flex items-center justify-between gap-1">
+                                      <span>Swap Clinic Location</span>
+                                      <button 
+                                        type="button"
+                                        onClick={() => {
+                                          setActiveSwapTaskId(null);
+                                          setSwapSearchQuery("");
+                                        }}
+                                        className="p-0.5 text-stone-400 hover:text-stone-600 bg-transparent border-none cursor-pointer"
+                                      >
+                                        <X className="w-3.5 h-3.5" />
+                                      </button>
+                                    </div>
+                                    <div className="px-2.5 pt-1.5 pb-1">
+                                      <input 
+                                        type="text"
+                                        placeholder="Search clinic..."
+                                        value={swapSearchQuery}
+                                        onChange={(e) => setSwapSearchQuery(e.target.value)}
+                                        className="w-full px-2.5 py-1.5 text-xs border border-stone-200 dark:border-slate-700 rounded-lg bg-stone-50 dark:bg-slate-950 text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                                      />
+                                    </div>
+                                    <div className="border-b border-stone-100 dark:border-slate-800/60 my-1.5" />
+                                    <div className="max-h-48 overflow-y-auto space-y-0.5 px-1">
+                                      {projectsList
+                                        .filter(p => p.name.toLowerCase().includes(swapSearchQuery.toLowerCase()))
+                                        .map(p => (
+                                          <button
+                                            key={p.id}
+                                            type="button"
+                                            onClick={() => {
+                                              handleSwapGroupTaskProject(group.id, task.id, p.id);
+                                              setActiveSwapTaskId(null);
+                                              setSwapSearchQuery("");
+                                            }}
+                                            className="w-full text-left px-2.5 py-1.5 rounded-lg hover:bg-stone-100 dark:hover:bg-slate-800 transition-colors text-[11px] font-bold text-slate-700 dark:text-slate-300 truncate"
+                                            title={p.name}
+                                          >
+                                            {p.name}
+                                          </button>
+                                        ))}
+                                    </div>
+                                  </div>
+                                </>
+                              )}
+                            </div>
+
+                            {/* Chevron for Notes toggle */}
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const key = `${group.id}-${task.id}`;
+                                setExpandedDetailsMap(prev => ({ ...prev, [key]: !prev[key] }));
+                              }}
+                              className="p-1 hover:bg-slate-100 dark:hover:bg-slate-850 rounded-lg text-slate-400 hover:text-slate-600 border-none bg-transparent cursor-pointer flex items-center justify-center shrink-0"
+                              title="Toggle internal notes / description"
+                            >
+                              <ChevronDown className={`w-3.5 h-3.5 transition-transform duration-200 ${isTaskExpanded ? "rotate-180 text-indigo-500" : ""}`} />
+                            </button>
+
+                            {/* Remove Clinic icon */}
+                            <button
+                              type="button"
+                              onClick={() => handleRemoveHospitalFromGroup(group.id, task.id)}
+                              className="p-1 hover:bg-rose-500/15 rounded-lg text-rose-500 hover:text-rose-600 border-none bg-transparent cursor-pointer flex items-center justify-center shrink-0 opacity-0 group-hover:opacity-100 transition-opacity"
+                              title="Remove clinic from this group"
+                            >
+                              <X className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+
+                          {/* Expanded Notes & custom data inputs */}
+                          {isTaskExpanded && (
+                            <div className="mt-2 pt-2 border-t border-dashed border-slate-200 dark:border-slate-800/80 space-y-1.5 animate-fade-in text-[11px] text-slate-500 dark:text-slate-400 select-none">
+                              <div className="flex items-center justify-between text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                                <span>Clinic Notes & Remarks</span>
+                                <span className={isLarge ? "text-rose-500 font-extrabold" : "text-sky-500"}>
+                                  {isLarge ? "⚠️ Heavy Site" : "Standard clinic"}
+                                </span>
+                              </div>
+                              <AutoResizeTextarea
+                                value={task.notes || ""}
+                                placeholder="Add specific task details or supervisor updates here..."
+                                onChange={(val) => handleUpdateTaskNotes(group.id, task.id, val)}
+                                className={`w-full p-1.5 border rounded-lg text-xs font-medium focus:ring-1 focus:ring-indigo-500 focus:outline-none focus:bg-white ${
+                                  isDark 
+                                    ? "bg-slate-900 border-slate-800 text-slate-200" 
+                                    : "bg-slate-50 border-slate-200 text-slate-800"
+                                }`}
+                              />
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+
+            {/* Bottom Actions footer for Adding clinics and fast Complete/Reset shortcuts */}
+            <div className="pt-3 border-t border-dashed border-slate-300/65 dark:border-slate-800 flex flex-col gap-2">
+              <div className="flex items-center justify-between gap-1 relative">
+                {/* "+ Add Clinic" button to activate Custom Popover */}
+                <button
+                  type="button"
+                  onClick={() => setActiveAddDropdownGroupId(activeAddDropdownGroupId === group.id ? null : group.id)}
+                  className="px-3 py-2 border border-dashed border-sky-400 hover:border-sky-500 text-sky-600 dark:text-sky-400 bg-sky-50/20 hover:bg-sky-50/50 dark:hover:bg-sky-950/20 rounded-xl font-extrabold text-[11px] transition-all uppercase flex items-center justify-center gap-1 cursor-pointer flex-1"
+                >
+                  <Plus className="w-3.5 h-3.5 text-sky-500 shrink-0" />
+                  <span>{language === "bn" ? "ক্লিনিক যুক্ত করুন" : "+ Add Clinic"}</span>
+                </button>
+
+                {activeAddDropdownGroupId === group.id && (
+                  <>
+                    <div className="fixed inset-0 z-45" onClick={() => {
+                      setActiveAddDropdownGroupId(null);
+                      setAddSearchQuery("");
+                      setAddCustomLocation("");
+                    }} />
+                    <div className="absolute left-0 right-0 bottom-full mb-2 rounded-xl shadow-2xl border border-stone-250 dark:border-slate-800 bg-white dark:bg-slate-900 py-2.5 z-50 animate-fade-in text-xs max-h-72 overflow-y-auto">
+                      <div className="px-3 py-1 font-extrabold uppercase tracking-wide text-stone-400 dark:text-slate-500 flex items-center justify-between">
+                        <span>Select Clinic to Add</span>
+                        <button 
+                          type="button"
+                          onClick={() => {
+                            setActiveAddDropdownGroupId(null);
+                            setAddSearchQuery("");
+                            setAddCustomLocation("");
+                          }}
+                          className="p-0.5 text-stone-400 hover:text-stone-600 bg-transparent border-none cursor-pointer"
+                        >
+                          <X className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                      
+                      {/* Search box */}
+                      <div className="px-2.5 pt-1.5 pb-1">
+                        <input 
+                          type="text"
+                          placeholder="Search registered hospital..."
+                          value={addSearchQuery}
+                          onChange={(e) => setAddSearchQuery(e.target.value)}
+                          className="w-full px-2.5 py-1.5 text-xs border border-stone-200 dark:border-slate-700 rounded-lg bg-stone-50 dark:bg-slate-950 text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                        />
+                      </div>
+
+                      <div className="border-b border-stone-100 dark:border-slate-800/60 my-1.5" />
+
+                      <div className="max-h-40 overflow-y-auto space-y-0.5 px-1">
+                        {nonAllocatedProjects.length === 0 ? (
+                          <div className="text-center py-3 italic text-stone-400 text-[11px]">
+                            No other clinics available
+                          </div>
+                        ) : (
+                          nonAllocatedProjects
+                            .filter(p => p.name.toLowerCase().includes(addSearchQuery.toLowerCase()))
+                            .map(p => (
+                              <button
+                                key={p.id}
+                                type="button"
+                                onClick={() => {
+                                  handleAddHospitalToGroup(group.id, p.id);
+                                  setActiveAddDropdownGroupId(null);
+                                  setAddSearchQuery("");
+                                }}
+                                className="w-full text-left px-2.5 py-1.5 rounded-lg hover:bg-stone-100 dark:hover:bg-slate-800 transition-colors text-[11px] font-bold text-slate-700 dark:text-slate-300 truncate"
+                                title={p.name}
+                              >
+                                {p.name}
+                              </button>
+                            ))
+                        )}
+                      </div>
+
+                      {/* Or Quick Custom Location Input */}
+                      <div className="border-t border-stone-100 dark:border-slate-800/60 mt-1.5 pt-2 px-2.5">
+                        <p className="text-[9px] font-black uppercase tracking-wider text-stone-400 pb-1">Or Quick Add custom site</p>
+                        <div className="flex items-center gap-1">
+                          <input 
+                            type="text"
+                            placeholder="Enter clinic name..."
+                            value={addCustomLocation}
+                            onChange={(e) => setAddCustomLocation(e.target.value)}
+                            className="flex-1 px-2 py-1 text-[11px] border border-stone-200 dark:border-slate-700 rounded-md bg-stone-50 dark:bg-slate-950 text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const name = addCustomLocation.trim();
+                              if (name) {
+                                const newId = "hosp_" + Date.now() + "_" + Math.floor(Math.random()*1000);
+                                const newProj: HospitalProject = {
+                                  id: newId,
+                                  name,
+                                  location: group.name, // defaults to group name as location
+                                  phone: "",
+                                  isLargeSite: false
+                                };
+                                const updatedProjs = [...projectsList, newProj];
+                                setProjectsList(updatedProjs);
+                                localStorage.setItem("ALW_MONTHLY_PROJECTS_DB", JSON.stringify(updatedProjs));
+                                saveStoreValue("monthly_projects_db", updatedProjs);
+
+                                handleAddHospitalToGroup(group.id, newId);
+                                setActiveAddDropdownGroupId(null);
+                                setAddCustomLocation("");
+                              }
+                            }}
+                            className="px-2 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-md font-bold text-[10px] uppercase border-none cursor-pointer shrink-0"
+                          >
+                            Add
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  </>
+                )}
+              </div>
+
+            </div>
+
+          </div>
+
+        </div>
+      );
+    });
+  };
 
   return (
     <div className={`p-4 md:p-6 rounded-3xl border shadow-xl flex flex-col space-y-6 transition-all text-left ${
@@ -1307,6 +1991,87 @@ export default function ProjectScheduler({ language, isDark, loggedInUser: propL
               </p>
             </div>
           ) : (
+            <div className="space-y-8">
+              {/* Active / Running Groups Section */}
+              {(() => {
+                const dObj = new Date();
+                const currentYearMonth = `${dObj.getFullYear()}-${String(dObj.getMonth() + 1).padStart(2, "0")}`;
+
+                const runningGroups = visibleGroups.filter(g => {
+                  const isCurrentMonth = normalizeDateToYYYYMMDD(g.dateStr).slice(0, 7) === currentYearMonth;
+                  return !isGroupCompleted(g) && (isCurrentMonth || g.isEmergency);
+                }).sort((a, b) => {
+                  if (a.isEmergency && !b.isEmergency) return -1;
+                  if (!a.isEmergency && b.isEmergency) return 1;
+                  return normalizeDateToYYYYMMDD(a.dateStr).localeCompare(normalizeDateToYYYYMMDD(b.dateStr));
+                });
+                
+                if (runningGroups.length === 0) return null;
+
+                return (
+                  <div className="space-y-3">
+                    <div className="flex items-center gap-2">
+                      <span className="w-2.5 h-2.5 rounded-full bg-sky-500 animate-pulse" />
+                      <h4 className="text-xs font-black uppercase tracking-wider text-slate-500 dark:text-slate-400 font-mono">
+                        {language === "bn" ? "চলতি মাসের গ্রুপ সমূহ" : "Current Running Month Groups"} ({runningGroups.length})
+                      </h4>
+                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+                      {renderGroupCards(runningGroups)}
+                    </div>
+                  </div>
+                );
+              })()}
+
+              {/* Cyan / Teal / Emerald Separator line with Pill Label */}
+              {(() => {
+                const dObj = new Date();
+                const currentYearMonth = `${dObj.getFullYear()}-${String(dObj.getMonth() + 1).padStart(2, "0")}`;
+
+                const completedGroupsList = visibleGroups.filter(g => {
+                  const isCurrentMonth = normalizeDateToYYYYMMDD(g.dateStr).slice(0, 7) === currentYearMonth;
+                  const isTopGroup = !isGroupCompleted(g) && (isCurrentMonth || g.isEmergency);
+                  return !isTopGroup;
+                }).sort((a, b) => {
+                  return normalizeDateToYYYYMMDD(a.dateStr).localeCompare(normalizeDateToYYYYMMDD(b.dateStr));
+                });
+
+                if (completedGroupsList.length === 0) return null;
+
+                return (
+                  <>
+                    <div className="relative my-10 select-none">
+                      <div className="absolute inset-0 flex items-center" aria-hidden="true">
+                        <div className="w-full border-t border-slate-300 dark:border-slate-800"></div>
+                      </div>
+                      <div className="relative flex justify-center">
+                        <span className="px-4 py-1.5 rounded-lg text-xs font-black uppercase tracking-widest bg-slate-100 dark:bg-slate-900 text-slate-500 dark:text-slate-400 border border-slate-250 dark:border-slate-800 shadow-sm flex items-center gap-1.5">
+                          <span>{language === "bn" ? "সম্পূর্ণ ও পরবর্তী মাসের গ্রুপ সমূহ" : "Completed & Future Groups"}</span>
+                          <span className="bg-slate-200 dark:bg-slate-800 px-1.5 py-0.5 rounded text-[10px] font-black text-slate-600 dark:text-slate-350">{completedGroupsList.length}</span>
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Completed Groups Section */}
+                    <div className="space-y-3">
+                      <div className="flex items-center gap-2">
+                        <span className="w-2.5 h-2.5 rounded-full bg-emerald-500" />
+                        <h4 className="text-xs font-black uppercase tracking-wider text-emerald-600 dark:text-emerald-400 font-mono">
+                          {language === "bn" ? "সম্পূর্ণ ও ভবিষ্যৎ শিডিউল" : "Completed & Future Schedules"} ({completedGroupsList.length})
+                        </h4>
+                      </div>
+                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+                        {renderGroupCards(completedGroupsList)}
+                      </div>
+                    </div>
+                  </>
+                );
+              })()}
+            </div>
+          )}
+
+          {/* SAFELY BYPASSED OLD GRID RENDERING BLOCK */}
+          {false && visibleGroups.length > 0 && (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
               {[...visibleGroups]
                 .sort((a, b) => {
@@ -1679,14 +2444,14 @@ export default function ProjectScheduler({ language, isDark, loggedInUser: propL
                     {/* Bottom Utility Bar - Houses addition menu dropdown and settings expander */}
                     <div className="p-3 pt-0 bg-transparent flex flex-col space-y-2">
 
-                      {/* Toggle commands: Toggle "+ Add" and "Complete Service" */}
-                      <div className="grid grid-cols-2 gap-2 pt-1">
+                      {/* Toggle commands: Toggle "+ Add" */}
+                      <div className="pt-1">
                         
                         {/* + Add clinic button exactly matching layout sketch representation */}
                         <button
                           type="button"
                           onClick={() => toggleAddingDropdownMode(group.id)}
-                          className={`py-2 rounded-xl font-black text-xs transition-all uppercase flex items-center justify-center gap-1 cursor-pointer shadow-sm ${
+                          className={`w-full py-2 rounded-xl font-black text-xs transition-all uppercase flex items-center justify-center gap-1 cursor-pointer shadow-sm ${
                             isAddingActive
                               ? "bg-rose-500 text-white hover:bg-rose-600"
                               : "bg-[#10B981] hover:bg-emerald-600 text-white"
@@ -1694,16 +2459,6 @@ export default function ProjectScheduler({ language, isDark, loggedInUser: propL
                         >
                           <Plus className="w-3.5 h-3.5 shrink-0" />
                           <span>{isAddingActive ? (language === "bn" ? "বন্ধ করুন" : "Close") : (language === "bn" ? "+ ক্লিনিক যোগ" : "+ Add Clinic")}</span>
-                        </button>
-
-                        <button
-                          type="button"
-                          onClick={() => handleRenewGroup(group.id)}
-                          className="py-2 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white rounded-xl font-black text-xs transition-all uppercase flex items-center justify-center gap-1 cursor-pointer shadow-sm"
-                          title={language === "bn" ? "সার্ভিস সম্পূর্ণ করুন এবং শিডিউল পরিবর্তন করুন" : "Complete service and shift target date"}
-                        >
-                          <Check className="w-3.5 h-3.5 shrink-0" />
-                          <span>{language === "bn" ? "সার্ভিস সম্পূর্ণ" : "Complete Service"}</span>
                         </button>
 
                       </div>
@@ -1727,11 +2482,39 @@ export default function ProjectScheduler({ language, isDark, loggedInUser: propL
           <div className="lg:col-span-7 col-span-1 border border-slate-200 dark:border-slate-800 p-4 rounded-2xl bg-white dark:bg-slate-900/30 shadow-sm space-y-4">
             
             <div className="flex items-center justify-between pb-2 border-b border-slate-200 dark:border-slate-850">
-              <div className="flex items-center gap-2">
-                <CalendarDays className="w-5 h-5 text-[#10B981]" />
-                <h3 className="text-sm font-extrabold tracking-tight capitalize font-sans text-slate-800 dark:text-slate-100">
-                  {monthName} {year}
-                </h3>
+              <div className="flex items-center gap-1.5 sm:gap-2">
+                <CalendarDays className="w-5 h-5 text-[#10B981] shrink-0" />
+                <div className="flex items-center gap-1 bg-slate-50 dark:bg-slate-900/50 px-2.5 py-1 rounded-xl border border-slate-100 dark:border-slate-800">
+                  <select
+                    value={month}
+                    onChange={(e) => setCurrentDate(new Date(year, parseInt(e.target.value, 10), 1))}
+                    className="bg-transparent border-none text-xs sm:text-sm font-extrabold tracking-tight capitalize font-sans text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-0 cursor-pointer p-0 pr-5"
+                  >
+                    {Array.from({ length: 12 }).map((_, mIdx) => {
+                      const mName = new Date(2026, mIdx, 1).toLocaleString(language === 'bn' ? 'bn' : 'default', { month: 'long' });
+                      return (
+                        <option key={mIdx} value={mIdx} className="bg-white dark:bg-slate-900 text-slate-850 dark:text-white">
+                          {mName}
+                        </option>
+                      );
+                    })}
+                  </select>
+                  <div className="w-[1px] h-3 bg-slate-200 dark:bg-slate-700 mx-1" />
+                  <select
+                    value={year}
+                    onChange={(e) => setCurrentDate(new Date(parseInt(e.target.value, 10), month, 1))}
+                    className="bg-transparent border-none text-xs sm:text-sm font-extrabold tracking-tight font-sans text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-0 cursor-pointer p-0 pr-5"
+                  >
+                    {Array.from({ length: 10 }).map((_, yOffset) => {
+                      const yVal = 2024 + yOffset;
+                      return (
+                        <option key={yVal} value={yVal} className="bg-white dark:bg-slate-900 text-slate-850 dark:text-white">
+                          {yVal}
+                        </option>
+                      );
+                    })}
+                  </select>
+                </div>
               </div>
               
               <div className="flex items-center gap-2">
@@ -1766,10 +2549,6 @@ export default function ProjectScheduler({ language, isDark, loggedInUser: propL
             {/* Calendar Cells */}
             <div className="grid grid-cols-7 gap-1.5">
               {calendarDays.map((dayItem, index) => {
-                if (!dayItem) {
-                  return <div key={`empty-${index}`} className="aspect-square bg-transparent rounded-lg" />;
-                }
-
                 const isSelected = selectedDateStr === dayItem.dateStr;
                 const groupsCount = dayItem.groups.length;
 
@@ -1778,23 +2557,31 @@ export default function ProjectScheduler({ language, isDark, loggedInUser: propL
                 const hasUnfinishedPast = dayItem.dateStr < todayStr && dayItem.groups.some(g => g.tasks.some(t => t.status !== "completed"));
                 const hasEmergencyUnfinished = dayItem.groups.some(g => g.isEmergency && g.tasks.some(t => t.status !== "completed"));
                 const hasError = groupsCount > 0 && (hasEmptyGroup || hasUnfinishedPast || hasEmergencyUnfinished);
+                const isPastEmptyDay = dayItem.dateStr < todayStr && !dayItem.isSunday && groupsCount === 0;
 
                 let containerClass = "aspect-square rounded-xl flex flex-col justify-between p-1.5 md:p-2 border relative cursor-pointer select-none transition-all hover:scale-105 ";
+                if (!dayItem.isCurrentMonth && !isSelected) {
+                  containerClass += "opacity-35 hover:opacity-90 ";
+                }
+
                 if (dayItem.isSunday) {
                   containerClass += "bg-rose-500/5 hover:bg-rose-500/10 border-rose-500/10 dark:border-rose-500/5 text-rose-500 ";
                 } else if (isSelected) {
+                  const ringOffset = isDark ? "ring-offset-slate-900" : "ring-offset-white";
                   if (hasError) {
-                    containerClass += "bg-rose-600 text-white border-rose-700 shadow-md scale-105 ring-2 ring-rose-400 ring-offset-2 ring-offset-[#1E293B] ";
-                  } else if (groupsCount > 0) {
-                    containerClass += "bg-[#10B981] text-white border-emerald-500 shadow-md scale-105 ring-2 ring-emerald-400 ring-offset-2 ring-offset-[#1E293B] ";
+                    containerClass += `bg-rose-600 text-white border-rose-700 shadow-md scale-105 ring-2 ring-rose-400 ring-offset-2 ${ringOffset} `;
+                  } else if (groupsCount > 0 || isPastEmptyDay) {
+                    containerClass += `bg-[#10B981] text-white border-emerald-500 shadow-md scale-105 ring-2 ring-emerald-400 ring-offset-2 ${ringOffset} `;
                   } else {
-                    containerClass += "bg-slate-500 text-white border-slate-650 shadow-md scale-105 ring-2 ring-slate-400 ring-offset-2 ring-offset-[#1E293B] ";
+                    containerClass += `bg-slate-500 text-white border-slate-650 shadow-md scale-105 ring-2 ring-slate-400 ring-offset-2 ${ringOffset} `;
                   }
                 } else {
                   if (hasError) {
                     containerClass += "bg-rose-50 hover:bg-rose-100 dark:bg-rose-950/20 dark:hover:bg-rose-950/30 border-rose-200 dark:border-rose-900/30 text-rose-800 dark:text-rose-400 ";
                   } else if (groupsCount > 0) {
                     containerClass += "bg-emerald-50 hover:bg-emerald-100/70 dark:bg-emerald-950/15 dark:hover:bg-emerald-950/25 border-emerald-200 dark:border-emerald-900/30 text-emerald-800 dark:text-emerald-400 ";
+                  } else if (isPastEmptyDay) {
+                    containerClass += "bg-emerald-50/50 hover:bg-emerald-50/80 dark:bg-emerald-950/10 dark:hover:bg-emerald-950/20 border-emerald-150/70 dark:border-emerald-900/20 text-emerald-800 dark:text-emerald-450 ";
                   } else {
                     // Empty days: strictly clean and white in light mode
                     containerClass += "bg-white hover:bg-slate-50 dark:bg-slate-900/40 dark:hover:bg-slate-900 border-slate-100 dark:border-slate-800 text-slate-700 dark:text-slate-300 ";
@@ -1852,6 +2639,13 @@ export default function ProjectScheduler({ language, isDark, loggedInUser: propL
                           isSelected ? "text-white opacity-90" : "text-emerald-700 dark:text-emerald-400"
                         }`}>
                           {language === "bn" ? "খালি নাই" : "Occupied"}
+                        </span>
+                      </div>
+                    ) : isPastEmptyDay ? (
+                      <div className="flex flex-col items-center justify-center pointer-events-none w-full pb-1">
+                        <Check className={`w-4.5 h-4.5 stroke-[3] ${isSelected ? "text-white" : "text-[#10B981]"}`} />
+                        <span className={`text-[7.5px] md:text-[8.5px] font-black uppercase tracking-wider ${isSelected ? "text-white opacity-90" : "text-emerald-700 dark:text-emerald-400"}`}>
+                          {language === "bn" ? "সম্পূর্ণ" : "Cleared"}
                         </span>
                       </div>
                     ) : (
@@ -1928,51 +2722,70 @@ export default function ProjectScheduler({ language, isDark, loggedInUser: propL
                     <p className="text-xs italic">No route groups scheduled for this date.</p>
                   </div>
                 ) : (
-                  groupsOnSelectedDate.map(g => (
-                    <div 
-                      key={g.id}
-                      className={`p-4 rounded-xl border relative space-y-2.5 ${
-                        isDark ? "bg-[#131B2D] border-slate-800 hover:border-slate-700" : "bg-white border-slate-200"
-                      }`}
-                    >
-                      <div className="flex justify-between items-start">
-                        <div>
-                          <h4 className="font-extrabold text-sm text-[#10B981]">{g.name}</h4>
-                          <span className="text-[10px] text-slate-400 font-bold">Crew: {g.assignedTeam}</span>
+                  groupsOnSelectedDate.map(g => {
+                    const isHistory = normalizeDateToYYYYMMDD(g.dateStr) !== normalizeDateToYYYYMMDD(selectedDateStr);
+                    return (
+                      <div 
+                        key={g.id}
+                        className={`p-4 rounded-xl border relative space-y-2.5 ${
+                          isDark ? "bg-[#131B2D] border-slate-800 hover:border-slate-700" : "bg-white border-slate-200"
+                        }`}
+                      >
+                        <div className="flex justify-between items-start gap-2">
+                          <div>
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              <h4 className="font-extrabold text-sm text-[#10B981]">{g.name}</h4>
+                              {isHistory && (
+                                <span className="px-1.5 py-0.5 rounded text-[8px] font-black uppercase tracking-wider bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/15">
+                                  {language === 'bn' ? 'সম্পূর্ণ হিস্ট্রি' : 'History'}
+                                </span>
+                              )}
+                            </div>
+                            <span className="text-[10px] text-slate-400 font-bold">Crew: {g.assignedTeam}</span>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setActiveTab('diary');
+                              setExpandedDetailsMap(prev => ({ ...prev, [g.id]: true }));
+                            }}
+                            className={`px-2.5 py-1 rounded text-[9.5px] font-black uppercase transition-all ${
+                              isDark 
+                                ? "bg-slate-800 hover:bg-slate-700 text-slate-100 border border-slate-700" 
+                                : "bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200"
+                            }`}
+                          >
+                            Show Details in Diary Mode
+                          </button>
                         </div>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setActiveTab('diary');
-                            setExpandedDetailsMap(prev => ({ ...prev, [g.id]: true }));
-                          }}
-                          className="px-2.5 py-1 bg-stone-100 hover:bg-stone-200 dark:bg-slate-800 dark:hover:bg-slate-755 rounded text-[9.5px] font-black uppercase text-slate-500 hover:text-slate-700 dark:text-slate-300"
-                        >
-                          Show Details in Diary Mode
-                        </button>
-                      </div>
 
-                      <div className="space-y-1.5">
-                        <span className="text-[9px] uppercase font-mono text-slate-400 font-extrabold">Clinics inside ({g.tasks.length}):</span>
-                        <div className="text-[11px] font-bold text-slate-650 bg-stone-50 dark:bg-slate-950/40 p-2.5 rounded-lg space-y-1">
-                          {g.tasks.length === 0 ? (
-                            <span className="text-slate-400 italic">No hospitals loaded in list.</span>
-                          ) : (
-                            g.tasks.map((t, idx) => {
-                              const p = projectsList.find(x => x.id === t.projectId);
-                              return (
-                                <div key={t.id} className="flex items-center justify-between">
-                                  <span className={`font-black text-[12px] ${isDark ? "text-white" : "text-stone-850"}`}>{idx + 1}. {p?.name}</span>
-                                  <span className="text-[9.5px] font-bold text-slate-500 dark:text-slate-400">({t.sectionServiced})</span>
-                                </div>
-                              );
-                            })
-                          )}
+                        <div className="space-y-1.5">
+                          <span className="text-[9px] uppercase font-mono text-slate-400 font-extrabold">Clinics inside ({g.tasks.length}):</span>
+                          <div className={`text-[11px] font-bold p-2.5 rounded-lg space-y-1.5 border ${
+                            isDark 
+                              ? "bg-[#0B0F19] border-slate-800 text-slate-300" 
+                              : "bg-slate-50 border-slate-200 text-slate-700"
+                          }`}>
+                            {g.tasks.length === 0 ? (
+                              <span className="text-slate-400 italic">No hospitals loaded in list.</span>
+                            ) : (
+                              g.tasks.map((t, idx) => {
+                                const p = projectsList.find(x => x.id === t.projectId);
+                                return (
+                                  <div key={t.id} className="flex items-center justify-between gap-2 py-0.5">
+                                    <span className={`font-extrabold text-[12.5px] truncate ${isDark ? "text-white" : "text-slate-800"}`}>
+                                      {idx + 1}. {p?.name}
+                                    </span>
+                                  </div>
+                                );
+                              })
+                            )}
+                          </div>
                         </div>
-                      </div>
 
-                    </div>
-                  ))
+                      </div>
+                    );
+                  })
                 )}
               </div>
             )}

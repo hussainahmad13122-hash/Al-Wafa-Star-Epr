@@ -1808,6 +1808,7 @@ export default function App() {
               }}
               loggedInUser={currentUser}
               isDark={themeMode === "dark"}
+              locations={locations}
             />
           )}
 

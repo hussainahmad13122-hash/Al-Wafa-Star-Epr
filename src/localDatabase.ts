@@ -133,6 +133,18 @@ export function handleFirestoreError(
     return;
   }
 
+  if (
+    errInfo.error &&
+    (errInfo.error.toLowerCase().includes("offline") ||
+      errInfo.error.toLowerCase().includes("failed to get document") ||
+      errInfo.error.toLowerCase().includes("unavailable") ||
+      errInfo.error.toLowerCase().includes("network"))
+  ) {
+    // Gracefully handle offline/network state as warning, not fatal error
+    console.warn("Firestore is operating offline/locally: ", errInfo.error);
+    return;
+  }
+
   console.error("Firestore Error: ", JSON.stringify(errInfo));
 
   if (errInfo.error && errInfo.error.toLowerCase().includes("permission")) {
@@ -208,7 +220,10 @@ export function getActiveFirebaseConfig() {
   try {
     const custom = localStorage.getItem("ALW_CUSTOM_FIREBASE_CONFIG");
     if (custom) {
-      return JSON.parse(custom);
+      const parsed = JSON.parse(custom);
+      if (parsed && parsed.projectId) {
+        return parsed;
+      }
     }
   } catch (e) {}
   return firebaseConfigDefault;
@@ -246,6 +261,31 @@ export async function initializeFirebaseClient(forceReconnect: boolean = false) 
 
   const initTask = async () => {
     const config = getActiveFirebaseConfig();
+    if (config && config.projectId) {
+      const prevProjectId = localStorage.getItem("ALW_CURRENT_PROJECT_ID");
+      if (prevProjectId !== config.projectId) {
+        console.log(`Firebase Project changed to ${config.projectId}! Clearing local caches.`);
+        const keysToClear = [
+          "ALW_LOCATIONS_REGISTRY",
+          "ALW_SUPERVISORS_REGISTRY",
+          "ALW_STANDALONE_DB_serviceReports",
+          "ALW_STANDALONE_DB_engineeringReports",
+          "ALW_STANDALONE_DB_chemicalInventory",
+          "ALW_STANDALONE_DB_locations",
+          "ALW_STANDALONE_DB_supervisors",
+          "ALW_STANDALONE_DB_branding",
+          "ALW_STANDALONE_DB_users",
+          "ALW_STANDALONE_DB_deleted_locations",
+          "ALW_STANDALONE_DB_deleted_supervisors",
+          "ALW_STANDALONE_DB_deleted_serviceReports",
+          "ALW_STANDALONE_DB_deleted_engineeringReports",
+          "ALW_STANDALONE_DB_deleted_chemicalInventory"
+        ];
+        keysToClear.forEach(key => localStorage.removeItem(key));
+      }
+      localStorage.setItem("ALW_CURRENT_PROJECT_ID", config.projectId);
+    }
+
     if (
       !config ||
       !config.apiKey ||

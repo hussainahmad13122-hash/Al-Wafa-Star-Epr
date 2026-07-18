@@ -127,6 +127,7 @@ export default function CustomServiceModule({ language, isDark, reports = [], on
   const [activeReportDetails, setActiveReportDetails] = useState<ReportItem | null>(null);
   const [activeSystemTab, setActiveSystemTab] = useState<"service" | "engineering">("service");
   const [selectedReportIds, setSelectedReportIds] = useState<string[]>([]);
+  const [simulatedPrint, setSimulatedPrint] = useState(false);
 
   useEffect(() => {
     setSelectedReportIds([]);
@@ -283,6 +284,39 @@ export default function CustomServiceModule({ language, isDark, reports = [], on
     } catch (e) {
       console.error(e);
     }
+  };
+
+  const triggerPrintDoc = () => {
+    if (!activeReportDetails) return;
+
+    setSimulatedPrint(true);
+    document.body.classList.add("pdf-download-active");
+
+    const originalTitle = document.title;
+    let facilityNameStr = "Report";
+    const fName = activeReportDetails.facilityName;
+    if (fName) {
+      if (typeof fName === "object") {
+        facilityNameStr = (fName as any).name || (fName as any).facilityName || (fName as any).label || "Report";
+      } else {
+        facilityNameStr = String(fName);
+      }
+    }
+    const cleanFacilityName = facilityNameStr.replace(/[\/\\:*?"<>|]/g, "_").trim();
+    const cleanDate = (activeReportDetails.dateOfOperation || "NoDate").replace(/[\/\\:*?"<>|]/g, "-").trim();
+    const filename = `${cleanFacilityName} - ${cleanDate}`;
+    document.title = filename;
+
+    setTimeout(() => {
+      window.focus();
+      window.print();
+
+      setTimeout(() => {
+        document.body.classList.remove("pdf-download-active");
+        document.title = originalTitle;
+        setSimulatedPrint(false);
+      }, 500);
+    }, 500);
   };
 
   const handleBulkDownload = async () => {
@@ -689,7 +723,7 @@ export default function CustomServiceModule({ language, isDark, reports = [], on
             />
           </div>
         ) : (
-          <div className="fixed inset-0 z-[120] flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-xs transition-all animate-fadeIn font-sans">
+          <div id="erp-completed-details-overlay" className="fixed inset-0 z-[120] flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-xs transition-all animate-fadeIn font-sans">
             <div className="bg-[#FFFDF3] border-2 border-slate-900 max-w-4xl w-full h-[90vh] flex flex-col rounded-2xl overflow-hidden shadow-2xl relative text-slate-900 font-sans border-t-8 border-t-indigo-650 animate-scale-up">
               
               <div className="p-4 bg-slate-900 text-white flex justify-between items-center no-print shrink-0">
@@ -701,43 +735,13 @@ export default function CustomServiceModule({ language, isDark, reports = [], on
                 </div>
                 <div className="flex items-center gap-2">
                   <button
-                    onClick={async () => {
-                      const iframe = document.querySelector('iframe[title="Report Preview"]') as HTMLIFrameElement;
-                      if (iframe && iframe.contentWindow) {
-                        const originalTitle = document.title;
-                        let facilityNameStr = "Report";
-                        const fName = activeReportDetails.facilityName;
-                        if (fName) {
-                          if (typeof fName === "object") {
-                            facilityNameStr = (fName as any).name || (fName as any).facilityName || (fName as any).label || "Report";
-                          } else {
-                            facilityNameStr = String(fName);
-                          }
-                        }
-                        const cleanFacilityName = facilityNameStr.replace(/[\/\\:*?"<>|]/g, "_").trim();
-                        const cleanDate = (activeReportDetails.dateOfOperation || "NoDate").replace(/[\/\\:*?"<>|]/g, "-").trim();
-                        const filename = `${cleanFacilityName} - ${cleanDate}`;
-                        
-                        document.title = filename;
-                        if (iframe.contentWindow.document) {
-                          iframe.contentWindow.document.title = filename;
-                        }
-                        
-                        iframe.contentWindow.focus();
-                        iframe.contentWindow.print();
-                        
-                        setTimeout(() => {
-                          document.title = originalTitle;
-                        }, 1000);
-                      } else {
-                        await downloadFullReportPDF(activeReportDetails);
-                      }
-                    }}
+                    onClick={triggerPrintDoc}
+                    disabled={simulatedPrint}
                     className="px-4 py-2 bg-[#10B981] hover:bg-emerald-400 text-slate-950 font-black rounded-xl text-xs flex items-center gap-1.5 cursor-pointer transition duration-150 shadow border border-emerald-500/30"
                   >
                     <Printer className="w-3.5 h-3.5" />
                     <span>
-                      {language === "bn" ? "ব্রাউজার প্রিন্ট / PDF" : "Browser Print"}
+                      {simulatedPrint ? (language === "bn" ? "প্রিন্ট হচ্ছে..." : "Printing...") : (language === "bn" ? "ব্রাউজার প্রিন্ট / PDF" : "Browser Print")}
                     </span>
                   </button>
 
@@ -760,12 +764,542 @@ export default function CustomServiceModule({ language, isDark, reports = [], on
                 </p>
               </div>
 
-              <div className="flex-1 overflow-auto p-0 w-full relative" style={{ backgroundColor: "#323639" }}>
-                <iframe 
-                  srcDoc={generateReportHTML(activeReportDetails, language)} 
-                  className="w-full h-full border-0 bg-[#323639]" 
-                  title="Report Preview" 
-                />
+              {/* Main scroll viewport of physical document */}
+              <div className="flex-1 overflow-y-auto p-6 md:p-8 space-y-6">
+                
+                {/* Printable sheet mirroring physical format precisely */}
+                <div id="printable-service-report" className="print-sheet-paper space-y-6 text-slate-950 font-sans">
+                  
+                  {/* Red star watermark in the absolute background */}
+                  <div className="absolute inset-0 flex items-center justify-center pointer-events-none opacity-[0.06] select-none z-0">
+                    <svg viewBox="0 0 100 100" className="w-[140mm] h-[140mm] object-contain">
+                      <polygon points="50,5 64,36 98,36 71,57 81,91 50,70 19,91 29,57 2,36 36,36" fill="#ED1C24" />
+                    </svg>
+                  </div>
+
+                  {/* ================= PAPER HEADER BLOCK ================= */}
+                  <div className="border border-slate-800 p-3 mb-3 bg-white relative z-10">
+                    <div className="flex flex-col md:flex-row justify-between items-center gap-3 pb-2 border-b border-slate-300 text-center md:text-left">
+                      
+                      {/* Left Header info */}
+                      <div className="space-y-1.5 w-full md:w-auto text-left">
+                        <div className="flex items-center gap-1 font-semibold text-xs">
+                          <span className="text-slate-500 font-mono">SL. No</span>
+                          <input
+                            type="text"
+                            readOnly
+                            value={activeReportDetails.id.split('-')[1] || "0229"}
+                            className="w-16 px-1.5 py-0.5 bg-yellow-50/50 border border-red-300 text-red-600 font-bold font-mono text-center rounded outline-none"
+                          />
+                        </div>
+
+                        <div className="flex flex-col gap-1 text-[10.5px]">
+                          <div className="flex items-center gap-1">
+                            <span className="text-slate-500 w-12 font-medium">Date:</span>
+                            <input
+                              type="text"
+                              readOnly
+                              value={activeReportDetails.dateOfOperation}
+                              className="px-1.5 py-0.5 border border-slate-300 rounded font-mono font-bold bg-white text-slate-900 w-28 text-center"
+                            />
+                          </div>
+                          <div className="flex items-center gap-1 mt-0.5">
+                            <span className="text-slate-500 w-12 font-medium">Contract:</span>
+                            <input
+                              type="text"
+                              readOnly
+                              value={activeReportDetails.contractNo || "Optional"}
+                              className="px-1.5 py-0.5 border border-slate-300 rounded font-medium bg-white text-slate-900 w-28 text-center"
+                            />
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Central Star & Trademark block */}
+                      <div className="flex flex-col items-center">
+                        <div className="flex items-center gap-2.5 py-0.5">
+                          <span className="text-3xl text-[#ED1C24] block leading-none shrink-0" style={{ filter: "drop-shadow(0 0 2px rgba(237,28,36,0.3))" }}>★</span>
+                          <div className="text-left font-serif">
+                            <span className="block text-[13px] font-extrabold tracking-wide text-slate-950 leading-tight">نجمة الوفاء</span>
+                            <div className="flex items-center gap-1.5 leading-none mt-0.5">
+                              <span className="text-[12px] font-black tracking-tight text-[#ED1C24] font-mono">AL WAFA STAR</span>
+                              <span className="text-[10px] font-extrabold text-[#ED1C24] font-sans">Pest Control Services</span>
+                            </div>
+                            <div className="mt-1">
+                              <span className="inline-block py-0.5 px-3 bg-slate-900 text-yellow-400 font-extrabold font-mono text-[8.5px] uppercase tracking-wider rounded-full border border-slate-700 leading-none">
+                                Pest Control Division
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Right spacer */}
+                      <div className="hidden md:block w-32"></div>
+
+                    </div>
+
+                    {/* TREATMENT REPORT title line */}
+                    <div className="bg-slate-900 text-white text-center font-serif font-black tracking-wider text-[12px] py-1 mt-1">
+                      TREATMENT REPORT
+                    </div>
+                  </div>
+
+                  {/* CLIENT & DETAILS SECTION */}
+                  <div className="border border-slate-800 bg-white grid grid-cols-1 md:grid-cols-2 divide-y md:divide-y-0 md:divide-x divide-slate-800 text-[10.5px] relative z-10">
+                    {/* Left Column */}
+                    <div className="p-3 space-y-2">
+                      <div className="flex items-start gap-1">
+                        <span className="font-extrabold text-slate-500 uppercase min-w-[120px] block shrink-0">CLIENT NAME:</span>
+                        <span className="font-black text-slate-900 uppercase">{activeReportDetails.facilityName}</span>
+                      </div>
+                      <div className="flex items-start gap-1">
+                        <span className="font-extrabold text-slate-500 uppercase min-w-[120px] block shrink-0">CONTACT NO. (OPT):</span>
+                        <span className="font-bold text-slate-800">{activeReportDetails.mobile || "Optional"}</span>
+                      </div>
+                      <div className="flex items-start gap-1">
+                        <span className="font-extrabold text-slate-500 uppercase min-w-[120px] block shrink-0">TIME START:</span>
+                        <span className="font-bold text-slate-800 uppercase">{activeReportDetails.startTime}</span>
+                      </div>
+                    </div>
+
+                    {/* Right Column */}
+                    <div className="p-3 space-y-2">
+                      <div className="flex items-start gap-1">
+                        <span className="font-extrabold text-slate-500 uppercase min-w-[100px] block shrink-0">ADDRESS:</span>
+                        <span className="font-bold text-slate-900 uppercase">{activeReportDetails.address || activeReportDetails.emirate}</span>
+                      </div>
+                      <div className="flex items-start gap-1">
+                        <span className="font-extrabold text-slate-500 uppercase min-w-[100px] block shrink-0">EMAIL (OPT):</span>
+                        <span className="font-bold text-slate-800 select-all">{activeReportDetails.email || "Optional"}</span>
+                      </div>
+                      <div className="flex items-start gap-1">
+                        <span className="font-extrabold text-slate-500 uppercase min-w-[100px] block shrink-0">TIME END:</span>
+                        <span className="font-bold text-slate-900 uppercase">{activeReportDetails.endTime}</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* SERVICE CHECKLISTS & TREATMENT SCOPE */}
+                  <div className="border border-slate-800 bg-white grid grid-cols-1 md:grid-cols-2 divide-y md:divide-y-0 md:divide-x divide-slate-800 text-[10.5px] relative z-10">
+                    
+                    {/* Service Checklists */}
+                    <div className="p-3">
+                      <span className="block font-black uppercase tracking-wider text-slate-900 mb-2 border-b border-dashed border-slate-300 pb-1">
+                        SERVICE CHECKLISTS:
+                      </span>
+                      <div className="grid grid-cols-4 gap-2">
+                        {["Basic", "Follow Up", "Call Back", "One Time", "Replenishing", "Free", "Sample"].map((item) => {
+                          const isChecked = activeReportDetails.categories?.some(c => c && typeof c === "string" && c.toLowerCase() === item.toLowerCase()) || 
+                                            activeReportDetails.methods?.some(m => m && typeof m === "string" && m.toLowerCase() === item.toLowerCase());
+                          return (
+                            <div key={item} className="flex items-center gap-1.5 font-bold">
+                              <div className={`w-4 h-4 border flex items-center justify-center rounded-sm transition ${
+                                isChecked ? "border-slate-800 bg-emerald-50 text-emerald-900 font-black" : "border-slate-300 bg-white"
+                              }`}>
+                                {isChecked ? <span className="text-[10px] leading-none">✔</span> : null}
+                              </div>
+                              <span className="text-[10px] text-slate-800 whitespace-nowrap">{item}</span>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+
+                    {/* Treatment Scope (Abbr) */}
+                    <div className="p-3">
+                      <span className="block font-black uppercase tracking-wider text-slate-905 mb-2 border-b border-dashed border-slate-300 pb-1">
+                        TREATMENT SCOPE (ABBR):
+                      </span>
+                      <div className="grid grid-cols-3 gap-2">
+                        {["GPC", "FICP", "RCP", "TCP", "BCP", "SCP"].map((item) => {
+                          const isChecked = activeReportDetails.categories?.some(c => {
+                            if (!c || typeof c !== "string") return false;
+                            const lc = c.toLowerCase();
+                            return lc === item.toLowerCase() || lc === `${item.toLowerCase()} treatment` || lc.startsWith(item.toLowerCase() + " ");
+                          });
+                          return (
+                            <div key={item} className="flex items-center gap-1.5 font-bold">
+                              <div className={`w-4 h-4 border flex items-center justify-center rounded-sm transition ${
+                                isChecked ? "border-slate-800 bg-indigo-50 text-indigo-900 font-black" : "border-slate-300 bg-white"
+                              }`}>
+                                {isChecked ? <span className="text-[10px] leading-none">✔</span> : null}
+                              </div>
+                              <span className="text-[10px] text-slate-800 whitespace-nowrap">{item}</span>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+
+                  </div>
+
+                  {/* COVERED AREA DETAILS & FINDINGS */}
+                  <div className="border border-slate-800 bg-white p-3 text-[10.5px] relative z-10">
+                    <span className="block font-black uppercase tracking-wider text-slate-900 mb-1.5 border-b border-dashed border-slate-300 pb-1">
+                      COVERED AREA DETAILS & FINDINGS:
+                    </span>
+                    {activeReportDetails.areas && activeReportDetails.areas.length > 0 ? (
+                      <div className="mt-1.5 p-3.5 bg-[#FFFDF9] border border-slate-300 rounded font-mono text-[11px] font-bold text-slate-850 whitespace-pre-wrap break-words leading-relaxed">
+                        {activeReportDetails.areas.join("\n")}
+                      </div>
+                    ) : (
+                      <div className="text-slate-400 italic text-[10px] py-1">
+                        {language === "bn" ? "কোন কাভারেজ এরিয়া বিবরণী যুক্ত করা নাই।" : "No covered area details logged."}
+                      </div>
+                    )}
+                  </div>
+   
+                  {/* ================= METHOD OF APPLICATION, TREATMENT & EFFICACY SUB-REPORT SECTION ================= */}
+                  <div className="border border-slate-800 bg-white grid grid-cols-1 md:grid-cols-3 divide-y md:divide-y-0 md:divide-x divide-slate-800 text-[10.5px] relative z-10">
+                    {/* Method of Application Column */}
+                    <div className="p-3">
+                      <span className="block font-black uppercase tracking-wider text-slate-900 mb-1.5 border-b border-dashed border-slate-300 pb-1 text-left">
+                        {language === "bn" ? "প্রয়োগ পদ্ধতি (Method of Application):" : "METHOD OF APPLICATION:"}
+                      </span>
+                      <div className="grid grid-cols-2 gap-1.5 font-bold">
+                        {["Spraying", "Trapping", "Dusting", "Baiting", "Repellents", "IGR's", "ULV", "Fogging"].map((item) => {
+                          const isChecked = activeReportDetails.methods?.some(m => m && typeof m === "string" && m.toLowerCase() === item.toLowerCase());
+                          return (
+                            <div key={item} className="flex items-center gap-1.5 font-bold text-[9.5px]">
+                              <div className={`w-3.5 h-3.5 border flex items-center justify-center rounded-sm transition shrink-0 ${
+                                isChecked ? "border-slate-800 bg-emerald-50 text-emerald-900 font-extrabold" : "border-slate-300 bg-white"
+                              }`}>
+                                {isChecked ? <span className="text-[9px] leading-none">✔</span> : null}
+                              </div>
+                              <span className="text-[10px] text-slate-800 whitespace-nowrap">{item}</span>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+
+                    {/* Method of Treatment Column */}
+                    <div className="p-3">
+                      <span className="block font-black uppercase tracking-wider text-slate-900 mb-1.5 border-b border-dashed border-slate-300 pb-1 text-left">
+                        {language === "bn" ? "ট্রিটমেন্ট পদ্ধতি (Method of Treatment):" : "METHOD OF TREATMENT:"}
+                      </span>
+                      <div className="grid grid-cols-2 gap-1.5 font-bold">
+                        {["Space Treatment", "Spot Treatment", "Cracks/Crevices", "Band Treatment"].map((item) => {
+                          const isChecked = activeReportDetails.methods?.some(m => m && typeof m === "string" && m.toLowerCase() === item.toLowerCase());
+                          return (
+                            <div key={item} className="flex items-center gap-1.5 font-bold text-[9.5px]">
+                              <div className={`w-3.5 h-3.5 border flex items-center justify-center rounded-sm transition shrink-0 ${
+                                isChecked ? "border-slate-800 bg-indigo-50 text-indigo-900 font-extrabold" : "border-slate-300 bg-white"
+                              }`}>
+                                {isChecked ? <span className="text-[9px] leading-none">✔</span> : null}
+                              </div>
+                              <span className="text-[10px] text-slate-800 whitespace-nowrap">{item}</span>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+
+                    {/* Effectiveness / Efficacy Column */}
+                    <div className="p-3 flex flex-col justify-between">
+                      <div>
+                        <span className="block font-black uppercase tracking-wider text-slate-900 mb-1.5 border-b border-dashed border-slate-300 pb-1 text-left">
+                          {language === "bn" ? "কার্যকারিতা (Effectiveness / Efficacy):" : "EFFECTIVENESS / EFFICACY:"}
+                        </span>
+                        <div className="grid grid-cols-1 gap-1.5 font-bold">
+                          {["Residual Treatment", "Knockdown Treatment"].map((item) => {
+                            const isChecked = activeReportDetails.methods?.some(m => m && typeof m === "string" && m.toLowerCase() === item.toLowerCase());
+                            return (
+                              <div key={item} className="flex items-center gap-1.5 font-bold text-[9.5px]">
+                                <div className={`w-3.5 h-3.5 border flex items-center justify-center rounded-sm transition shrink-0 ${
+                                  isChecked ? "border-slate-800 bg-rose-50 text-rose-900 font-extrabold" : "border-slate-300 bg-white"
+                                }`}>
+                                  {isChecked ? <span className="text-[9px] leading-none">✔</span> : null}
+                                </div>
+                                <span className="text-[10px] text-slate-800 whitespace-nowrap">{item}</span>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                      <div className="mt-2 flex items-center gap-1 text-[8.5px] text-slate-500 bg-slate-50 p-1 rounded border border-slate-200">
+                        <span>🎫 {language === "bn" ? "যাচাইকৃত নিরাপদ ফর্মূলা মানসমূহ" : "Verified safe formula values"}</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* ================= SECTION 4: INFESTATION MONITORING TABLE ================= */}
+                  <div className="border border-slate-800 bg-white p-3 space-y-2 relative z-10">
+                    <span className="block font-black uppercase tracking-wider text-slate-900 border-b border-dashed border-slate-300 pb-1 text-[10.5px]">
+                      4. INFESTATION MONITORING TABLE / DETAILED INCIDENCE MATRIX:
+                    </span>
+
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-left text-[11px] border-collapse min-w-[500px]">
+                        <thead>
+                          <tr className="bg-slate-900 text-white uppercase text-[8px] tracking-wider font-extrabold">
+                            <th className="p-2 border border-slate-800 w-[180px]">PEST TYPE / SPECIES</th>
+                            <th className="p-2 border border-slate-800 w-[60px] text-center">NONE</th>
+                            <th className="p-2 border border-slate-800 w-[60px] text-center">LOW</th>
+                            <th className="p-2 border border-slate-800 w-[60px] text-center">MEDIUM</th>
+                            <th className="p-2 border border-slate-800 w-[60px] text-center">HIGH</th>
+                            <th className="p-2 border border-slate-800">FINDINGS LOCATION</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-200">
+                          {activeReportDetails.infestation && Object.keys(activeReportDetails.infestation).length > 0 ? (
+                            Object.entries(activeReportDetails.infestation).map(([key, level], idx) => {
+                              const match = key.match(/^([^(]+)(?:\s*\(([^)]+)\))?/);
+                              const pestName = match ? match[1].trim() : key;
+                              const findingsLocation = (match && match[2]) ? match[2].trim() : "N/A";
+                              const currentLevel = (String(level || "None")).trim();
+
+                              return (
+                                <tr key={idx} className="bg-white">
+                                  <td className="p-2 border border-slate-200 font-sans font-extrabold text-slate-950 uppercase text-[10px]">
+                                    {pestName}
+                                  </td>
+                                  {["None", "Low", "Medium", "High"].map((levelOpt) => {
+                                    const isSelected = currentLevel.toLowerCase() === levelOpt.toLowerCase();
+                                    return (
+                                      <td key={levelOpt} className="p-2 border border-slate-200 text-center">
+                                        <div className="flex justify-center items-center">
+                                          <div className={`w-5 h-5 border flex items-center justify-center rounded transition ${
+                                            isSelected 
+                                              ? "border-slate-850 bg-indigo-50 text-indigo-900 font-black" 
+                                              : "border-slate-300 bg-white"
+                                          }`}>
+                                            {isSelected ? (
+                                              <span className="font-extrabold text-[12px] leading-none text-indigo-650">✔</span>
+                                            ) : null}
+                                          </div>
+                                        </div>
+                                      </td>
+                                    );
+                                  })}
+                                  <td className="p-2 border border-slate-205 text-slate-800 font-bold uppercase font-sans text-[10px]">
+                                    {findingsLocation}
+                                  </td>
+                                </tr>
+                              );
+                            })
+                          ) : (
+                            <tr className="bg-white">
+                              <td colSpan={6} className="p-3 text-center text-slate-400 font-sans italic">
+                                {language === "bn" ? "কোন প্রকার উপদ্রব সনাক্ত করা যায়নি।" : "No pest infestation incidence parameters recorded."}
+                              </td>
+                            </tr>
+                          )}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+
+                  {/* ================= LINE-BY-LINE SECTOR 5: CHEMICAL DOSAGES & DILUTION DOSES REGISTERED ================= */}
+                  <div className="bg-slate-50/50 border border-slate-800 rounded-xl p-4 space-y-3 relative z-10">
+                    <div className="border-b border-dashed border-slate-300 pb-2">
+                      <span className="text-[10px] font-bold text-indigo-700 uppercase tracking-widest font-mono block">
+                        {language === "bn" ? "৫. ব্যবহৃত কেমিক্যাল ও ডোজ জাবদা" : "5. CHEMICAL DOSAGES & DILUTION DOSES REGISTERED"}
+                      </span>
+                    </div>
+
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-left text-[11px] border-collapse min-w-[500px]">
+                        <thead>
+                          <tr className="bg-slate-900 text-white uppercase text-[8px] tracking-wider font-black">
+                            <th className="p-2 border border-slate-800">CHEMICAL NAME</th>
+                            <th className="p-2 border border-slate-800">DILUTION RATE</th>
+                            <th className="p-2 border border-slate-800">QTY SPEC</th>
+                            <th className="p-2 border border-slate-800">BATCH NUMBER</th>
+                            <th className="p-2 border border-slate-800">EXPIRY DATE</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-200 font-mono">
+                          {activeReportDetails.chemicals && activeReportDetails.chemicals.length > 0 ? (
+                            activeReportDetails.chemicals.map((chem, idx) => (
+                               <tr key={idx} className="bg-white">
+                                 <td className="p-2 border border-slate-200 font-sans font-extrabold text-slate-950 uppercase">{chem.name}</td>
+                                 <td className="p-2 border border-slate-200 text-slate-700">{chem.dilution}</td>
+                                 <td className="p-2 border border-slate-200 text-slate-900 font-extrabold">{chem.used}</td>
+                                 <td className="p-2 border border-slate-200 text-slate-505">{chem.batch || "ST-2026-REG"}</td>
+                                 <td className="p-2 border border-slate-200 text-slate-550">{chem.expiry || "2028-12-31"}</td>
+                               </tr>
+                            ))
+                          ) : (
+                            <tr className="bg-white">
+                              <td colSpan={5} className="p-3 text-center text-slate-400 font-sans italic">
+                                {language === "bn" ? "কোন প্রকার কেমিক্যাল উপাদান ব্যবহার করার প্রয়োজন হয়নি।" : "No chemical material usage parameters recorded for this schedule service."}
+                              </td>
+                            </tr>
+                          )}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+
+                  {/* SANITARY RATINGS & CREW */}
+                  <div className="border border-slate-800 bg-white divide-y divide-slate-800 text-[10.5px] relative z-10">
+                    
+                    {/* Sanitation block */}
+                    <div className="p-2.5 flex flex-col md:flex-row md:items-center justify-between gap-3 flex-wrap bg-[#FFFDF9]">
+                      <div className="md:w-3/12 min-w-[130px] text-left">
+                        <span className="text-[10.5px] font-extrabold text-slate-900 uppercase">
+                          {language === "bn" ? "স্যানিটেশন কন্ডিশন:" : "Sanitation Condition:"}
+                        </span>
+                      </div>
+                      <div className="md:w-4/12 flex items-center justify-start md:justify-center gap-4">
+                        {(["Poor", "Satisfactory", "Good"] as const).map(lev => {
+                          const isChecked = (activeReportDetails.sanitation || "Good") === lev;
+                          return (
+                            <div key={lev} className="flex items-center gap-1.5 font-bold select-none text-[10px]">
+                              <div className="w-3.5 h-3.5 rounded-full border border-slate-400 flex items-center justify-center bg-white shrink-0">
+                                {isChecked && (
+                                  <div className="w-2 h-2 rounded-full bg-emerald-600" />
+                                )}
+                              </div>
+                              <span className={isChecked ? "text-slate-900 font-extrabold" : "text-slate-500"}>
+                                {lev === "Good" ? (language === "bn" ? "ভালো" : "Good") : lev === "Satisfactory" ? (language === "bn" ? "সন্তোষজনক" : "Satisfactory") : (language === "bn" ? "খারাপ" : "Poor")}
+                              </span>
+                            </div>
+                          );
+                        })}
+                      </div>
+                      <div className="md:w-4.5/12 w-full md:flex-1 text-left">
+                        <div className="w-full bg-[#FFFDF3] border border-slate-300 text-slate-900 font-bold rounded px-2.5 py-1 text-[10.5px] min-h-[22px] flex items-center font-mono">
+                          {activeReportDetails.sanitationRemarks || (language === "bn" ? "কোন রিমার্কস বা মন্তব্য নেই।" : "No remarks.")}
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Proofing block */}
+                    <div className="p-2.5 flex flex-col md:flex-row md:items-center justify-between gap-3 flex-wrap bg-[#FFFDF9]">
+                      <div className="md:w-3/12 min-w-[130px] text-left">
+                        <span className="text-[10.5px] font-extrabold text-slate-900 uppercase">
+                          {language === "bn" ? "প্রুফিং কন্ডিশন:" : "Proofing Condition:"}
+                        </span>
+                      </div>
+                      <div className="md:w-4/12 flex items-center justify-start md:justify-center gap-4">
+                        {(["Poor", "Satisfactory", "Good"] as const).map(lev => {
+                          const isChecked = (activeReportDetails.proofing || "Good") === lev;
+                          return (
+                            <div key={lev} className="flex items-center gap-1.5 font-bold select-none text-[10px]">
+                              <div className="w-3.5 h-3.5 rounded-full border border-slate-400 flex items-center justify-center bg-white shrink-0">
+                                {isChecked && (
+                                  <div className="w-2 h-2 rounded-full bg-indigo-600" />
+                                )}
+                              </div>
+                              <span className={isChecked ? "text-slate-900 font-extrabold" : "text-slate-500"}>
+                                {lev === "Good" ? (language === "bn" ? "ভালো" : "Good") : lev === "Satisfactory" ? (language === "bn" ? "সন্তোষজনক" : "Satisfactory") : (language === "bn" ? "খারাপ" : "Poor")}
+                              </span>
+                            </div>
+                          );
+                        })}
+                      </div>
+                      <div className="md:w-4.5/12 w-full md:flex-1 text-left">
+                        <div className="w-full bg-[#FFFDF3] border border-slate-300 text-slate-900 font-bold rounded px-2.5 py-1 text-[10.5px] min-h-[22px] flex items-center font-mono">
+                          {activeReportDetails.proofingRemarks || (language === "bn" ? "কোন রিমার্কস বা মন্তব্য নেই।" : "No remarks.")}
+                        </div>
+                      </div>
+                    </div>
+
+                  </div>
+
+                  {/* ================= LINE-BY-LINE SECTOR 6: ADVISORIES / RECOMMENDATIONS ================= */}
+                  <div className="bg-slate-50/50 border border-slate-800 rounded-xl p-4 space-y-2 relative z-10">
+                    <span className="text-[10px] font-bold text-indigo-700 uppercase tracking-widest font-mono block">
+                      {language === "bn" ? "৬. স্যানিটারি নির্দেশিকা ও প্রতিরোধক পরামর্শ" : "6. OPERATIONAL COMPLIANCE ADVISORIES / RECOMMENDATIONS"}
+                    </span>
+                    <div className="p-3 bg-white rounded-lg border border-slate-350 shadow-sm">
+                      <ul className="space-y-1.5 text-[11px] text-slate-850 font-sans">
+                        {activeReportDetails.recommendations && activeReportDetails.recommendations.length > 0 ? (
+                          activeReportDetails.recommendations.map((r, i) => (
+                            <li key={i} className="font-sans font-medium leading-relaxed">
+                              {r}
+                            </li>
+                          ))
+                        ) : (
+                          <li className="text-slate-400 italic font-sans font-medium leading-relaxed">
+                            Keep environmental water inlets airtight and sanitization channels active.
+                          </li>
+                        )}
+                      </ul>
+                    </div>
+                  </div>
+
+                  {/* ================= LINE-BY-LINE SECTOR 7: BILLING INVOICE STRUCTURE ================= */}
+                  {(() => {
+                    const isFree = !activeReportDetails.billing?.amount || 
+                                   activeReportDetails.billing?.amount === 0 || 
+                                   String(activeReportDetails.billing?.amount).toLowerCase().trim() === "no charge" ||
+                                   String(activeReportDetails.billing?.amount).trim() === "" ||
+                                   String(activeReportDetails.billing?.amount).trim() === "No";
+
+                    if (isFree) return null;
+
+                    return (
+                      <div className="bg-slate-50/50 border border-slate-800 rounded-xl p-4 space-y-3 relative z-10">
+                        <span className="text-[10px] font-bold text-slate-800 uppercase tracking-widest font-mono block">
+                          💰 {language === "bn" ? "৭. বিলিং তথ্য" : "7. BILLING INVOICE REPORT SUMMARY"}
+                        </span>
+                        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-xs">
+                          <div className="bg-white p-2 rounded-lg border border-slate-300">
+                            <span className="text-slate-400 block text-[8px] font-bold uppercase">INVOICE SERIAL NO</span>
+                            <span className="font-mono font-bold text-slate-850 block mt-0.5">{activeReportDetails.billing?.invoiceNo || `PC-${activeReportDetails.id}`}</span>
+                          </div>
+                          <div className="bg-white p-2 rounded-lg border border-slate-300">
+                            <span className="text-slate-400 block text-[8px] font-bold uppercase">SUBTOTAL AMOUNT</span>
+                            <span className="font-mono font-extrabold text-slate-850 block mt-0.5">{activeReportDetails.billing?.amount || 0} AED</span>
+                          </div>
+                          <div className="bg-white p-2 rounded-lg border border-slate-300">
+                            <span className="text-slate-400 block text-[8px] font-bold uppercase">TAX (5.0% GST)</span>
+                            <span className="font-mono text-slate-500 font-bold block mt-0.5">{activeReportDetails.billing?.vat || 0} AED</span>
+                          </div>
+                          <div className="bg-emerald-50 border border-emerald-300 p-2 rounded-lg">
+                            <span className="text-emerald-700 block text-[8px] font-black uppercase">TOTAL SECURE CHARGE</span>
+                            <span className="font-mono font-black text-emerald-800 text-sm block mt-0.5 select-all">{activeReportDetails.billing?.total || 0} AED</span>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })()}
+
+                  {/* ================= LINE-BY-LINE SECTOR 9: OFFICIAL VALIDATION SIGNATURE BLOCK ================= */}
+                  <div className="pt-4 border-t border-slate-400 relative z-10">
+                    <span className="text-[10px] font-bold text-indigo-700 uppercase tracking-widest font-mono block mb-3 text-center">
+                      {language === "bn" ? "৮. স্বাক্ষর ও সীল ভ্যালিডেশন সনদ" : "8. OFFICIAL STAMP & SEAL RECOGNITION"}
+                    </span>
+                    
+                    <div className="grid grid-cols-2 gap-4 text-center text-[10px] select-none">
+                      <div className="space-y-1">
+                        <span className="text-slate-500 block uppercase text-[8px] font-bold">Client Seal / Signature</span>
+                        <div className="h-20 border border-dashed border-slate-300 rounded-lg flex items-center justify-center p-1 bg-white shadow-inner">
+                          {activeReportDetails.signatures?.client ? (
+                            <img src={activeReportDetails.signatures.client} alt="Client signature" className="max-h-16 object-contain" />
+                          ) : (
+                            <span className="text-slate-300 text-[8px] font-mono">[ Clinician Representative ]</span>
+                          )}
+                        </div>
+                        <span className="font-sans block font-extrabold text-slate-800 truncate">{activeReportDetails.contactPerson || "Attendant Guest"}</span>
+                      </div>
+
+                      <div className="space-y-1">
+                        <span className="text-slate-500 block uppercase text-[8px] font-bold">Engineer & Technician Signature</span>
+                        <div className="h-20 border border-dashed border-slate-300 rounded-lg flex items-center justify-center p-1 bg-white shadow-inner">
+                          {activeReportDetails.signatures?.technician || activeReportDetails.signatures?.supervisor ? (
+                            <img src={activeReportDetails.signatures.technician || activeReportDetails.signatures.supervisor} alt="Engineer & Technician signature" className="max-h-16 object-contain" />
+                          ) : (
+                            <span className="bg-sky-50 text-sky-700 text-[8px] font-bold px-2 py-1 rounded border border-sky-100 select-none">CERTIFIED OPERATOR</span>
+                          )}
+                        </div>
+                        <span className="font-sans block text-slate-800 font-semibold text-[9.5px]">AL WAFA Specialist</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Letterhead Footer */}
+                  <div className="border-t border-slate-300 pt-3 text-center text-[8.5px] text-slate-400 font-serif leading-relaxed font-bold relative z-10">
+                    <p>Tel: 04-2959731, Fax: 04-2959732, P.O Box: 181244, Deira, Dubai - United Arab Emirates</p>
+                    <p>E-mail: pestcontrol@alwafagroupuae.com, wafastaruae@yahoo.com | Website: www.alwafagroupuae.com</p>
+                  </div>
+
+                </div>
+
               </div>
             </div>
           </div>

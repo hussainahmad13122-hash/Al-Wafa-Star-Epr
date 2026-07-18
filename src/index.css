@@ -102,7 +102,9 @@ body.pdf-download-active #mobile-hamburger-nav {
   #printable-document-sheet,
   #printable-document-sheet *,
   #printable-salary-receipt,
-  #printable-salary-receipt * {
+  #printable-salary-receipt *,
+  iframe,
+  iframe * {
     visibility: visible !important;
   }
 
