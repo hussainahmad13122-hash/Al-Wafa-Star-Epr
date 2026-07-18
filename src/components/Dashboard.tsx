@@ -2311,8 +2311,6 @@ export default function Dashboard({
                           <th className="p-2 border border-slate-800">CHEMICAL NAME</th>
                           <th className="p-2 border border-slate-800">DILUTION RATE</th>
                           <th className="p-2 border border-slate-800">QTY SPEC</th>
-                          <th className="p-2 border border-slate-800">BATCH NUMBER</th>
-                          <th className="p-2 border border-slate-800">EXPIRY DATE</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-slate-200 font-mono">
@@ -2322,13 +2320,11 @@ export default function Dashboard({
                                <td className="p-2 border border-slate-200 font-sans font-extrabold text-slate-950 uppercase">{chem.name}</td>
                                <td className="p-2 border border-slate-200 text-slate-700">{chem.dilution}</td>
                                <td className="p-2 border border-slate-200 text-slate-900 font-extrabold">{chem.used}</td>
-                               <td className="p-2 border border-slate-200 text-slate-505">{chem.batch || "ST-2026-REG"}</td>
-                               <td className="p-2 border border-slate-200 text-slate-550">{chem.expiry || "2028-12-31"}</td>
                              </tr>
                           ))
                         ) : (
                           <tr className="bg-white">
-                            <td colSpan={5} className="p-3 text-center text-slate-400 font-sans italic">
+                            <td colSpan={3} className="p-3 text-center text-slate-400 font-sans italic">
                               {language === "bn" ? "কোন প্রকার কেমিক্যাল উপাদান ব্যবহার করার প্রয়োজন হয়নি।" : "No chemical material usage parameters recorded for this schedule service."}
                             </td>
                           </tr>
