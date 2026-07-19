@@ -754,9 +754,17 @@ export const generateReportHTML = (report: any, language: string) => {
                 </tr>
             </tbody>
         </table>
+    </div> <!-- END PAGE 1 WRAPPER -->
 
-        <!-- FORCE PAGE BREAK BEFORE SECTION 5 -->
-        <div style="page-break-before: always; break-before: page; height: 1px; clear: both;"></div>
+    <!-- FORCE PAGE BREAK BEFORE SECTION 5 -->
+    <div style="page-break-before: always; break-before: page; height: 1px; clear: both;"></div>
+
+    <!-- START PAGE 2 WRAPPER -->
+    <div class="report-wrapper" style="margin-top: 10px;">
+        <!-- Background Watermark Star -->
+        <div class="watermark-absolute">
+            <svg viewBox="0 0 100 100"><polygon points="50,5 64,36 98,36 71,57 81,91 50,70 19,91 29,57 2,36 36,36" fill="#ED1C24" /></svg>
+        </div>
 
         <table style="width: 100%; border: none; padding: 0; margin: 0; border-spacing: 0; background: transparent;">
             <tbody style="display: table-row-group;">
@@ -1507,60 +1515,66 @@ export const generateEngineeringHTML = (report: any, language: string) => {
                             `
                                 : ""
                             }
-                            
-                            <!-- SECTION 5: IMAGES PAGES IF APPLICABLE -->
-                            ${
-                              allReportPhotos.length > 0 ||
-                              recommendationPhotos.length > 0
-                                ? `
-                            <div style="page-break-before: always; break-before: page; padding-top: 20px;">
-                                <h3 style="font-size: 14px; font-weight: bold; color: #003366; font-family: Georgia, serif; font-style: italic; margin-bottom: 15px; margin-top: 5px;">4. Recommended Action & Inspection Field Logs:</h3>
-                                
-                                <div class="photo-grid">
-                                    ${allReportPhotos
-                                      .map((photo) => {
-                                        photoCount++;
-                                        return `
-                                        <div class="photo-card">
-                                           <div class="photo-wrapper">
-                                             <img src="${photo.url}" alt="${photo.caption || "Inspection photo"}">
-                                             <div class="rec-badge">REC ${photoCount}</div>
-                                           </div>
-                                           <div style="margin-top: 8px; font-size: 9.5px; font-weight: bold; color: #1e293b; text-transform: uppercase; font-family: Arial, sans-serif;">
-                                             ${photo.caption || "Observation view"}
-                                           </div>
-                                        </div>
-                                        `;
-                                      })
-                                      .join("")}
-                                    
-                                    ${recommendationPhotos
-                                      .map((photo) => {
-                                        photoCount++;
-                                        return `
-                                        <div class="photo-card">
-                                           <div class="photo-wrapper">
-                                             <img src="${photo.url}" alt="${photo.caption || "Reform photo"}">
-                                             <div class="rec-badge">REC ${photoCount}</div>
-                                           </div>
-                                           <div style="margin-top: 8px; font-size: 9.5px; font-weight: bold; color: #1e293b; text-transform: uppercase; font-family: Arial, sans-serif;">
-                                             ${photo.caption || "Proposed reformation view"}
-                                           </div>
-                                        </div>
-                                        `;
-                                      })
-                                      .join("")}
-                                </div>
-                            </div>
-                            `
-                                : ""
-                            }
                         </div>
                     </td>
                 </tr>
             </tbody>
         </table>
+    </div> <!-- END PAGE 1 WRAPPER -->
+    
+    <!-- SECTION 5: IMAGES PAGES IF APPLICABLE -->
+    ${
+      allReportPhotos.length > 0 ||
+      recommendationPhotos.length > 0
+        ? `
+    <div style="page-break-before: always; break-before: page;"></div>
+    <div class="engineering-report-wrapper" style="margin-top: 10px;">
+        <!-- Background Watermark Star -->
+        <div class="watermark-absolute">
+            <svg viewBox="0 0 100 100"><polygon points="50,5 64,36 98,36 71,57 81,91 50,70 19,91 29,57 2,36 36,36" fill="#ED1C24" /></svg>
+        </div>
+        
+        <h3 style="font-size: 14px; font-weight: bold; color: #003366; font-family: Georgia, serif; font-style: italic; margin-bottom: 15px; margin-top: 5px;">4. Recommended Action & Inspection Field Logs:</h3>
+        
+        <div class="photo-grid">
+            ${allReportPhotos
+              .map((photo) => {
+                photoCount++;
+                return `
+                <div class="photo-card">
+                   <div class="photo-wrapper">
+                     <img src="${photo.url}" alt="${photo.caption || "Inspection photo"}">
+                     <div class="rec-badge">REC ${photoCount}</div>
+                   </div>
+                   <div style="margin-top: 8px; font-size: 9.5px; font-weight: bold; color: #1e293b; text-transform: uppercase; font-family: Arial, sans-serif;">
+                     ${photo.caption || "Observation view"}
+                   </div>
+                </div>
+                `;
+              })
+              .join("")}
+            
+            ${recommendationPhotos
+              .map((photo) => {
+                photoCount++;
+                return `
+                <div class="photo-card">
+                   <div class="photo-wrapper">
+                     <img src="${photo.url}" alt="${photo.caption || "Reform photo"}">
+                     <div class="rec-badge">REC ${photoCount}</div>
+                   </div>
+                   <div style="margin-top: 8px; font-size: 9.5px; font-weight: bold; color: #1e293b; text-transform: uppercase; font-family: Arial, sans-serif;">
+                     ${photo.caption || "Proposed reformation view"}
+                   </div>
+                </div>
+                `;
+              })
+              .join("")}
+        </div>
     </div>
+    `
+        : ""
+    }
 </body>
 </html>`;
 
@@ -1731,47 +1745,12 @@ export default function ClientDirectory({
 
     if (selectedReports.length === 0) return;
 
-    if (selectedReports.length === 1) {
-      await downloadFullReportPDF(selectedReports[0]);
-      setSelectedReportIds([]);
-      setIsDeleteSelectionMode(false);
-      return;
-    }
-
     try {
-      const firstReport = selectedReports[0];
-      const firstReportHTML = firstReport.rawEngineeringData 
-        ? generateEngineeringHTML(firstReport.rawEngineeringData, language)
-        : generateReportHTML(firstReport, language);
-
-      const headSplit = firstReportHTML.split(/<body[^>]*>/i);
-      const headPart = headSplit[0];
-
-      const bodiesList: string[] = [];
-
-      for (const r of selectedReports) {
-        const html = r.rawEngineeringData 
-          ? generateEngineeringHTML(r.rawEngineeringData, language)
-          : generateReportHTML(r, language);
-
-        const bodyContentMatch = html.match(/<body[^>]*>([\s\S]*)<\/body>/i);
-        if (bodyContentMatch && bodyContentMatch[1]) {
-          bodiesList.push(bodyContentMatch[1]);
-        } else {
-          bodiesList.push(html);
+      for (const report of selectedReports) {
+        if (report) {
+          await downloadFullReportPDF(report);
         }
       }
-
-      const combinedBody = bodiesList.join(
-        '\n<div style="page-break-before: always; break-before: page; height: 1px; clear: both;"></div>\n'
-      );
-
-      const finalHTML = `${headPart}\n<body>\n${combinedBody}\n</body>\n</html>`;
-
-      const dateStr = new Date().toISOString().split("T")[0];
-      const filename = `AL_WAFA_STAR_Bulk_Reports_${dateStr}`;
-
-      await printHTMLContent(finalHTML, filename);
     } catch (e) {
       console.error("Bulk printing failed", e);
     }

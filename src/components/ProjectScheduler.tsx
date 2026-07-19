@@ -2042,7 +2042,7 @@ export default function ProjectScheduler({ language, isDark, loggedInUser: propL
                   <>
                     <div className="relative my-10 select-none">
                       <div className="absolute inset-0 flex items-center" aria-hidden="true">
-                        <div className="w-full border-t border-slate-300 dark:border-slate-800"></div>
+                        <div className="w-full h-[5px] bg-cyan-500 dark:bg-cyan-600 rounded-full"></div>
                       </div>
                       <div className="relative flex justify-center">
                         <span className="px-4 py-1.5 rounded-lg text-xs font-black uppercase tracking-widest bg-slate-100 dark:bg-slate-900 text-slate-500 dark:text-slate-400 border border-slate-250 dark:border-slate-800 shadow-sm flex items-center gap-1.5">
@@ -2549,6 +2549,17 @@ export default function ProjectScheduler({ language, isDark, loggedInUser: propL
             {/* Calendar Cells */}
             <div className="grid grid-cols-7 gap-1.5">
               {calendarDays.map((dayItem, index) => {
+                if (!dayItem.isCurrentMonth) {
+                  return (
+                    <div
+                      key={dayItem.dateStr}
+                      className="aspect-square rounded-xl border border-dashed border-slate-200 dark:border-slate-800 bg-slate-50/40 dark:bg-slate-900/10 flex items-center justify-center select-none opacity-50"
+                    >
+                      <div className="w-1.5 h-1.5 rounded-full bg-slate-200/80 dark:bg-slate-800/60" />
+                    </div>
+                  );
+                }
+
                 const isSelected = selectedDateStr === dayItem.dateStr;
                 const groupsCount = dayItem.groups.length;
 
@@ -2565,7 +2576,7 @@ export default function ProjectScheduler({ language, isDark, loggedInUser: propL
                 }
 
                 if (dayItem.isSunday) {
-                  containerClass += "bg-rose-500/5 hover:bg-rose-500/10 border-rose-500/10 dark:border-rose-500/5 text-rose-500 ";
+                  containerClass += "bg-rose-500/5 hover:bg-rose-500/10 border-rose-200 dark:border-rose-550/30 text-rose-500 ";
                 } else if (isSelected) {
                   const ringOffset = isDark ? "ring-offset-slate-900" : "ring-offset-white";
                   if (hasError) {
@@ -2579,12 +2590,12 @@ export default function ProjectScheduler({ language, isDark, loggedInUser: propL
                   if (hasError) {
                     containerClass += "bg-rose-50 hover:bg-rose-100 dark:bg-rose-950/20 dark:hover:bg-rose-950/30 border-rose-200 dark:border-rose-900/30 text-rose-800 dark:text-rose-400 ";
                   } else if (groupsCount > 0) {
-                    containerClass += "bg-emerald-50 hover:bg-emerald-100/70 dark:bg-emerald-950/15 dark:hover:bg-emerald-950/25 border-emerald-200 dark:border-emerald-900/30 text-emerald-800 dark:text-emerald-400 ";
+                    containerClass += "bg-emerald-50 hover:bg-emerald-100/70 dark:bg-emerald-950/15 dark:hover:bg-emerald-950/25 border-emerald-250 dark:border-emerald-900/30 text-emerald-800 dark:text-emerald-400 ";
                   } else if (isPastEmptyDay) {
-                    containerClass += "bg-emerald-50/50 hover:bg-emerald-50/80 dark:bg-emerald-950/10 dark:hover:bg-emerald-950/20 border-emerald-150/70 dark:border-emerald-900/20 text-emerald-800 dark:text-emerald-450 ";
+                    containerClass += "bg-emerald-50/50 hover:bg-emerald-50/80 dark:bg-emerald-950/10 dark:hover:bg-emerald-950/20 border-emerald-200 dark:border-emerald-900/20 text-emerald-800 dark:text-emerald-450 ";
                   } else {
-                    // Empty days: strictly clean and white in light mode
-                    containerClass += "bg-white hover:bg-slate-50 dark:bg-slate-900/40 dark:hover:bg-slate-900 border-slate-100 dark:border-slate-800 text-slate-700 dark:text-slate-300 ";
+                    // Empty days: strictly clean and white in light mode with high contrast border
+                    containerClass += "bg-white hover:bg-slate-50 dark:bg-slate-900/40 dark:hover:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300 ";
                   }
                 }
 
