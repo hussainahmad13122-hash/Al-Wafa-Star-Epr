@@ -140,6 +140,7 @@ export function handleFirestoreError(
       errInfo.error.toLowerCase().includes("unavailable") ||
       errInfo.error.toLowerCase().includes("network"))
   ) {
+    isFirebaseConnected = false;
     // Gracefully handle offline/network state as warning, not fatal error
     console.warn("Firestore is operating offline/locally: ", errInfo.error);
     return;
@@ -231,6 +232,10 @@ export function getActiveFirebaseConfig() {
 
 export function isFirebaseActive() {
   return !!dbInstance;
+}
+
+export function isFirebaseCloudConnected() {
+  return isFirebaseConnected && !!dbInstance;
 }
 
 export function getFirebaseConnectionError() {
@@ -908,6 +913,8 @@ export function subscribeCollection<T>(
         firestoreSubscriptions[collName] = onSnapshot(
           collection(dbInstance, collName),
           (snapshot) => {
+            isFirebaseConnected = true;
+            firebaseError = null;
             const deletedKey = STORAGE_PREFIX + "deleted_" + collName;
             let deletedList: string[] = [];
             try {
@@ -989,6 +996,8 @@ export function subscribeStoreValue<T>(
         firestoreSubscriptions[subKey] = onSnapshot(
           doc(dbInstance, "store", key),
           (snapshot) => {
+            isFirebaseConnected = true;
+            firebaseError = null;
             if (snapshot.exists()) {
               const remoteData = snapshot.data();
               const remoteVal = remoteData?.value;

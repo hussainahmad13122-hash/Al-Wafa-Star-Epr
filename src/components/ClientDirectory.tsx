@@ -129,11 +129,10 @@ export const generateReportHTML = (report: any, language: string) => {
             body { margin: 0 !important; padding: 0 !important; background: #ffffff !important; }
             .report-wrapper {
                 margin: 0 auto !important;
-                padding: 10mm 12mm !important;
+                padding: 8mm 12mm !important;
                 width: 210mm !important;
                 max-width: 210mm !important;
-                height: 296mm !important;
-                max-height: 296mm !important;
+                min-height: 282mm !important;
                 box-shadow: none !important;
                 border: 2px solid #000000 !important;
                 outline: 1px double #000000 !important;
@@ -142,9 +141,11 @@ export const generateReportHTML = (report: any, language: string) => {
                 box-sizing: border-box !important;
                 page-break-after: always !important;
                 break-after: page !important;
-                page-break-inside: avoid !important;
-                break-inside: avoid !important;
+                page-break-inside: auto !important;
+                break-inside: auto !important;
                 position: relative !important;
+                -webkit-box-decoration-break: clone !important;
+                box-decoration-break: clone !important;
             }
             .report-wrapper:last-of-type {
                 page-break-after: avoid !important;
@@ -163,6 +164,8 @@ export const generateReportHTML = (report: any, language: string) => {
             box-shadow: 0 10px 30px rgba(0,0,0,0.15);
             padding: 24px; 
             position: relative;
+            -webkit-box-decoration-break: clone;
+            box-decoration-break: clone;
         }
         /* Absolute Watermark */
         .watermark-absolute {
@@ -1003,12 +1006,14 @@ export const printHTMLContent = (htmlContent: string, title?: string): Promise<v
       const iframe = document.createElement("iframe");
       iframe.id = frameId;
       iframe.style.position = "fixed";
-      iframe.style.left = "-10000px";
-      iframe.style.top = "-10000px";
-      iframe.style.width = "1024px";
-      iframe.style.height = "1448px";
+      iframe.style.bottom = "0";
+      iframe.style.right = "0";
+      iframe.style.width = "1px";
+      iframe.style.height = "1px";
       iframe.style.border = "none";
       iframe.style.zIndex = "-99999";
+      iframe.style.opacity = "0.01";
+      iframe.style.pointerEvents = "none";
       iframe.style.display = "block";
       iframe.style.visibility = "visible";
       document.body.appendChild(iframe);
@@ -1201,6 +1206,8 @@ export const generateEngineeringHTML = (report: any, language: string) => {
             border-radius: 8px;
             padding: 15mm 15mm 20mm 15mm;
             position: relative;
+            -webkit-box-decoration-break: clone;
+            box-decoration-break: clone;
         }
         
         table {
@@ -1230,7 +1237,7 @@ export const generateEngineeringHTML = (report: any, language: string) => {
             }
             .engineering-report-wrapper {
                 margin: 0 auto !important;
-                padding: 15mm 15mm !important;
+                padding: 10mm 15mm !important;
                 box-shadow: none !important;
                 border: 2px solid #000000 !important;
                 outline: 1px double #000000 !important;
@@ -1238,14 +1245,15 @@ export const generateEngineeringHTML = (report: any, language: string) => {
                 background-color: #ffffff !important;
                 width: 210mm !important;
                 max-width: 210mm !important;
-                height: 296mm !important;
-                max-height: 296mm !important;
+                min-height: 282mm !important;
                 box-sizing: border-box !important;
                 page-break-after: always !important;
                 break-after: page !important;
-                page-break-inside: avoid !important;
-                break-inside: avoid !important;
+                page-break-inside: auto !important;
+                break-inside: auto !important;
                 position: relative !important;
+                -webkit-box-decoration-break: clone !important;
+                box-decoration-break: clone !important;
             }
             .engineering-report-wrapper:last-of-type {
                 page-break-after: avoid !important;
@@ -1655,10 +1663,11 @@ export const generateBulkReportsHTML = (reports: any[], language: string): strin
             .report-wrapper, .engineering-report-wrapper {
                 page-break-after: always !important;
                 break-after: page !important;
-                page-break-inside: avoid !important;
-                break-inside: avoid !important;
-                height: 296mm !important;
-                max-height: 296mm !important;
+                page-break-inside: auto !important;
+                break-inside: auto !important;
+                min-height: 282mm !important;
+                -webkit-box-decoration-break: clone !important;
+                box-decoration-break: clone !important;
             }
             .report-wrapper:last-of-type, .engineering-report-wrapper:last-of-type {
                 page-break-after: avoid !important;

@@ -61,6 +61,7 @@ import {
   subscribeBrandingData,
   subscribeStoreValue,
   saveRegisteredUsers,
+  isFirebaseCloudConnected,
 } from "./localDatabase";
 
 export default function App() {
@@ -597,6 +598,7 @@ export default function App() {
   const [isOnline, setIsOnline] = useState<boolean>(
     typeof window !== "undefined" ? window.navigator.onLine : true,
   );
+  const [isFbCloudConnected, setIsFbCloudConnected] = useState<boolean>(false);
   const [deferredPrompt, setDeferredPrompt] = useState<any>(
     (window as any).deferredPWAInstallPrompt || null,
   );
@@ -832,6 +834,11 @@ export default function App() {
     window.addEventListener("beforeinstallprompt", handleBeforeInstallPrompt);
     window.addEventListener("appinstalled", handleAppInstalled);
 
+    setIsFbCloudConnected(isFirebaseCloudConnected());
+    const fbInterval = setInterval(() => {
+      setIsFbCloudConnected(isFirebaseCloudConnected());
+    }, 3000);
+
     // Check if running in standalone PWA mode
     if (
       window.matchMedia("(display-mode: standalone)").matches ||
@@ -870,6 +877,7 @@ export default function App() {
         handleBeforeInstallPrompt,
       );
       window.removeEventListener("appinstalled", handleAppInstalled);
+      clearInterval(fbInterval);
     };
   }, []);
 
@@ -926,6 +934,18 @@ export default function App() {
       (list) => {
         if (list) {
           localStorage.setItem("ALW_CHEMICAL_INVENTORY", JSON.stringify(list));
+        }
+      }
+    );
+
+    // Synchronize Registered Users list in real-time to propagate role / permissions changes instantly
+    const unsubscribeUsers = subscribeCollection<any>(
+      "users",
+      (list) => {
+        if (list) {
+          localStorage.setItem("ALW_STAR_USERS", JSON.stringify(list));
+          localStorage.setItem("ALW_STANDALONE_DB_users", JSON.stringify(list));
+          window.dispatchEvent(new Event("auth_update"));
         }
       }
     );
@@ -1038,6 +1058,7 @@ export default function App() {
       unsubscribeLocations();
       unsubscribeSupervisors();
       unsubscribeBranding();
+      unsubscribeUsers();
     };
   }, []);
 
@@ -1689,8 +1710,20 @@ export default function App() {
                 <span className="text-[10px] font-black tracking-wider text-slate-100 font-sans">
                   {companyBrand}
                 </span>
-                <span className="text-[8px] font-bold text-emerald-400 tracking-widest mt-0.5">
-                  ERP v2.5 ● {isOnline ? "ONLINE" : "OFFLINE"}
+                <span className={`text-[8px] font-bold tracking-widest mt-0.5 ${
+                  !isOnline
+                    ? "text-rose-500 animate-pulse"
+                    : !isFbCloudConnected
+                    ? "text-amber-400"
+                    : "text-emerald-400"
+                }`}>
+                  ERP v2.5 ● {
+                    !isOnline
+                      ? "OFFLINE"
+                      : !isFbCloudConnected
+                      ? "LOCAL-ONLY"
+                      : "ONLINE"
+                  }
                 </span>
               </div>
             </div>

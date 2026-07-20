@@ -324,6 +324,33 @@ export default function AdminSettings({
     }
   };
 
+  const handleForceResetSync = () => {
+    const confirmMessage = language === "bn"
+      ? "আপনি কি লোকাল ক্যাশ মুছে ফেলে সমস্ত ডাটা ফায়ারবেস ক্লাউড থেকে নতুন করে ডাউনলোড করতে চান? (এটি ডাটা মেলানো নিশ্চিত করবে)"
+      : "Are you sure you want to clear your local database cache and force pull all data fresh from Firebase? (This fixes any data inconsistency across devices)";
+    
+    if (confirm(confirmMessage)) {
+      const keysToClear = [
+        "ALW_LOCATIONS_REGISTRY",
+        "ALW_SUPERVISORS_REGISTRY",
+        "ALW_STARE_ERP_REPORTS",
+        "ALW_STANDALONE_DB_serviceReports",
+        "ALW_STANDALONE_DB_engineeringReports",
+        "ALW_STANDALONE_DB_chemicalInventory",
+        "ALW_STANDALONE_DB_locations",
+        "ALW_STANDALONE_DB_supervisors",
+        "ALW_STANDALONE_DB_users",
+        "ALW_STANDALONE_DB_deleted_locations",
+        "ALW_STANDALONE_DB_deleted_supervisors",
+        "ALW_STANDALONE_DB_deleted_serviceReports",
+        "ALW_STANDALONE_DB_deleted_engineeringReports",
+        "ALW_STANDALONE_DB_deleted_chemicalInventory"
+      ];
+      keysToClear.forEach(key => localStorage.removeItem(key));
+      window.location.reload();
+    }
+  };
+
   // Load registered users directly from localStorage in AdminSettings
   const [usersList, setUsersList] = useState<AppUser[]>(() => {
     const stored = localStorage.getItem("ALW_STAR_USERS") || localStorage.getItem("ALW_STANDALONE_DB_users");
@@ -339,24 +366,28 @@ export default function AdminSettings({
     ];
   });
 
-  // Fetch users list from Firestore on mount
+  // Fetch users list from Firestore in real-time
   useEffect(() => {
-    getRegisteredUsers()
-      .then((usersListRes) => {
-        if (usersListRes && usersListRes.length > 0) {
-          setUsersList(usersListRes);
-          localStorage.setItem("ALW_STAR_USERS", JSON.stringify(usersListRes));
-          localStorage.setItem("ALW_STANDALONE_DB_users", JSON.stringify(usersListRes));
-          window.dispatchEvent(new Event("storage"));
+    const unsubscribeUsers = subscribeCollection<any>(
+      "users",
+      (list) => {
+        if (list && list.length > 0) {
+          setUsersList((curr) => {
+            if (JSON.stringify(curr) !== JSON.stringify(list)) {
+              localStorage.setItem("ALW_STAR_USERS", JSON.stringify(list));
+              localStorage.setItem("ALW_STANDALONE_DB_users", JSON.stringify(list));
+              window.dispatchEvent(new Event("storage"));
+              return list;
+            }
+            return curr;
+          });
         }
-      })
-      .catch((e) => console.log("Offline loading users list from cache."));
+      }
+    );
+    return () => unsubscribeUsers();
   }, []);
 
-  // Sync users list to Firestore when changes occur
-  useEffect(() => {
-    saveRegisteredUsers(usersList).catch((e) => console.log("Silent cloud sync users failed:", e));
-  }, [usersList]);
+
 
   const [newUsername, setNewUsername] = useState("");
   const [newPassword, setNewPassword] = useState("");
@@ -571,8 +602,6 @@ export default function AdminSettings({
     if (admin) {
       setAdminUserPassword(admin.passwordPlain);
     }
-    // Automatically replicate updated users list to Firestore
-    saveRegisteredUsers(usersList).catch((err) => console.log("Failed to sync updated users to Firestore:", err));
   }, [usersList]);
 
   const handleSaveSecurity = () => {
@@ -3912,15 +3941,27 @@ Reloading portal to apply updates...`;
                 </div>
 
                 {fbActive && (
-                  <button
-                    type="button"
-                    onClick={handleSyncNow}
-                    disabled={fbSyncing}
-                    className={`px-4 py-2 bg-indigo-600 hover:bg-indigo-500 disabled:bg-indigo-900 text-white font-extrabold text-[11px] rounded-xl transition flex items-center gap-1.5 cursor-pointer shadow-lg active:scale-95 ${fbSyncing ? "opacity-50 cursor-not-allowed" : ""}`}
-                  >
-                    <RefreshCw className={`w-3.5 h-3.5 ${fbSyncing ? "animate-spin" : ""}`} />
-                    <span>{fbSyncing ? (language === "bn" ? "সিঙ্ক হচ্ছে..." : "Syncing Ledger...") : (language === "bn" ? "এখনই ক্লাউড সিঙ্ক করুন" : "Sync Now")}</span>
-                  </button>
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={handleSyncNow}
+                      disabled={fbSyncing}
+                      className={`px-4 py-2 bg-indigo-600 hover:bg-indigo-500 disabled:bg-indigo-900 text-white font-extrabold text-[11px] rounded-xl transition flex items-center gap-1.5 cursor-pointer shadow-lg active:scale-95 ${fbSyncing ? "opacity-50 cursor-not-allowed" : ""}`}
+                    >
+                      <RefreshCw className={`w-3.5 h-3.5 ${fbSyncing ? "animate-spin" : ""}`} />
+                      <span>{fbSyncing ? (language === "bn" ? "সিঙ্ক হচ্ছে..." : "Syncing Ledger...") : (language === "bn" ? "এখনই ক্লাউড সিঙ্ক করুন" : "Sync Now")}</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={handleForceResetSync}
+                      className="px-4 py-2 bg-rose-600 hover:bg-rose-500 text-white font-extrabold text-[11px] rounded-xl transition flex items-center gap-1.5 cursor-pointer shadow-lg active:scale-95 animate-fadeIn"
+                      title={language === "bn" ? "লোকাল ডাটা মুছে ক্লাউড থেকে নতুন ডাটা ডাউনলোড করুন" : "Delete local database cache and re-download fresh from Cloud"}
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                      <span>{language === "bn" ? "ফোর্স রিসিঙ্ক" : "Force Re-Sync"}</span>
+                    </button>
+                  </div>
                 )}
               </div>
             </div>
