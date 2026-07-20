@@ -2154,6 +2154,7 @@ export default function ChemicalInventory({ language, themeMode = "dark" }: Chem
                     <option value="g">g</option>
                     <option value="kg">kg</option>
                     <option value="ml">ml</option>
+                    <option value="p">p</option>
                   </select>
                 </div>
               </div>

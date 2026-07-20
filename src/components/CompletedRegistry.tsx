@@ -569,7 +569,7 @@ export default function CompletedRegistry({
             >
               <option value="All">{t.allEmirates}</option>
               {(() => {
-                const allEm = ["Ajman", "Dubai", "Sharjah", "Umm Al Quwain", "Ras Al Khaimah", "Fujairah", "Abu Dhabi", "Al Dhaid"];
+                const allEm = ["Ajman", "Dubai", "Sharjah", "Umm Al Quwain", "Ras Al Khaimah", "Fujairah", "Abu Dhabi"];
                 return hasRegionalRestriction
                   ? allEm.filter((em) => userAllowedEmirates.some((e) => e.toLowerCase() === em.toLowerCase()))
                   : allEm;

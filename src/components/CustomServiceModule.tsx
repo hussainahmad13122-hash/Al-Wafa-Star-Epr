@@ -9,7 +9,7 @@ import {
   Trash2,
   Calendar
 } from "lucide-react";
-import { generateReportHTML, generateEngineeringHTML, printHTMLContent } from "./ClientDirectory";
+import { generateReportHTML, generateEngineeringHTML, printHTMLContent, generateBulkReportsHTML } from "./ClientDirectory";
 import EngineeringReport from "./EngineeringReport";
 import { getDocuments, subscribeCollection } from "../localDatabase";
 
@@ -329,13 +329,14 @@ export default function CustomServiceModule({ language, isDark, reports = [], on
     if (selectedReports.length === 0) return;
 
     try {
-      for (const report of selectedReports) {
-        if (report) {
-          await downloadFullReportPDF(report);
-        }
-      }
+      const combinedHtml = generateBulkReportsHTML(selectedReports, language);
+      const bulkFileName = language === "bn"
+        ? `সম্মিলিত-রিপোর্ট-${selectedReports.length}`
+        : `Combined-Reports-${selectedReports.length}`;
+      await printHTMLContent(combinedHtml, bulkFileName);
     } catch (e) {
       console.error("Bulk printing failed", e);
+      alert("Failed to create bulk PDF view.");
     }
 
     setSelectedReportIds([]);
@@ -412,7 +413,7 @@ export default function CustomServiceModule({ language, isDark, reports = [], on
               >
                 <option value="All">{language === "bn" ? "সব এমিরেট" : "All Emirates"}</option>
                 {(() => {
-                  const allEm = ["Ajman", "Dubai", "Sharjah", "Umm Al Quwain", "Ras Al Khaimah", "Fujairah", "Abu Dhabi", "Al Dhaid"];
+                  const allEm = ["Ajman", "Dubai", "Sharjah", "Umm Al Quwain", "Ras Al Khaimah", "Fujairah", "Abu Dhabi"];
                   return hasRegionalRestriction
                     ? allEm.filter((em) => userAllowedEmirates.some((e) => e.toLowerCase() === em.toLowerCase()))
                     : allEm;

@@ -128,16 +128,27 @@ export const generateReportHTML = (report: any, language: string) => {
             }
             body { margin: 0 !important; padding: 0 !important; background: #ffffff !important; }
             .report-wrapper {
-                margin: 4mm auto !important;
+                margin: 0 auto !important;
                 padding: 10mm 12mm !important;
-                width: 202mm !important;
-                max-width: 202mm !important;
+                width: 210mm !important;
+                max-width: 210mm !important;
+                height: 296mm !important;
+                max-height: 296mm !important;
                 box-shadow: none !important;
                 border: 2px solid #000000 !important;
                 outline: 1px double #000000 !important;
-                border-radius: 8px !important;
+                border-radius: 0 !important;
                 background-color: #FFFDF3 !important;
                 box-sizing: border-box !important;
+                page-break-after: always !important;
+                break-after: page !important;
+                page-break-inside: avoid !important;
+                break-inside: avoid !important;
+                position: relative !important;
+            }
+            .report-wrapper:last-of-type {
+                page-break-after: avoid !important;
+                break-after: avoid !important;
             }
         }
         .report-wrapper {
@@ -756,11 +767,8 @@ export const generateReportHTML = (report: any, language: string) => {
         </table>
     </div> <!-- END PAGE 1 WRAPPER -->
 
-    <!-- FORCE PAGE BREAK BEFORE SECTION 5 -->
-    <div style="page-break-before: always; break-before: page; height: 1px; clear: both;"></div>
-
     <!-- START PAGE 2 WRAPPER -->
-    <div class="report-wrapper" style="margin-top: 10px;">
+    <div class="report-wrapper">
         <!-- Background Watermark Star -->
         <div class="watermark-absolute">
             <svg viewBox="0 0 100 100"><polygon points="50,5 64,36 98,36 71,57 81,91 50,70 19,91 29,57 2,36 36,36" fill="#ED1C24" /></svg>
@@ -1221,16 +1229,29 @@ export const generateEngineeringHTML = (report: any, language: string) => {
                 padding: 0 !important;
             }
             .engineering-report-wrapper {
-                margin: 4mm auto !important;
-                padding: 15mm 15mm 15mm 15mm !important;
+                margin: 0 auto !important;
+                padding: 15mm 15mm !important;
                 box-shadow: none !important;
                 border: 2px solid #000000 !important;
                 outline: 1px double #000000 !important;
-                border-radius: 8px !important;
+                border-radius: 0 !important;
                 background-color: #ffffff !important;
-                width: 202mm !important;
-                max-width: 202mm !important;
+                width: 210mm !important;
+                max-width: 210mm !important;
+                height: 296mm !important;
+                max-height: 296mm !important;
                 box-sizing: border-box !important;
+                page-break-after: always !important;
+                break-after: page !important;
+                page-break-inside: avoid !important;
+                break-inside: avoid !important;
+                position: relative !important;
+            }
+            .engineering-report-wrapper:last-of-type {
+                page-break-after: avoid !important;
+                break-after: avoid !important;
+                height: auto !important;
+                max-height: none !important;
             }
             * {
                 -webkit-print-color-adjust: exact !important;
@@ -1527,8 +1548,7 @@ export const generateEngineeringHTML = (report: any, language: string) => {
       allReportPhotos.length > 0 ||
       recommendationPhotos.length > 0
         ? `
-    <div style="page-break-before: always; break-before: page;"></div>
-    <div class="engineering-report-wrapper" style="margin-top: 10px;">
+    <div class="engineering-report-wrapper">
         <!-- Background Watermark Star -->
         <div class="watermark-absolute">
             <svg viewBox="0 0 100 100"><polygon points="50,5 64,36 98,36 71,57 81,91 50,70 19,91 29,57 2,36 36,36" fill="#ED1C24" /></svg>
@@ -1579,6 +1599,78 @@ export const generateEngineeringHTML = (report: any, language: string) => {
 </html>`;
 
   return htmlContent;
+};
+
+export const generateBulkReportsHTML = (reports: any[], language: string): string => {
+  if (reports.length === 0) return "";
+
+  const stylesSet = new Set<string>();
+  let combinedBody = "";
+
+  reports.forEach((report, index) => {
+    if (!report) return;
+    const isEng = !!report.rawEngineeringData;
+    const content = isEng
+      ? generateEngineeringHTML(report.rawEngineeringData, language)
+      : generateReportHTML(report, language);
+
+    // Extract all <style> block contents dynamically
+    let pos = 0;
+    while (true) {
+      const styleStart = content.indexOf("<style>", pos);
+      if (styleStart === -1) break;
+      const styleEnd = content.indexOf("</style>", styleStart);
+      if (styleEnd === -1) break;
+      const styleCss = content.substring(styleStart + 7, styleEnd);
+      stylesSet.add(styleCss);
+      pos = styleEnd + 8;
+    }
+
+    // Extract body content between <body> and </body>
+    const bodyStart = content.indexOf("<body>");
+    const bodyEnd = content.lastIndexOf("</body>");
+    if (bodyStart !== -1 && bodyEnd !== -1) {
+      const bodyHtml = content.substring(bodyStart + 6, bodyEnd);
+      combinedBody += `
+        <!-- REPORT ${index + 1} START -->
+        ${bodyHtml}
+        <!-- REPORT ${index + 1} END -->
+      `;
+    }
+  });
+
+  // Combine extracted styles
+  const allStyles = Array.from(stylesSet).join("\n");
+
+  return `<!DOCTYPE html>
+<html lang="${language}">
+<head>
+    <meta charset="UTF-8">
+    <title>${language === "bn" ? "সম্মিলিত রিপোর্ট" : "Combined Reports"}</title>
+    <style>
+        ${allStyles}
+        
+        /* Force page-break parameters for wrappers in bulk printing mode */
+        @media print {
+            .report-wrapper, .engineering-report-wrapper {
+                page-break-after: always !important;
+                break-after: page !important;
+                page-break-inside: avoid !important;
+                break-inside: avoid !important;
+                height: 296mm !important;
+                max-height: 296mm !important;
+            }
+            .report-wrapper:last-of-type, .engineering-report-wrapper:last-of-type {
+                page-break-after: avoid !important;
+                break-after: avoid !important;
+            }
+        }
+    </style>
+</head>
+<body>
+    ${combinedBody}
+</body>
+</html>`;
 };
 
 export default function ClientDirectory({
@@ -1746,13 +1838,14 @@ export default function ClientDirectory({
     if (selectedReports.length === 0) return;
 
     try {
-      for (const report of selectedReports) {
-        if (report) {
-          await downloadFullReportPDF(report);
-        }
-      }
+      const combinedHtml = generateBulkReportsHTML(selectedReports, language);
+      const bulkFileName = language === "bn"
+        ? `সম্মিলিত-রিপোর্ট-${selectedReports.length}`
+        : `Combined-Reports-${selectedReports.length}`;
+      await printHTMLContent(combinedHtml, bulkFileName);
     } catch (e) {
       console.error("Bulk printing failed", e);
+      alert("Failed to create bulk PDF view.");
     }
 
     setSelectedReportIds([]);
@@ -2599,7 +2692,7 @@ export default function ClientDirectory({
             "Umm Al Quwain",
             "Ras Al Khaimah",
             "Fujairah",
-            "Al Dhaid",
+            "Abu Dhabi",
           ]
             .filter((state) => {
               if (hasRegionalRestriction) {

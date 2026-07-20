@@ -101,7 +101,7 @@ export default function SupervisorsRegistry({
 
   const EMIRATE_TABS = hasRegionalRestriction
     ? ["ALL", ...userAllowedEmirates]
-    : ["ALL", "Dubai", "Ajman", "Sharjah", "Umm Al Quwain", "Ras Al Khaimah", "Fujairah", "Al Dhaid"];
+    : ["ALL", "Dubai", "Ajman", "Sharjah", "Umm Al Quwain", "Ras Al Khaimah", "Fujairah", "Abu Dhabi"];
 
   // Handle cell text adjustments
   const handleUpdateField = (

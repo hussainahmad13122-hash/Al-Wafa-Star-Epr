@@ -23,7 +23,7 @@ export interface ReportItem {
   contractNo: string;
   branchName: string;
   facilityType: string;
-  emirate: "Ajman" | "Dubai" | "Sharjah" | "Umm Al Quwain" | "Ras Al Khaimah" | "Fujairah" | "Al Dhaid" | string;
+  emirate: "Ajman" | "Dubai" | "Sharjah" | "Umm Al Quwain" | "Ras Al Khaimah" | "Fujairah" | "Abu Dhabi" | string;
   address: string;
   gpsCoordinates?: string;
   contactPerson: string;

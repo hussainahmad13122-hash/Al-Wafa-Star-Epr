@@ -1466,7 +1466,7 @@ export default function Dashboard({
                 >
                   <option value="All">{language === "bn" ? "সব এমিরেট" : "All Emirates"}</option>
                   {(() => {
-                    const allEm = ["Ajman", "Dubai", "Sharjah", "Umm Al Quwain", "Ras Al Khaimah", "Fujairah", "Abu Dhabi", "Al Dhaid"];
+                    const allEm = ["Ajman", "Dubai", "Sharjah", "Umm Al Quwain", "Ras Al Khaimah", "Fujairah", "Abu Dhabi"];
                     return hasRegionalRestriction
                       ? allEm.filter((em) => userAllowedEmirates.some((e) => e.toLowerCase() === em.toLowerCase()))
                       : allEm;

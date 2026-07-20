@@ -2614,7 +2614,7 @@ Reloading portal to apply updates...`;
                                           { id: "Umm Al Quwain", label: language === "bn" ? "উম্ম আল কুয়াইন" : "Umm Al Quwain" },
                                           { id: "Ras Al Khaimah", label: language === "bn" ? "রাস আল খাইমাহ" : "Ras Al Khaimah" },
                                           { id: "Fujairah", label: language === "bn" ? "ফুজিরাহ" : "Fujairah" },
-                                          { id: "Al Dhaid", label: language === "bn" ? "আল ধাইদ" : "Al Dhaid" },
+                                          { id: "Abu Dhabi", label: language === "bn" ? "আবুধাবি" : "Abu Dhabi" },
                                         ].map((em) => {
                                           const isSelected = editingAllowedEmirates.includes(em.id);
                                           return (
