@@ -28,9 +28,12 @@ function readJsonFile<T>(filename: string, defaultValue: T): T {
   }
   try {
     const data = fs.readFileSync(filePath, "utf-8");
+    if (!data || !data.trim()) {
+      return defaultValue;
+    }
     return JSON.parse(data) as T;
   } catch (err) {
-    console.error(`Error reading database file ${filename}:`, err);
+    console.warn(`Could not parse database file ${filename}, using default.`);
     return defaultValue;
   }
 }
@@ -1049,49 +1052,76 @@ app.post("/api/admin/request-otp", async (req, res) => {
     // Generate a secure 4-digit OTP code
     const otpCode = String(Math.floor(1000 + Math.random() * 9000));
 
-    const isMock = trimmedPassword === "admin123";
+    // Check if password matches default test password or stored Admin password in users.json
+    const users = readJsonFile<any[]>("users.json", []);
+    const storedAdmin = users.find(
+      (u) => u.role === "Admin" || (u.username || "").toLowerCase() === targetEmail
+    );
+    const isLocalAdminPassword =
+      trimmedPassword === "admin123" ||
+      (!!storedAdmin?.passwordPlain && trimmedPassword === storedAdmin.passwordPlain);
+
+    const envGmailAppPass = (process.env.GMAIL_APP_PASSWORD || "").replace(/\s+/g, "").trim();
+    const cleanedInputPass = trimmedPassword.replace(/\s+/g, "");
+    const smtpPass =
+      isLocalAdminPassword && envGmailAppPass
+        ? envGmailAppPass
+        : cleanedInputPass.length === 16
+          ? cleanedInputPass
+          : trimmedPassword;
+
+    let isMock = isLocalAdminPassword && !envGmailAppPass;
 
     if (isMock) {
-      console.log(`[SIMULATION] Admin OTP requested for hussainahmad13122@gmail.com. Simulated OTP code: ${otpCode}`);
+      console.log(`[SIMULATION] Admin OTP requested for ${targetEmail}. Simulated OTP code: ${otpCode}`);
     } else {
-      // Try to send OTP via SMTP using user-provided password
-      // This serves as BOTH authentication and OTP delivery!
-      const transporter = nodemailer.createTransport({
-        service: "gmail",
-        host: "smtp.gmail.com",
-        port: 465,
-        secure: true,
-        auth: {
-          user: targetEmail,
-          pass: trimmedPassword
-        },
-        connectionTimeout: 6000, // 6 seconds timeout to prevent endless hanging
-        greetingTimeout: 6000,
-        socketTimeout: 6000
-      });
+      try {
+        // Send OTP via Gmail SMTP using either configured GMAIL_APP_PASSWORD or user-provided 16-char App Password
+        const transporter = nodemailer.createTransport({
+          service: "gmail",
+          host: "smtp.gmail.com",
+          port: 465,
+          secure: true,
+          auth: {
+            user: targetEmail,
+            pass: smtpPass
+          },
+          connectionTimeout: 6000,
+          greetingTimeout: 6000,
+          socketTimeout: 6000
+        });
 
-      const mailOptions = {
-        from: `"Al Wafa Star ERP" <${targetEmail}>`,
-        to: targetEmail,
-        subject: "Al Wafa Star ERP - Admin Verification Code",
-        html: `
-          <div style="font-family: Arial, sans-serif; padding: 25px; color: #1e293b; background: #f8fafc; border-radius: 12px; max-width: 500px; margin: auto; border: 1px solid #e2e8f0;">
-            <h2 style="color: #10B981; margin-top: 0; border-bottom: 2px solid #10B981; padding-bottom: 10px;">Al Wafa Star Security Gateway</h2>
-            <p style="font-size: 14px; line-height: 1.5;">Hello Admin,</p>
-            <p style="font-size: 14px; line-height: 1.5;">Your 4-digit secure OTP verification code to log in is:</p>
-            <div style="text-align: center; margin: 25px 0;">
-              <div style="font-size: 36px; font-weight: bold; background: #0f172a; padding: 15px 30px; border-radius: 12px; display: inline-block; letter-spacing: 6px; color: #10B981; border: 1px solid #1e293b; box-shadow: 0 4px 6px rgba(0,0,0,0.05);">
-                ${otpCode}
+        const mailOptions = {
+          from: `"Al Wafa Star ERP" <${targetEmail}>`,
+          to: targetEmail,
+          subject: "Al Wafa Star ERP - Admin Verification Code",
+          html: `
+            <div style="font-family: Arial, sans-serif; padding: 25px; color: #1e293b; background: #f8fafc; border-radius: 12px; max-width: 500px; margin: auto; border: 1px solid #e2e8f0;">
+              <h2 style="color: #10B981; margin-top: 0; border-bottom: 2px solid #10B981; padding-bottom: 10px;">Al Wafa Star Security Gateway</h2>
+              <p style="font-size: 14px; line-height: 1.5;">Hello Admin,</p>
+              <p style="font-size: 14px; line-height: 1.5;">Your 4-digit secure OTP verification code to log in is:</p>
+              <div style="text-align: center; margin: 25px 0;">
+                <div style="font-size: 36px; font-weight: bold; background: #0f172a; padding: 15px 30px; border-radius: 12px; display: inline-block; letter-spacing: 6px; color: #10B981; border: 1px solid #1e293b; box-shadow: 0 4px 6px rgba(0,0,0,0.05);">
+                  ${otpCode}
+                </div>
               </div>
+              <p style="font-size: 13px; color: #475569;">This verification code is only valid for <b>10 minutes</b>. Please do not share this code with anyone.</p>
+              <hr style="border: 0; border-top: 1px solid #e2e8f0; margin: 20px 0;" />
+              <p style="font-size: 11px; color: #64748b; text-align: center; margin-bottom: 0;">If you did not request this login code, please verify your Gmail password security immediately.</p>
             </div>
-            <p style="font-size: 13px; color: #475569;">This verification code is only valid for <b>10 minutes</b>. Please do not share this code with anyone.</p>
-            <hr style="border: 0; border-top: 1px solid #e2e8f0; margin: 20px 0;" />
-            <p style="font-size: 11px; color: #64748b; text-align: center; margin-bottom: 0;">If you did not request this login code, please verify your Gmail password security immediately.</p>
-          </div>
-        `
-      };
+          `
+        };
 
-      await transporter.sendMail(mailOptions);
+        await transporter.sendMail(mailOptions);
+      } catch (smtpErr: any) {
+        if (isLocalAdminPassword) {
+          // Fallback cleanly to simulation mode if local admin password matched but env SMTP failed
+          console.warn("Configured Gmail SMTP unavailable; falling back to local OTP simulation.");
+          isMock = true;
+        } else {
+          throw smtpErr;
+        }
+      }
     }
 
     // Save in activeOTPs
@@ -1113,23 +1143,21 @@ app.post("/api/admin/request-otp", async (req, res) => {
     });
 
   } catch (error: any) {
-    console.error("OTP send failed:", error);
     const errorMsg = error?.message || "";
-    let friendlyMessage = "Failed to authenticate with Gmail or send verification code.";
+    console.warn("Admin Gmail SMTP authentication rejected or unavailable:", error?.code || "AUTH_FAILED");
+    let friendlyMessage = "Failed to authenticate with Gmail or send verification code. For Test Mode use 'admin123', or use a 16-character Google App Password.";
     
-    // Check if error is timeout or generic connect failure
-    if (error.code === 'ETIMEDOUT' || errorMsg.includes("timeout") || errorMsg.includes("connect")) {
-      friendlyMessage = "Gmail SMTP connection timed out. Google might be blocking normal sign-in. Please ensure you are using a 16-character Google App Password (১৬ সংখ্যার গুগল অ্যাপ পাসওয়ার্ড) instead of your regular password. regular passwords are not allowed by Google SMTP.";
+    if (error?.code === "ETIMEDOUT" || errorMsg.includes("timeout") || errorMsg.includes("connect")) {
+      friendlyMessage = "Gmail SMTP connection timed out. Please use a 16-character Google App Password (১৬ সংখ্যার গুগল অ্যাপ পাসওয়ার্ড) or enter 'admin123' for Test Mode.";
     } else if (errorMsg.includes("Username and Password not accepted") || errorMsg.includes("535") || errorMsg.includes("Invalid login")) {
-      friendlyMessage = "Incorrect Gmail password or login rejected. Google requires a 16-character 'App Password' (অ্যাপ পাসওয়ার্ড) if you have 2FA enabled. General passwords will not work.";
+      friendlyMessage = "Gmail rejected the password (535). Regular Gmail passwords are not accepted by SMTP — please use a 16-character Google App Password (অ্যাপ পাসওয়ার্ড), or enter 'admin123' for Test Mode.";
     } else if (errorMsg.includes("network") || errorMsg.includes("EAI_AGAIN")) {
-      friendlyMessage = "Network/SMTP server unreachable. Please check your connection.";
+      friendlyMessage = "Network/SMTP server unreachable. Please check your connection or use 'admin123' for Test Mode.";
     }
 
     res.status(401).json({ 
       success: false, 
-      message: friendlyMessage,
-      debug: errorMsg
+      message: friendlyMessage
     });
   }
 });
