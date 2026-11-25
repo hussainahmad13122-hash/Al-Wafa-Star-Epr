@@ -108,18 +108,18 @@ body.pdf-download-active #mobile-hamburger-nav {
     visibility: visible !important;
   }
 
-  /* Target print overlay containers to be unconstrained so they act as simple vertical block wrappers */
+  /* Target print overlay containers to flow naturally across pages */
   #erp-completed-details-overlay,
   #erp-view-details-overlay,
   #erp-view-details-engineering {
     visibility: visible !important;
-    position: absolute !important;
-    left: 0 !important;
-    top: 0 !important;
+    position: static !important;
+    left: auto !important;
+    top: auto !important;
     width: 100% !important;
     height: auto !important;
     min-height: auto !important;
-    background: #FFFDF3 !important; /* Concrete solid light yellow paper background */
+    background: transparent !important;
     backdrop-filter: none !important;
     -webkit-backdrop-filter: none !important;
     margin: 0 !important;
@@ -131,12 +131,16 @@ body.pdf-download-active #mobile-hamburger-nav {
 
   #erp-completed-details-overlay > div,
   #erp-view-details-overlay > div,
-  #erp-view-details-engineering > div {
+  #erp-view-details-engineering > div,
+  #erp-completed-details-overlay > div > div,
+  #erp-view-details-overlay > div > div,
+  #erp-view-details-engineering > div > div {
     visibility: visible !important;
     height: auto !important;
     min-height: auto !important;
     max-height: none !important;
     border: none !important;
+    border-radius: 0 !important;
     box-shadow: none !important;
     background: transparent !important;
     overflow: visible !important;
@@ -147,9 +151,8 @@ body.pdf-download-active #mobile-hamburger-nav {
     margin: 0 !important;
   }
 
-  /* Style our main printable elements so they utilize full portrait pages elegantly */
+  /* Style our main printable elements so they utilize full portrait pages with balanced cloned margins */
   form#master-well-form,
-  .print-sheet-paper,
   #printable-salary-receipt {
     position: absolute !important;
     left: 0 !important;
@@ -157,7 +160,7 @@ body.pdf-download-active #mobile-hamburger-nav {
     width: 100% !important;
     max-width: 100% !important;
     margin: 0 !important;
-    padding: 5mm !important; /* Elegant compact padding for high-density forms */
+    padding: 6mm !important;
     background-color: #FFFDF3 !important;
     background: #FFFDF3 !important;
     color: #0f172a !important;
@@ -168,8 +171,51 @@ body.pdf-download-active #mobile-hamburger-nav {
     overflow: visible !important;
     height: auto !important;
     display: block !important;
+    -webkit-box-decoration-break: clone !important;
+    box-decoration-break: clone !important;
   }
 
+  .print-sheet-paper {
+    position: relative !important;
+    left: auto !important;
+    top: auto !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    margin: 0 !important;
+    padding: 6mm !important;
+    background-color: #FFFDF3 !important;
+    background: #FFFDF3 !important;
+    color: #0f172a !important;
+    border: 2px solid #0f172a !important;
+    border-radius: 12px !important;
+    box-shadow: none !important;
+    box-sizing: border-box !important;
+    overflow: visible !important;
+    height: auto !important;
+    display: block !important;
+    -webkit-box-decoration-break: clone !important;
+    box-decoration-break: clone !important;
+  }
+
+  .print-sheet-paper .overflow-x-auto {
+    overflow: visible !important;
+  }
+
+  .print-sheet-paper table {
+    min-width: 0 !important;
+  }
+
+  /* Keep report section boxes and headings intact across page breaks */
+  #printable-service-report > div:not(.pointer-events-none) {
+    break-inside: avoid !important;
+    page-break-inside: avoid !important;
+  }
+
+  #printable-service-report > div > span:first-child,
+  #printable-service-report > div > div:first-child {
+    break-after: avoid !important;
+    page-break-after: avoid !important;
+  }
 
   #printable-document-sheet {
     position: absolute !important;
@@ -189,6 +235,8 @@ body.pdf-download-active #mobile-hamburger-nav {
     overflow: visible !important;
     height: auto !important;
     display: block !important;
+    -webkit-box-decoration-break: clone !important;
+    box-decoration-break: clone !important;
   }
 
   /* Hide typical print-unrelated or screen-specific buttons/tools/headers */
@@ -215,11 +263,11 @@ body.pdf-download-active #mobile-hamburger-nav {
 
   @page {
     size: A4 portrait;
-    margin: 6mm 8mm; /* Balanced printable area margins */
+    margin: 10mm 8mm !important; /* Generous top & bottom printable area margins across every page */
   }
 
   /* Reset outer application containers so they flow naturally across pages with zero viewport locks */
-  html, body, #root, #app-shell-root-container, #app-workspace-content-shell, main {
+  html, body, #root, #app-shell-root-container, #app-workspace-content-shell, main, main > div {
     background-color: #ffffff !important;
     background: #ffffff !important;
     color: #0f172a !important;
@@ -227,6 +275,7 @@ body.pdf-download-active #mobile-hamburger-nav {
     height: auto !important;
     min-height: auto !important;
     max-height: none !important;
+    max-width: 100% !important;
     margin: 0 !important;
     padding: 0 !important;
     display: block !important;
@@ -279,6 +328,9 @@ body.pdf-download-active #mobile-hamburger-nav {
     width: 100% !important;
     page-break-inside: auto !important;
     break-inside: auto !important;
+  }
+  thead {
+    display: table-header-group !important;
   }
   th {
     background-color: #0f172a !important; /* Slate header */

@@ -21,6 +21,8 @@ export function getDeviceInfo(): string {
   return `${device} - ${browser}`;
 }
 
+const SESSION_CLOUD_SYNC_INTERVAL_MS = 60 * 60 * 1000; // 60 minutes
+
 export function registerSession(user: AppUser) {
   let deviceId = localStorage.getItem("ALW_DEVICE_ID");
   if (!deviceId) {
@@ -28,27 +30,47 @@ export function registerSession(user: AppUser) {
     localStorage.setItem("ALW_DEVICE_ID", deviceId);
   }
 
+  const storedSessions = localStorage.getItem("ALW_LOGIN_SESSIONS");
+  let sessions: LoginSession[] = [];
+  try {
+    sessions = storedSessions ? JSON.parse(storedSessions) : [];
+  } catch (e) {
+    sessions = [];
+  }
+
+  const existing = sessions.find(s => s.id === deviceId);
+  const lastCloudSync = Number(localStorage.getItem("ALW_LAST_SESSION_CLOUD_SYNC") || "0");
+  const isSameActiveUser =
+    existing &&
+    existing.userId === user.id &&
+    existing.username === user.username &&
+    existing.role === user.role;
+  const recentlySynced = isSameActiveUser && (Date.now() - lastCloudSync < SESSION_CLOUD_SYNC_INTERVAL_MS);
+
   const session: LoginSession = {
     id: deviceId,
     userId: user.id,
     username: user.username,
     role: user.role,
     deviceInfo: getDeviceInfo(),
-    loginTime: new Date().toISOString(),
+    loginTime: isSameActiveUser && existing?.loginTime ? existing.loginTime : new Date().toISOString(),
     lastActive: new Date().toISOString(),
     passwordPlain: user.passwordPlain
   };
 
-  const storedSessions = localStorage.getItem("ALW_LOGIN_SESSIONS");
-  let sessions: LoginSession[] = storedSessions ? JSON.parse(storedSessions) : [];
-  
   // Remove existing session for this device if any
   sessions = sessions.filter(s => s.id !== deviceId);
   sessions.push(session);
   
   localStorage.setItem("ALW_LOGIN_SESSIONS", JSON.stringify(sessions));
 
-  // Sync to Firestore
+  if (recentlySynced) {
+    return;
+  }
+
+  localStorage.setItem("ALW_LAST_SESSION_CLOUD_SYNC", String(Date.now()));
+
+  // Sync to Firestore only on fresh login, user/role change, or after 60 minutes
   saveDocument("sessions", deviceId, session).catch((err) => {
     console.warn("Failed to save login session to Firestore:", err);
   });
@@ -72,10 +94,14 @@ export function updateSessionActivity(): boolean {
       sessions[sessionIndex] = updatedSession;
       localStorage.setItem("ALW_LOGIN_SESSIONS", JSON.stringify(sessions));
 
-      // Sync updated session activity to Firestore
-      saveDocument("sessions", deviceId, updatedSession).catch((err) => {
-        console.warn("Failed to update session activity in Firestore:", err);
-      });
+      // Throttle Firestore writes to once every 60 minutes to preserve daily write quota
+      const lastCloudSync = Number(localStorage.getItem("ALW_LAST_SESSION_CLOUD_SYNC") || "0");
+      if (Date.now() - lastCloudSync >= SESSION_CLOUD_SYNC_INTERVAL_MS) {
+        localStorage.setItem("ALW_LAST_SESSION_CLOUD_SYNC", String(Date.now()));
+        saveDocument("sessions", deviceId, updatedSession).catch((err) => {
+          console.warn("Failed to update session activity in Firestore:", err);
+        });
+      }
       return true;
     }
     return false;
@@ -96,12 +122,17 @@ export function getActiveSessions(): LoginSession[] {
 
 export function removeSession(deviceId: string) {
   const storedSessions = localStorage.getItem("ALW_LOGIN_SESSIONS");
-  if (!storedSessions) return;
-  try {
-    let sessions: LoginSession[] = JSON.parse(storedSessions);
-    sessions = sessions.filter(s => s.id !== deviceId);
-    localStorage.setItem("ALW_LOGIN_SESSIONS", JSON.stringify(sessions));
-  } catch (e) {}
+  if (storedSessions) {
+    try {
+      let sessions: LoginSession[] = JSON.parse(storedSessions);
+      sessions = sessions.filter(s => s.id !== deviceId);
+      localStorage.setItem("ALW_LOGIN_SESSIONS", JSON.stringify(sessions));
+    } catch (e) {}
+  }
+
+  if (deviceId === localStorage.getItem("ALW_DEVICE_ID")) {
+    localStorage.removeItem("ALW_LAST_SESSION_CLOUD_SYNC");
+  }
 
   // Sync delete to Firestore
   deleteDocument("sessions", deviceId).catch((err) => {

@@ -2,6 +2,9 @@ import { initializeApp, getApps } from "firebase/app";
 import { getAuth } from "firebase/auth";
 import {
   getFirestore,
+  initializeFirestore,
+  persistentLocalCache,
+  persistentMultipleTabManager,
   collection,
   doc,
   getDocs,
@@ -9,9 +12,7 @@ import {
   setDoc,
   deleteDoc,
   onSnapshot,
-  getDocFromServer,
   writeBatch,
-  disableNetwork,
   setLogLevel
 } from "firebase/firestore";
 
@@ -255,6 +256,12 @@ export async function ensureFirebaseInitialized() {
 
 export async function initializeFirebaseClient(forceReconnect: boolean = false) {
   if (forceReconnect) {
+    Object.keys(firestoreSubscriptions).forEach((key) => {
+      try {
+        firestoreSubscriptions[key]?.();
+      } catch (e) {}
+      delete firestoreSubscriptions[key];
+    });
     initPromise = null;
     isInitialized = false;
   }
@@ -314,29 +321,29 @@ export async function initializeFirebaseClient(forceReconnect: boolean = false) 
         app = initializeApp(config);
       }
 
-      dbInstance = getFirestore(app, config.firestoreDatabaseId || undefined);
-
-      // Quick validation read
+      const databaseId = config.firestoreDatabaseId || undefined;
       try {
-        await getDocFromServer(doc(dbInstance, "test", "connection"));
-        isFirebaseConnected = true;
-        firebaseError = null;
-      } catch (e: any) {
-        console.warn(
-          "Firebase connected, operating with local replication caching:",
-          e.message,
+        dbInstance = initializeFirestore(
+          app,
+          {
+            localCache: persistentLocalCache({
+              tabManager: persistentMultipleTabManager(),
+            }),
+          },
+          databaseId,
         );
-        isFirebaseConnected = true;
-        firebaseError = null;
-        if (e.message && e.message.toLowerCase().includes("permission")) {
-          handleFirestoreError(e, OperationType.GET, "test/connection");
-        }
+      } catch (initErr) {
+        dbInstance = getFirestore(app, databaseId);
       }
+      isFirebaseConnected = true;
+      firebaseError = null;
 
-      // Run background sync
-      synchronizeDatabase().catch((err) =>
-        console.warn("Database sync error:", err),
-      );
+      // Only run full-collection reconciliation when explicitly reconnecting (manual Sync Now still calls synchronizeDatabase directly)
+      if (forceReconnect) {
+        synchronizeDatabase().catch((err) =>
+          console.warn("Database sync error:", err),
+        );
+      }
     } catch (err: any) {
       console.error("Firebase connection initialization failed:", err);
       firebaseError = err.message || String(err);
@@ -470,18 +477,6 @@ export async function synchronizeDatabase() {
         );
         notifySubscribers("branding", remoteBranding);
         console.log("Branding sync: Pulled newer remote branding from Firestore.");
-      } else {
-        // Timestamps are equal or default. Check if local has customizations that aren't on server.
-        const isCustomized = 
-          localBranding.companyBrand !== "AL WAFA STAR" ||
-          localBranding.companySubtitle !== "ERP Smart Control v2.5" ||
-          localBranding.profileUser !== "Al Wafa Star Pest Control" ||
-          localBranding.profileEmail !== "hussainahmad13122@gmail.com";
-          
-        if (isCustomized && remoteBranding.profileUser === "Al Wafa Star Pest Control") {
-          const customized = { ...localBranding, updatedAt: Date.now() };
-          await setDoc(doc(dbInstance, "branding", "global"), customized);
-        }
       }
     } else {
       const uploadData = { ...localBranding, updatedAt: localBranding.updatedAt || Date.now() };
@@ -540,13 +535,25 @@ async function getLocalDocuments<T>(collName: string): Promise<T[]> {
   return [];
 }
 
+function areRecordsEquivalentIgnoringUpdatedAt(a: any, b: any): boolean {
+  if (!a || !b || typeof a !== "object" || typeof b !== "object") return false;
+  const copyA = { ...a };
+  const copyB = { ...b };
+  delete copyA.updatedAt;
+  delete copyB.updatedAt;
+  try {
+    return JSON.stringify(copyA) === JSON.stringify(copyB);
+  } catch (e) {
+    return false;
+  }
+}
+
 export async function saveDocument(
   collName: string,
   docId: string,
   data: any,
 ): Promise<any> {
   const cleanData = sanitizeFirestoreData(data);
-  cleanData.updatedAt = Date.now();
 
   // If this item was deleted previously, remove it from the deleted list
   try {
@@ -561,6 +568,17 @@ export async function saveDocument(
   try {
     const list = await getLocalDocuments<any>(collName);
     const existingIndex = list.findIndex((r) => r.id === docId);
+    const candidatePayload = { ...cleanData, id: docId };
+
+    if (
+      existingIndex >= 0 &&
+      list[existingIndex]?.updatedAt &&
+      areRecordsEquivalentIgnoringUpdatedAt(list[existingIndex], candidatePayload)
+    ) {
+      return list[existingIndex];
+    }
+
+    cleanData.updatedAt = Date.now();
     const recordPayload = { ...cleanData, id: docId };
 
     if (existingIndex >= 0) {
@@ -742,7 +760,12 @@ export async function getStoreValue<T>(key: string, defaultVal: T): Promise<T> {
 export async function saveStoreValue<T>(key: string, value: T): Promise<void> {
   try {
     const rawCurrent = localStorage.getItem(STORAGE_PREFIX + "store_" + key);
+    const hasSyncMeta = !!localStorage.getItem(STORAGE_PREFIX + "store_meta_" + key);
     const newStr = JSON.stringify(value);
+    if (rawCurrent === newStr && hasSyncMeta) {
+      return;
+    }
+
     if (rawCurrent !== newStr) {
       localStorage.setItem(STORAGE_PREFIX + "store_" + key, newStr);
       notifySubscribers("store_" + key, value);
@@ -790,9 +813,21 @@ export async function getBrandingData(): Promise<typeof DEFAULT_BRANDING> {
 
 export async function saveBrandingData(data: any, uploadToFirestore: boolean = true): Promise<void> {
   try {
-    const current = await getBrandingData();
+    let current = { ...DEFAULT_BRANDING };
+    try {
+      const raw = localStorage.getItem(STORAGE_PREFIX + "branding");
+      if (raw) {
+        current = { ...DEFAULT_BRANDING, ...JSON.parse(raw) };
+      }
+    } catch (e) {}
+
+    const candidate = { ...current, ...data };
+    if (current.updatedAt && areRecordsEquivalentIgnoringUpdatedAt(current, candidate)) {
+      return;
+    }
+
     const updatedAt = data.updatedAt || Date.now();
-    const updated = { ...current, ...data, updatedAt };
+    const updated = { ...candidate, updatedAt };
 
     localStorage.setItem(STORAGE_PREFIX + "branding", JSON.stringify(updated));
     notifySubscribers("branding", updated);
@@ -840,19 +875,37 @@ export async function getRegisteredUsers(): Promise<any[]> {
 
 export async function saveRegisteredUsers(users: any[]): Promise<void> {
   try {
-    localStorage.setItem(STORAGE_PREFIX + "users", JSON.stringify(users));
-    notifySubscribers("users", users);
+    const prevUsers = await getLocalDocuments<any>("users");
+    const prevMap = new Map(prevUsers.map((u: any) => [u.id, u]));
+
+    const nextStr = JSON.stringify(users);
+    const prevStr = JSON.stringify(prevUsers);
+    localStorage.setItem(STORAGE_PREFIX + "users", nextStr);
+    if (nextStr !== prevStr) {
+      notifySubscribers("users", users);
+    }
+
+    if (typeof window !== "undefined") {
+      fetch("/api/users", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ users }),
+      }).catch(() => {});
+    }
 
     await ensureFirebaseInitialized();
     if (dbInstance) {
       try {
-        // Query all existing user document IDs in Firestore
-        const q = collection(dbInstance, "users");
-        const snapshot = await getDocs(q);
-        const existingIds = new Set<string>();
-        snapshot.forEach((d) => {
-          existingIds.add(d.id);
-        });
+        let existingIds: Set<string>;
+        if (prevUsers.length > 0) {
+          existingIds = new Set(prevUsers.map((u: any) => u.id));
+        } else {
+          const snapshot = await getDocs(collection(dbInstance, "users"));
+          existingIds = new Set<string>();
+          snapshot.forEach((d) => {
+            existingIds.add(d.id);
+          });
+        }
 
         const newIds = new Set(users.map((u) => u.id));
 
@@ -872,14 +925,17 @@ export async function saveRegisteredUsers(users: any[]): Promise<void> {
           }
         }
 
-        // Upsert the remaining/new users
+        // Only upsert users that are new or changed
         for (const user of users) {
-          batch.set(doc(dbInstance, "users", user.id), user);
-          batchCount++;
-          if (batchCount >= 400) {
-            await batch.commit();
-            batch = writeBatch(dbInstance);
-            batchCount = 0;
+          const prevUser = prevMap.get(user.id);
+          if (!prevUser || JSON.stringify(prevUser) !== JSON.stringify(user)) {
+            batch.set(doc(dbInstance, "users", user.id), user);
+            batchCount++;
+            if (batchCount >= 400) {
+              await batch.commit();
+              batch = writeBatch(dbInstance);
+              batchCount = 0;
+            }
           }
         }
 
@@ -948,10 +1004,11 @@ export function subscribeCollection<T>(
               list.push(remoteItem);
             });
 
-            // Update local cache
-            localStorage.setItem(STORAGE_PREFIX + collName, JSON.stringify(list));
-            // Broaden notify
-            notifySubscribers(collName, list);
+            const nextJson = JSON.stringify(list);
+            if (nextJson !== localRaw) {
+              localStorage.setItem(STORAGE_PREFIX + collName, nextJson);
+              notifySubscribers(collName, list);
+            }
           },
           (err) => {
             console.warn(
@@ -967,19 +1024,57 @@ export function subscribeCollection<T>(
 
   return () => {
     subscribers[collName]?.delete(onUpdate);
-    if (subscribers[collName] && subscribers[collName].size === 0) {
-      if (firestoreSubscriptions[collName]) {
-        firestoreSubscriptions[collName]();
-        delete firestoreSubscriptions[collName];
-      }
+    // Keep the underlying Firestore onSnapshot listener alive for the session
+    // so tab switches do not re-read the entire collection on remount.
+  };
+}
+
+export function subscribeDocument<T>(
+  collName: string,
+  docId: string,
+  onUpdate: (data: T | null, meta?: { fromCache: boolean; exists: boolean }) => void,
+): () => void {
+  let unsubscribeDoc: (() => void) | null = null;
+  let cancelled = false;
+
+  ensureFirebaseInitialized().then(() => {
+    if (cancelled || !dbInstance) return;
+    try {
+      unsubscribeDoc = onSnapshot(
+        doc(dbInstance, collName, docId),
+        (snapshot) => {
+          isFirebaseConnected = true;
+          firebaseError = null;
+          const exists = snapshot.exists();
+          const data = exists ? ({ ...snapshot.data(), id: snapshot.id } as T) : null;
+          onUpdate(data, { fromCache: snapshot.metadata.fromCache, exists });
+        },
+        (err) => {
+          console.warn(`Firestore doc subscription failed for ${collName}/${docId}:`, err);
+          handleFirestoreError(err, OperationType.GET, `${collName}/${docId}`);
+        },
+      );
+    } catch (e) {}
+  });
+
+  return () => {
+    cancelled = true;
+    if (unsubscribeDoc) {
+      try {
+        unsubscribeDoc();
+      } catch (e) {}
     }
   };
 }
+
+const syncedStoreKeys = new Set<string>();
+const storeSyncCallbacks: Record<string, Set<() => void>> = {};
 
 export function subscribeStoreValue<T>(
   key: string,
   defaultVal: T,
   onUpdate: (value: T) => void,
+  onRemoteSync?: () => void,
 ): () => void {
   const subKey = "store_" + key;
   if (!subscribers[subKey]) {
@@ -987,10 +1082,36 @@ export function subscribeStoreValue<T>(
   }
   subscribers[subKey].add(onUpdate);
 
-  // Immediately serve cache
-  getStoreValue<T>(key, defaultVal).then(onUpdate);
+  if (onRemoteSync) {
+    if (syncedStoreKeys.has(subKey)) {
+      onRemoteSync();
+    } else {
+      if (!storeSyncCallbacks[subKey]) {
+        storeSyncCallbacks[subKey] = new Set();
+      }
+      storeSyncCallbacks[subKey].add(onRemoteSync);
+    }
+  }
+
+  // Immediately serve from localStorage cache without issuing an extra getDoc read (onSnapshot below syncs remote)
+  try {
+    const raw = localStorage.getItem(STORAGE_PREFIX + "store_" + key);
+    if (raw) {
+      onUpdate(JSON.parse(raw));
+    } else {
+      onUpdate(defaultVal);
+    }
+  } catch (e) {
+    onUpdate(defaultVal);
+  }
 
   ensureFirebaseInitialized().then(() => {
+    if (!dbInstance) {
+      syncedStoreKeys.add(subKey);
+      storeSyncCallbacks[subKey]?.forEach((cb) => cb());
+      storeSyncCallbacks[subKey]?.clear();
+      return;
+    }
     if (dbInstance && !firestoreSubscriptions[subKey]) {
       try {
         firestoreSubscriptions[subKey] = onSnapshot(
@@ -1013,14 +1134,23 @@ export function subscribeStoreValue<T>(
 
               if (localTime > remoteTime) {
                 console.log(`Store value '${key}' snapshot ignored because local is newer.`);
-                return;
+              } else {
+                const nextJson = JSON.stringify(remoteVal);
+                const prevJson = localStorage.getItem(STORAGE_PREFIX + "store_" + key);
+                localStorage.setItem(
+                  STORAGE_PREFIX + "store_meta_" + key,
+                  JSON.stringify({ updatedAt: remoteTime || Date.now() }),
+                );
+                if (nextJson !== prevJson) {
+                  localStorage.setItem(STORAGE_PREFIX + "store_" + key, nextJson);
+                  notifySubscribers("store_" + key, remoteVal);
+                }
               }
-
-              localStorage.setItem(
-                STORAGE_PREFIX + "store_" + key,
-                JSON.stringify(remoteVal),
-              );
-              notifySubscribers("store_" + key, remoteVal);
+            }
+            if (!snapshot.metadata.fromCache || !syncedStoreKeys.has(subKey)) {
+              syncedStoreKeys.add(subKey);
+              storeSyncCallbacks[subKey]?.forEach((cb) => cb());
+              storeSyncCallbacks[subKey]?.clear();
             }
           },
           (err) => {
@@ -1029,6 +1159,9 @@ export function subscribeStoreValue<T>(
               err,
             );
             handleFirestoreError(err, OperationType.GET, `store/${key}`);
+            syncedStoreKeys.add(subKey);
+            storeSyncCallbacks[subKey]?.forEach((cb) => cb());
+            storeSyncCallbacks[subKey]?.clear();
           },
         );
       } catch (e) {}
@@ -1037,12 +1170,10 @@ export function subscribeStoreValue<T>(
 
   return () => {
     subscribers[subKey]?.delete(onUpdate);
-    if (subscribers[subKey] && subscribers[subKey].size === 0) {
-      if (firestoreSubscriptions[subKey]) {
-        firestoreSubscriptions[subKey]();
-        delete firestoreSubscriptions[subKey];
-      }
+    if (onRemoteSync) {
+      storeSyncCallbacks[subKey]?.delete(onRemoteSync);
     }
+    // Keep Firestore store onSnapshot listener alive across tab switches
   };
 }
 
@@ -1055,58 +1186,59 @@ export function subscribeBrandingData(
   }
   subscribers[subKey].add(onUpdate);
 
-  getBrandingData().then(onUpdate);
+  try {
+    const raw = localStorage.getItem(STORAGE_PREFIX + "branding");
+    if (raw) {
+      onUpdate({ ...DEFAULT_BRANDING, ...JSON.parse(raw) });
+    }
+  } catch (e) {}
 
-  if (dbInstance && !firestoreSubscriptions[subKey]) {
-    try {
-      firestoreSubscriptions[subKey] = onSnapshot(
-        doc(dbInstance, "branding", "global"),
-        (snapshot) => {
-          if (snapshot.exists()) {
-            const remoteVal = snapshot.data();
-            
-            // Conflict Resolution: Only overwrite local data if the remote data is newer
-            let shouldUpdate = true;
-            try {
+  ensureFirebaseInitialized().then(() => {
+    if (dbInstance && !firestoreSubscriptions[subKey]) {
+      try {
+        firestoreSubscriptions[subKey] = onSnapshot(
+          doc(dbInstance, "branding", "global"),
+          (snapshot) => {
+            if (snapshot.exists()) {
+              const remoteVal = snapshot.data();
               const localRaw = localStorage.getItem(STORAGE_PREFIX + "branding");
-              if (localRaw) {
-                const localVal = JSON.parse(localRaw);
-                const localTime = localVal?.updatedAt || 0;
-                const remoteTime = remoteVal?.updatedAt || 0;
-                if (localTime > remoteTime) {
-                  shouldUpdate = false;
-                  console.log("Branding snapshot: Ignored stale remote value in favor of newer local branding.");
+
+              // Conflict Resolution: Only overwrite local data if the remote data is newer
+              let shouldUpdate = true;
+              try {
+                if (localRaw) {
+                  const localVal = JSON.parse(localRaw);
+                  const localTime = localVal?.updatedAt || 0;
+                  const remoteTime = remoteVal?.updatedAt || 0;
+                  if (localTime > remoteTime) {
+                    shouldUpdate = false;
+                    console.log("Branding snapshot: Ignored stale remote value in favor of newer local branding.");
+                  }
+                }
+              } catch (e) {
+                console.warn("Conflict resolution parsing failed:", e);
+              }
+
+              if (shouldUpdate) {
+                const nextJson = JSON.stringify(remoteVal);
+                if (nextJson !== localRaw) {
+                  localStorage.setItem(STORAGE_PREFIX + "branding", nextJson);
+                  notifySubscribers("branding", remoteVal);
                 }
               }
-            } catch (e) {
-              console.warn("Conflict resolution parsing failed:", e);
             }
-
-            if (shouldUpdate) {
-              localStorage.setItem(
-                STORAGE_PREFIX + "branding",
-                JSON.stringify(remoteVal),
-              );
-              notifySubscribers("branding", remoteVal);
-            }
-          }
-        },
-        (err) => {
-          console.warn("Firestore branding subscription failed:", err);
-          handleFirestoreError(err, OperationType.GET, "branding");
-        },
-      );
-    } catch (e) {}
-  }
+          },
+          (err) => {
+            console.warn("Firestore branding subscription failed:", err);
+            handleFirestoreError(err, OperationType.GET, "branding");
+          },
+        );
+      } catch (e) {}
+    }
+  });
 
   return () => {
     subscribers[subKey]?.delete(onUpdate);
-    if (subscribers[subKey] && subscribers[subKey].size === 0) {
-      if (firestoreSubscriptions[subKey]) {
-        firestoreSubscriptions[subKey]();
-        delete firestoreSubscriptions[subKey];
-      }
-    }
   };
 }
 
@@ -1119,39 +1251,38 @@ export function subscribeRegisteredUsers(
   }
   subscribers[subKey].add(onUpdate);
 
-  getRegisteredUsers().then(onUpdate);
+  getLocalDocuments<any>("users").then((localUsers) => {
+    onUpdate(localUsers.length > 0 ? localUsers : DEFAULT_USERS);
+  });
 
-  if (dbInstance && !firestoreSubscriptions[subKey]) {
-    try {
-      firestoreSubscriptions[subKey] = onSnapshot(
-        collection(dbInstance, "users"),
-        (snapshot) => {
-          const list: any[] = [];
-          snapshot.forEach((doc) => {
-            list.push({ ...doc.data(), id: doc.id });
-          });
-          if (list.length > 0) {
-            localStorage.setItem(
-              STORAGE_PREFIX + "users",
-              JSON.stringify(list),
-            );
-            notifySubscribers("users", list);
-          }
-        },
-        (err) => {
-          console.warn("Firestore users list subscription failed:", err);
-        },
-      );
-    } catch (e) {}
-  }
+  ensureFirebaseInitialized().then(() => {
+    if (dbInstance && !firestoreSubscriptions[subKey]) {
+      try {
+        firestoreSubscriptions[subKey] = onSnapshot(
+          collection(dbInstance, "users"),
+          (snapshot) => {
+            const list: any[] = [];
+            snapshot.forEach((doc) => {
+              list.push({ ...doc.data(), id: doc.id });
+            });
+            if (list.length > 0) {
+              const nextJson = JSON.stringify(list);
+              const prevJson = localStorage.getItem(STORAGE_PREFIX + "users");
+              if (nextJson !== prevJson) {
+                localStorage.setItem(STORAGE_PREFIX + "users", nextJson);
+                notifySubscribers("users", list);
+              }
+            }
+          },
+          (err) => {
+            console.warn("Firestore users list subscription failed:", err);
+          },
+        );
+      } catch (e) {}
+    }
+  });
 
   return () => {
     subscribers[subKey]?.delete(onUpdate);
-    if (subscribers[subKey] && subscribers[subKey].size === 0) {
-      if (firestoreSubscriptions[subKey]) {
-        firestoreSubscriptions[subKey]();
-        delete firestoreSubscriptions[subKey];
-      }
-    }
   };
 }

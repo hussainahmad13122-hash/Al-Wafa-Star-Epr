@@ -120,7 +120,7 @@ export const generateReportHTML = (report: any, language: string) => {
     <style>
         * { box-sizing: border-box; }
         @media print {
-            @page { size: A4 portrait; margin: 0 !important; }
+            @page { size: A4 portrait; margin: 9mm 8mm !important; }
             * {
                 -webkit-print-color-adjust: exact !important;
                 print-color-adjust: exact !important;
@@ -129,10 +129,10 @@ export const generateReportHTML = (report: any, language: string) => {
             body { margin: 0 !important; padding: 0 !important; background: #ffffff !important; }
             .report-wrapper {
                 margin: 0 auto !important;
-                padding: 8mm 12mm !important;
-                width: 210mm !important;
-                max-width: 210mm !important;
-                min-height: 282mm !important;
+                padding: 6mm 9mm !important;
+                width: 100% !important;
+                max-width: 100% !important;
+                min-height: auto !important;
                 box-shadow: none !important;
                 border: 2px solid #000000 !important;
                 outline: 1px double #000000 !important;
@@ -984,6 +984,20 @@ export const generateReportHTML = (report: any, language: string) => {
   return htmlContent;
 };
 
+export const getReportPdfFilename = (report: any): string => {
+  if (!report) return "Report";
+  let facilityNameStr = "Report";
+  const fName = report.facilityName ?? report.clientName;
+  if (fName) {
+    if (typeof fName === "object") {
+      facilityNameStr = (fName as any).name || (fName as any).facilityName || (fName as any).label || "Report";
+    } else {
+      facilityNameStr = String(fName);
+    }
+  }
+  return facilityNameStr.replace(/[\/\\:*?"<>|]/g, "_").trim() || "Report";
+};
+
 export const printHTMLContent = (htmlContent: string, title?: string): Promise<void> => {
   return new Promise<void>((resolve) => {
     const originalTitle = document.title;
@@ -996,7 +1010,12 @@ export const printHTMLContent = (htmlContent: string, title?: string): Promise<v
       if (resolved) return;
       resolved = true;
       if (title) {
-        document.title = originalTitle;
+        // Keep the report clinic title briefly after afterprint so Android Print Spooler captures it reliably
+        setTimeout(() => {
+          if (document.title === title) {
+            document.title = originalTitle;
+          }
+        }, 5000);
       }
       resolve();
     };
@@ -1228,7 +1247,7 @@ export const generateEngineeringHTML = (report: any, language: string) => {
         @media print {
             @page {
                 size: A4 portrait;
-                margin: 0 !important;
+                margin: 10mm 8mm !important;
             }
             body {
                 background-color: #ffffff !important;
@@ -1237,15 +1256,15 @@ export const generateEngineeringHTML = (report: any, language: string) => {
             }
             .engineering-report-wrapper {
                 margin: 0 auto !important;
-                padding: 10mm 15mm !important;
+                padding: 7mm 9mm !important;
                 box-shadow: none !important;
                 border: 2px solid #000000 !important;
                 outline: 1px double #000000 !important;
                 border-radius: 0 !important;
                 background-color: #ffffff !important;
-                width: 210mm !important;
-                max-width: 210mm !important;
-                min-height: 282mm !important;
+                width: 100% !important;
+                max-width: 100% !important;
+                min-height: auto !important;
                 box-sizing: border-box !important;
                 page-break-after: always !important;
                 break-after: page !important;
@@ -1665,7 +1684,7 @@ export const generateBulkReportsHTML = (reports: any[], language: string): strin
                 break-after: page !important;
                 page-break-inside: auto !important;
                 break-inside: auto !important;
-                min-height: 282mm !important;
+                min-height: auto !important;
                 -webkit-box-decoration-break: clone !important;
                 box-decoration-break: clone !important;
             }
@@ -1710,6 +1729,15 @@ export default function ClientDirectory({
 
   // Custom report preview modal before downloading
   const [previewReport, setPreviewReport] = useState<ReportItem | null>(null);
+
+  useEffect(() => {
+    if (!previewReport) return;
+    const originalTitle = document.title;
+    document.title = getReportPdfFilename(previewReport);
+    return () => {
+      document.title = originalTitle;
+    };
+  }, [previewReport]);
 
   // Multi-selection state for deleting ledger items in bulk
   const [selectedReportIds, setSelectedReportIds] = useState<string[]>([]);
@@ -1800,22 +1828,7 @@ export default function ClientDirectory({
     customNameOverride?: string,
   ) => {
     try {
-      let facilityNameStr = "Report";
-      const fName = report.facilityName;
-      if (fName) {
-        if (typeof fName === "object") {
-          facilityNameStr = (fName as any).name || (fName as any).facilityName || (fName as any).label || "Report";
-        } else {
-          facilityNameStr = String(fName);
-        }
-      }
-      const cleanFacilityName = facilityNameStr
-        .replace(/[\/\\:*?"<>|]/g, "_")
-        .trim();
-      const cleanDate = (report.dateOfOperation || report.date || "NoDate")
-        .replace(/[\/\\:*?"<>|]/g, "-")
-        .trim();
-      const defaultName = `${cleanFacilityName} - ${cleanDate}`;
+      const defaultName = getReportPdfFilename(report);
       let customFileName = customNameOverride || defaultName;
 
       if (!customFileName) return;
@@ -3489,30 +3502,26 @@ export default function ClientDirectory({
                         const iframe = document.querySelector('iframe[title="Report Preview"]') as HTMLIFrameElement;
                         if (iframe && iframe.contentWindow) {
                           const originalTitle = document.title;
-                          let facilityNameStr = "Report";
-                          const fName = report.facilityName;
-                          if (fName) {
-                            if (typeof fName === "object") {
-                              facilityNameStr = (fName as any).name || (fName as any).facilityName || (fName as any).label || "Report";
-                            } else {
-                              facilityNameStr = String(fName);
-                            }
-                          }
-                          const cleanFacilityName = facilityNameStr.replace(/[\/\\:*?"<>|]/g, "_").trim();
-                          const cleanDate = (report.dateOfOperation || "NoDate").replace(/[\/\\:*?"<>|]/g, "-").trim();
-                          const filename = `${cleanFacilityName} - ${cleanDate}`;
+                          const filename = getReportPdfFilename(report);
                           
                           document.title = filename;
                           if (iframe.contentWindow.document) {
                             iframe.contentWindow.document.title = filename;
                           }
+
+                          let restored = false;
+                          const restoreTitle = () => {
+                            if (restored) return;
+                            restored = true;
+                            // Keep clinic title until previewReport closes (handled by useEffect)
+                          };
+                          iframe.contentWindow.addEventListener("afterprint", restoreTitle, { once: true });
+                          window.addEventListener("afterprint", restoreTitle, { once: true });
                           
                           iframe.contentWindow.focus();
                           iframe.contentWindow.print();
                           
-                          setTimeout(() => {
-                            document.title = originalTitle;
-                          }, 1000);
+                          setTimeout(restoreTitle, 15000);
                         } else {
                           await downloadFullReportPDF(report);
                         }

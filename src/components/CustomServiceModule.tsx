@@ -9,7 +9,7 @@ import {
   Trash2,
   Calendar
 } from "lucide-react";
-import { generateReportHTML, generateEngineeringHTML, printHTMLContent, generateBulkReportsHTML } from "./ClientDirectory";
+import { generateReportHTML, generateEngineeringHTML, printHTMLContent, generateBulkReportsHTML, getReportPdfFilename } from "./ClientDirectory";
 import EngineeringReport from "./EngineeringReport";
 import { getDocuments, subscribeCollection } from "../localDatabase";
 
@@ -128,6 +128,15 @@ export default function CustomServiceModule({ language, isDark, reports = [], on
   const [activeSystemTab, setActiveSystemTab] = useState<"service" | "engineering">("service");
   const [selectedReportIds, setSelectedReportIds] = useState<string[]>([]);
   const [simulatedPrint, setSimulatedPrint] = useState(false);
+
+  useEffect(() => {
+    if (!activeReportDetails) return;
+    const originalTitle = document.title;
+    document.title = getReportPdfFilename(activeReportDetails);
+    return () => {
+      document.title = originalTitle;
+    };
+  }, [activeReportDetails]);
 
   useEffect(() => {
     setSelectedReportIds([]);
@@ -263,22 +272,7 @@ export default function CustomServiceModule({ language, isDark, reports = [], on
         contentHtml = generateReportHTML(report, language);
       }
 
-      let facilityNameStr = "Report";
-      const fName = report.facilityName;
-      if (fName) {
-        if (typeof fName === "object") {
-          facilityNameStr = (fName as any).name || (fName as any).facilityName || (fName as any).label || "Report";
-        } else {
-          facilityNameStr = String(fName);
-        }
-      }
-      const cleanFacilityName = facilityNameStr
-        .replace(/[\/\\:*?"<>|]/g, "_")
-        .trim();
-      const cleanDate = (report.dateOfOperation || "NoDate")
-        .replace(/[\/\\:*?"<>|]/g, "-")
-        .trim();
-      const filename = `${cleanFacilityName} - ${cleanDate}`;
+      const filename = getReportPdfFilename(report);
 
       await printHTMLContent(contentHtml, filename);
     } catch (e) {
@@ -292,31 +286,24 @@ export default function CustomServiceModule({ language, isDark, reports = [], on
     setSimulatedPrint(true);
     document.body.classList.add("pdf-download-active");
 
-    const originalTitle = document.title;
-    let facilityNameStr = "Report";
-    const fName = activeReportDetails.facilityName;
-    if (fName) {
-      if (typeof fName === "object") {
-        facilityNameStr = (fName as any).name || (fName as any).facilityName || (fName as any).label || "Report";
-      } else {
-        facilityNameStr = String(fName);
-      }
-    }
-    const cleanFacilityName = facilityNameStr.replace(/[\/\\:*?"<>|]/g, "_").trim();
-    const cleanDate = (activeReportDetails.dateOfOperation || "NoDate").replace(/[\/\\:*?"<>|]/g, "-").trim();
-    const filename = `${cleanFacilityName} - ${cleanDate}`;
+    const filename = getReportPdfFilename(activeReportDetails);
     document.title = filename;
+
+    let cleaned = false;
+    const cleanup = () => {
+      if (cleaned) return;
+      cleaned = true;
+      document.body.classList.remove("pdf-download-active");
+      setSimulatedPrint(false);
+    };
+
+    window.addEventListener("afterprint", cleanup, { once: true });
 
     setTimeout(() => {
       window.focus();
       window.print();
-
-      setTimeout(() => {
-        document.body.classList.remove("pdf-download-active");
-        document.title = originalTitle;
-        setSimulatedPrint(false);
-      }, 500);
-    }, 500);
+      setTimeout(cleanup, 15000);
+    }, 300);
   };
 
   const handleBulkDownload = async () => {
@@ -344,7 +331,7 @@ export default function CustomServiceModule({ language, isDark, reports = [], on
 
   return (
     <div className="space-y-6 select-none max-w-7xl mx-auto font-sans p-6 md:p-8">
-      <div className={`border rounded-2xl shadow-lg relative animate-fadeIn transition-all ${isDark ? "bg-slate-800 border-slate-700" : "bg-white border-slate-200"}`}>
+      <div className={`no-print border rounded-2xl shadow-lg relative animate-fadeIn transition-all ${isDark ? "bg-slate-800 border-slate-700" : "bg-white border-slate-200"}`}>
         <div className="animate-fadeIn">
           <div className={`p-5 md:p-6 border-b flex flex-col md:flex-row justify-between items-start md:items-center gap-4 ${isDark ? "bg-slate-800/80 border-slate-700" : "bg-gradient-to-r from-slate-50 to-slate-100 border-slate-200"} rounded-t-2xl`}>
             <div>
@@ -735,7 +722,7 @@ export default function CustomServiceModule({ language, isDark, reports = [], on
               <div className="flex-1 overflow-y-auto p-6 md:p-8 space-y-6">
                 
                 {/* Printable sheet mirroring physical format precisely */}
-                <div id="printable-service-report" className="print-sheet-paper space-y-6 text-slate-950 font-sans">
+                <div id="printable-service-report" className="print-sheet-paper space-y-6 text-slate-950 font-sans relative">
                   
                   {/* Red star watermark in the absolute background */}
                   <div className="absolute inset-0 flex items-center justify-center pointer-events-none opacity-[0.06] select-none z-0">

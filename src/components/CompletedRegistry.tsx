@@ -14,7 +14,7 @@ import {
   ExternalLink,
   Calendar
 } from "lucide-react";
-import { generateReportHTML, generateEngineeringHTML, printHTMLContent } from "./ClientDirectory";
+import { generateReportHTML, generateEngineeringHTML, printHTMLContent, getReportPdfFilename } from "./ClientDirectory";
 
 const formatFacilityType = (type: string, lang: "en" | "ar" | "bn") => {
   if (!type) return "";
@@ -200,6 +200,15 @@ export default function CompletedRegistry({
   const [activeReportDetails, setActiveReportDetails] = useState<ReportItem | null>(null);
   const [deleteConfirmReport, setDeleteConfirmReport] = useState<ReportItem | null>(null);
   const [simulatedPrint, setSimulatedPrint] = useState(false);
+
+  useEffect(() => {
+    if (!activeReportDetails) return;
+    const originalTitle = document.title;
+    document.title = getReportPdfFilename(activeReportDetails);
+    return () => {
+      document.title = originalTitle;
+    };
+  }, [activeReportDetails]);
 
   const handleDeleteConfirm = async () => {
     if (!deleteConfirmReport) return;
@@ -401,22 +410,7 @@ export default function CompletedRegistry({
           contentHtml = generateReportHTML(report, language);
         }
 
-        let facilityNameStr = "Report";
-        const fName = report.facilityName;
-        if (fName) {
-          if (typeof fName === "object") {
-            facilityNameStr = (fName as any).name || (fName as any).facilityName || (fName as any).label || "Report";
-          } else {
-            facilityNameStr = String(fName);
-          }
-        }
-        const cleanFacilityName = facilityNameStr
-          .replace(/[\/\\:*?"<>|]/g, "_")
-          .trim();
-        const cleanDate = (report.dateOfOperation || "NoDate")
-          .replace(/[\/\\:*?"<>|]/g, "-")
-          .trim();
-        const filename = `${cleanFacilityName} - ${cleanDate}`;
+        const filename = getReportPdfFilename(report);
 
         // Print/Download this file
         await printHTMLContent(contentHtml, filename);
@@ -454,22 +448,7 @@ export default function CompletedRegistry({
         contentHtml = generateReportHTML(activeReportDetails, language);
       }
 
-      let facilityNameStr = "Report";
-      const fName = activeReportDetails.facilityName;
-      if (fName) {
-        if (typeof fName === "object") {
-          facilityNameStr = (fName as any).name || (fName as any).facilityName || (fName as any).label || "Report";
-        } else {
-          facilityNameStr = String(fName);
-        }
-      }
-      const cleanFacilityName = facilityNameStr
-        .replace(/[\/\\:*?"<>|]/g, "_")
-        .trim();
-      const cleanDate = (activeReportDetails.dateOfOperation || activeReportDetails.date || "NoDate")
-        .replace(/[\/\\:*?"<>|]/g, "-")
-        .trim();
-      const filename = `${cleanFacilityName} - ${cleanDate}`;
+      const filename = getReportPdfFilename(activeReportDetails);
 
       await printHTMLContent(contentHtml, filename);
       setIsGeneratingPDF(false);
@@ -482,18 +461,27 @@ export default function CompletedRegistry({
   const triggerPrintDoc = () => {
     if (!activeReportDetails) return;
 
+    const filename = getReportPdfFilename(activeReportDetails);
+    document.title = filename;
+
     setSimulatedPrint(true);
     document.body.classList.add("pdf-download-active");
-    
+
+    let cleaned = false;
+    const cleanup = () => {
+      if (cleaned) return;
+      cleaned = true;
+      document.body.classList.remove("pdf-download-active");
+      setSimulatedPrint(false);
+    };
+
+    window.addEventListener("afterprint", cleanup, { once: true });
+
     setTimeout(() => {
       window.focus();
       window.print();
-      
-      setTimeout(() => {
-        document.body.classList.remove("pdf-download-active");
-        setSimulatedPrint(false);
-      }, 500);
-    }, 500);
+      setTimeout(cleanup, 15000);
+    }, 300);
   };
 
   return (
@@ -1501,7 +1489,7 @@ export default function CompletedRegistry({
 
             </div>
 
-            <div className="bg-[#F8FAFC] border-t border-slate-200 p-4 shrink-0 flex flex-wrap gap-2.5 justify-end items-center font-sans">
+            <div className="no-print bg-[#F8FAFC] border-t border-slate-200 p-4 shrink-0 flex flex-wrap gap-2.5 justify-end items-center font-sans">
               <button
                 onClick={() => {
                   onSelectReport(activeReportDetails);

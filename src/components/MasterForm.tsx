@@ -29,7 +29,7 @@ import {
 } from "lucide-react";
 import { ReportItem, LocationRegistryItem, STANDARD_FACILITIES, EMIRATE_MAPPING_FACILITIES, getCurrentUserPermissions, AppUser } from "../types";
 import { saveDocument, saveStoreValue, subscribeStoreValue } from "../localDatabase";
-import { generateReportHTML, printHTMLContent } from "./ClientDirectory";
+import { generateReportHTML, printHTMLContent, getReportPdfFilename } from "./ClientDirectory";
 
 interface MasterFormProps {
   onAddReport: (report: ReportItem) => void;
@@ -59,90 +59,239 @@ function SignaturePad({
   onSaveSignature: (dataUrl: string) => void;
   initialUrl?: string;
 }) {
+  const containerRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const [isDrawing, setIsDrawing] = useState(false);
+  const isDrawingRef = useRef(false);
+  const activePointerIdRef = useRef<number | null>(null);
+  const lastPointRef = useRef<{ x: number; y: number } | null>(null);
+  const hasSignedRef = useRef(!!initialUrl);
+  const lastSavedUrlRef = useRef<string>(initialUrl || "");
+  const dprRef = useRef<number>(1);
   const [hasSigned, setHasSigned] = useState(!!initialUrl);
-  const [signatureUrl, setSignatureUrl] = useState(initialUrl);
+
+  const applyStrokeStyle = (ctx: CanvasRenderingContext2D) => {
+    ctx.strokeStyle = "#000000"; // Sharp, distinctive contrasting solid black signature ink!
+    ctx.fillStyle = "#000000";
+    ctx.lineWidth = 2.2;
+    ctx.lineCap = "round";
+    ctx.lineJoin = "round";
+  };
 
   useEffect(() => {
-    setSignatureUrl(initialUrl);
-    setHasSigned(!!initialUrl);
-  }, [initialUrl]);
-
-  useEffect(() => {
+    const container = containerRef.current;
     const canvas = canvasRef.current;
-    if (canvas) {
-      const ctx = canvas.getContext("2d");
-      if (ctx) {
-        ctx.strokeStyle = "#000000"; // Sharp, distinctive contrasting solid black signature ink!
-        ctx.lineWidth = 2.5;         // Solid visible stroke thickness for nice rendering
-        ctx.lineCap = "round";
+    if (!container || !canvas) return;
+
+    const syncCanvasSize = () => {
+      const rect = container.getBoundingClientRect();
+      if (rect.width <= 0 || rect.height <= 0) return;
+
+      const dpr = Math.min(window.devicePixelRatio || 1, 2);
+      const targetW = Math.max(1, Math.round(rect.width * dpr));
+      const targetH = Math.max(1, Math.round(rect.height * dpr));
+
+      if (canvas.width === targetW && canvas.height === targetH && dprRef.current === dpr) {
+        return;
       }
+
+      let snapshot: HTMLCanvasElement | null = null;
+      if (hasSignedRef.current && canvas.width > 0 && canvas.height > 0) {
+        snapshot = document.createElement("canvas");
+        snapshot.width = canvas.width;
+        snapshot.height = canvas.height;
+        const snapCtx = snapshot.getContext("2d");
+        snapCtx?.drawImage(canvas, 0, 0);
+      }
+
+      dprRef.current = dpr;
+      canvas.width = targetW;
+      canvas.height = targetH;
+
+      const ctx = canvas.getContext("2d");
+      if (!ctx) return;
+
+      if (snapshot) {
+        ctx.setTransform(1, 0, 0, 1, 0, 0);
+        ctx.drawImage(snapshot, 0, 0, targetW, targetH);
+      }
+
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      applyStrokeStyle(ctx);
+    };
+
+    syncCanvasSize();
+
+    let observer: ResizeObserver | null = null;
+    if (typeof ResizeObserver !== "undefined") {
+      observer = new ResizeObserver(() => {
+        if (!isDrawingRef.current) {
+          syncCanvasSize();
+        }
+      });
+      observer.observe(container);
     }
+
+    return () => {
+      observer?.disconnect();
+    };
   }, []);
 
-  const startDrawing = (e: React.MouseEvent<HTMLCanvasElement> | React.TouchEvent<HTMLCanvasElement>) => {
-    e.preventDefault();
+  useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
-    const ctx = canvas.getContext("2d");
-    if (!ctx) return;
 
+    if (!initialUrl) {
+      if (lastSavedUrlRef.current || hasSignedRef.current) {
+        const ctx = canvas.getContext("2d");
+        if (ctx) {
+          ctx.save();
+          ctx.setTransform(1, 0, 0, 1, 0, 0);
+          ctx.clearRect(0, 0, canvas.width, canvas.height);
+          ctx.restore();
+          applyStrokeStyle(ctx);
+        }
+      }
+      lastSavedUrlRef.current = "";
+      hasSignedRef.current = false;
+      setHasSigned(false);
+      return;
+    }
+
+    if (initialUrl === lastSavedUrlRef.current) {
+      hasSignedRef.current = true;
+      setHasSigned(true);
+      return;
+    }
+
+    let cancelled = false;
+    const img = new Image();
+    img.onload = () => {
+      if (cancelled) return;
+      const ctx = canvas.getContext("2d");
+      if (!ctx) return;
+      ctx.save();
+      ctx.setTransform(1, 0, 0, 1, 0, 0);
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+      ctx.restore();
+      applyStrokeStyle(ctx);
+      lastSavedUrlRef.current = initialUrl;
+      hasSignedRef.current = true;
+      setHasSigned(true);
+    };
+    img.src = initialUrl;
+
+    return () => {
+      cancelled = true;
+    };
+  }, [initialUrl]);
+
+  const getLocalPoint = (e: React.PointerEvent<HTMLCanvasElement>) => {
+    const canvas = canvasRef.current;
+    if (!canvas) return null;
     const rect = canvas.getBoundingClientRect();
-    let clientX = "touches" in e ? e.touches[0].clientX : e.clientX;
-    let clientY = "touches" in e ? e.touches[0].clientY : e.clientY;
-
-    const x = ((clientX - rect.left) / rect.width) * canvas.width;
-    const y = ((clientY - rect.top) / rect.height) * canvas.height;
-
-    ctx.beginPath();
-    ctx.moveTo(x, y);
-    setIsDrawing(true);
+    if (rect.width <= 0 || rect.height <= 0) return null;
+    return {
+      x: e.clientX - rect.left,
+      y: e.clientY - rect.top
+    };
   };
 
-  const draw = (e: React.MouseEvent<HTMLCanvasElement> | React.TouchEvent<HTMLCanvasElement>) => {
-    if (!isDrawing) return;
+  const handlePointerDown = (e: React.PointerEvent<HTMLCanvasElement>) => {
+    if (e.pointerType === "mouse" && e.button !== 0) return;
+    if (activePointerIdRef.current !== null) return;
+
     e.preventDefault();
     const canvas = canvasRef.current;
     if (!canvas) return;
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
 
-    const rect = canvas.getBoundingClientRect();
-    let clientX = "touches" in e ? e.touches[0].clientX : e.clientX;
-    let clientY = "touches" in e ? e.touches[0].clientY : e.clientY;
+    const pt = getLocalPoint(e);
+    if (!pt) return;
 
-    const x = ((clientX - rect.left) / rect.width) * canvas.width;
-    const y = ((clientY - rect.top) / rect.height) * canvas.height;
+    try {
+      e.currentTarget.setPointerCapture(e.pointerId);
+    } catch {}
 
-    ctx.lineTo(x, y);
-    ctx.stroke();
+    activePointerIdRef.current = e.pointerId;
+    isDrawingRef.current = true;
+    hasSignedRef.current = true;
     setHasSigned(true);
+    lastPointRef.current = pt;
+
+    const dpr = dprRef.current || 1;
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    applyStrokeStyle(ctx);
+    ctx.beginPath();
+    ctx.arc(pt.x, pt.y, 1.1, 0, Math.PI * 2);
+    ctx.fill();
   };
 
-  const stopDrawing = () => {
-    if (isDrawing) {
-      setIsDrawing(false);
+  const handlePointerMove = (e: React.PointerEvent<HTMLCanvasElement>) => {
+    if (!isDrawingRef.current || activePointerIdRef.current !== e.pointerId) return;
+    e.preventDefault();
+
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+
+    const pt = getLocalPoint(e);
+    if (!pt) return;
+
+    const prev = lastPointRef.current || pt;
+    applyStrokeStyle(ctx);
+    ctx.beginPath();
+    ctx.moveTo(prev.x, prev.y);
+    ctx.lineTo(pt.x, pt.y);
+    ctx.stroke();
+
+    lastPointRef.current = pt;
+  };
+
+  const finishStroke = (e: React.PointerEvent<HTMLCanvasElement>) => {
+    if (activePointerIdRef.current !== e.pointerId) return;
+
+    try {
+      if (e.currentTarget.hasPointerCapture(e.pointerId)) {
+        e.currentTarget.releasePointerCapture(e.pointerId);
+      }
+    } catch {}
+
+    activePointerIdRef.current = null;
+    lastPointRef.current = null;
+
+    if (isDrawingRef.current) {
+      isDrawingRef.current = false;
       const canvas = canvasRef.current;
-      if (canvas && hasSigned) {
-        const dataUrl = canvas.toDataURL();
-        setSignatureUrl(dataUrl);
+      if (canvas && hasSignedRef.current) {
+        const dataUrl = canvas.toDataURL("image/png");
+        lastSavedUrlRef.current = dataUrl;
         onSaveSignature(dataUrl);
       }
     }
   };
 
   const clearPad = () => {
+    isDrawingRef.current = false;
+    activePointerIdRef.current = null;
+    lastPointRef.current = null;
     const canvas = canvasRef.current;
     if (canvas) {
       const ctx = canvas.getContext("2d");
       if (ctx) {
+        ctx.save();
+        ctx.setTransform(1, 0, 0, 1, 0, 0);
         ctx.clearRect(0, 0, canvas.width, canvas.height);
-        setHasSigned(false);
-        setSignatureUrl("");
-        onSaveSignature("");
+        ctx.restore();
+        applyStrokeStyle(ctx);
       }
     }
+    hasSignedRef.current = false;
+    lastSavedUrlRef.current = "";
+    setHasSigned(false);
+    onSaveSignature("");
   };
 
   return (
@@ -161,28 +310,16 @@ function SignaturePad({
           Clear
         </button>
       </div>
-      <div className="relative border border-dotted border-slate-350 bg-white rounded h-[70px] w-full overflow-hidden">
-        {signatureUrl ? (
-          <img 
-            src={signatureUrl} 
-            alt="Signature" 
-            className="absolute inset-0 w-full h-full object-contain pointer-events-none"
-            referrerPolicy="no-referrer"
-          />
-        ) : null}
+      <div ref={containerRef} className="relative border border-dotted border-slate-350 bg-white rounded h-[70px] w-full overflow-hidden">
         <canvas
           id={`canvas-${id}`}
           ref={canvasRef}
-          width={240}
-          height={70}
-          onMouseDown={startDrawing}
-          onMouseMove={draw}
-          onMouseUp={stopDrawing}
-          onMouseLeave={stopDrawing}
-          onTouchStart={startDrawing}
-          onTouchMove={draw}
-          onTouchEnd={stopDrawing}
-          className={`absolute inset-0 w-full h-full cursor-crosshair touch-none ${signatureUrl ? "opacity-0" : "opacity-100"}`}
+          onPointerDown={handlePointerDown}
+          onPointerMove={handlePointerMove}
+          onPointerUp={finishStroke}
+          onPointerCancel={finishStroke}
+          style={{ touchAction: "none" }}
+          className="absolute inset-0 w-full h-full cursor-crosshair touch-none select-none opacity-100"
         />
       </div>
       <div className="text-[8px] text-slate-400 text-center italic leading-none">
@@ -1334,23 +1471,7 @@ export default function MasterForm({
 
     try {
       const contentHtml = generateReportHTML(payload, language);
-      
-      let facilityNameStr = "Report";
-      const fName = payload.facilityName;
-      if (fName) {
-        if (typeof fName === "object") {
-          facilityNameStr = (fName as any).name || (fName as any).facilityName || (fName as any).label || "Report";
-        } else {
-          facilityNameStr = String(fName);
-        }
-      }
-      const cleanFacilityName = facilityNameStr
-        .replace(/[\/\\:*?"<>|]/g, "_")
-        .trim();
-      const cleanDate = (payload.dateOfOperation || "NoDate")
-        .replace(/[\/\\:*?"<>|]/g, "-")
-        .trim();
-      const filename = `${cleanFacilityName} - ${cleanDate}`;
+      const filename = getReportPdfFilename(payload);
 
       await printHTMLContent(contentHtml, filename);
     } catch (e) {
@@ -1725,10 +1846,6 @@ export default function MasterForm({
       }
       setCreatedReport(payload);
       setShowSuccessModal(true);
-
-      // Attempt background online sync to Firestore
-      saveDocument("serviceReports", payload.id, payload)
-        .catch(err => console.log("Failed to sync report to Firestore: ", err));
 
       // Clean up emergency schedules that match the facilityName being submitted
       try {

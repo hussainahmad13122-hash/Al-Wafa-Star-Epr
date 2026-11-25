@@ -181,28 +181,37 @@ export default function AdminSettings({
   }, [selectedRoleToManage]);
 
   useEffect(() => {
+    const loadLocalSessions = () => {
+      const stored = localStorage.getItem("ALW_LOGIN_SESSIONS");
+      if (stored) {
+        try {
+          setActiveSessionsList(JSON.parse(stored));
+        } catch (e) {
+          setActiveSessionsList([]);
+        }
+      } else {
+        setActiveSessionsList([]);
+      }
+    };
+
+    loadLocalSessions();
+
+    if (activeTab !== "active_devices" && !showSessionsList) {
+      return;
+    }
+
     const unsubscribe = subscribeCollection<any>("sessions", (sessions) => {
       if (sessions && sessions.length > 0) {
         setActiveSessionsList(sessions);
         localStorage.setItem("ALW_LOGIN_SESSIONS", JSON.stringify(sessions));
       } else {
-        // Fallback to local storage if cloud is empty or loading
-        const stored = localStorage.getItem("ALW_LOGIN_SESSIONS");
-        if (stored) {
-          try {
-            setActiveSessionsList(JSON.parse(stored));
-          } catch (e) {
-            setActiveSessionsList([]);
-          }
-        } else {
-          setActiveSessionsList([]);
-        }
+        loadLocalSessions();
       }
     });
     return () => {
       unsubscribe();
     };
-  }, []);
+  }, [activeTab, showSessionsList]);
 
   const [saveAsGlobal, setSaveAsGlobal] = useState(false);
   const [isCustomProfile, setIsCustomProfile] = useState(() => {

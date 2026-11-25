@@ -38,7 +38,7 @@ import {
   Sun,
   Trash2
 } from "lucide-react";
-import { generateReportHTML, generateEngineeringHTML, printHTMLContent } from "./ClientDirectory";
+import { generateReportHTML, generateEngineeringHTML, printHTMLContent, getReportPdfFilename } from "./ClientDirectory";
 
 const formatFacilityType = (type: string, lang: "en" | "ar" | "bn") => {
   if (!type) return "";
@@ -413,6 +413,15 @@ export default function Dashboard({
   }, [loggedInUser, emirateFilter, hasRegionalRestriction, userAllowedEmirates]);
   const [activeReportDetails, setActiveReportDetails] = useState<ReportItem | null>(null);
   const [simulatedPrint, setSimulatedPrint] = useState(false);
+
+  useEffect(() => {
+    if (!activeReportDetails) return;
+    const originalTitle = document.title;
+    document.title = getReportPdfFilename(activeReportDetails);
+    return () => {
+      document.title = originalTitle;
+    };
+  }, [activeReportDetails]);
   const [activeFolder, setActiveFolder] = useState<"completed" | "partial" | "unstarted">("completed");
   const [deletedCenters, setDeletedCenters] = useState<Set<string>>(new Set());
 
@@ -1022,22 +1031,7 @@ export default function Dashboard({
         contentHtml = generateReportHTML(activeReportDetails, language);
       }
 
-      let facilityNameStr = "Report";
-      const fName = activeReportDetails.facilityName;
-      if (fName) {
-        if (typeof fName === "object") {
-          facilityNameStr = (fName as any).name || (fName as any).facilityName || (fName as any).label || "Report";
-        } else {
-          facilityNameStr = String(fName);
-        }
-      }
-      const cleanFacilityName = facilityNameStr
-        .replace(/[\/\\:*?"<>|]/g, "_")
-        .trim();
-      const cleanDate = (activeReportDetails.dateOfOperation || activeReportDetails.date || "NoDate")
-        .replace(/[\/\\:*?"<>|]/g, "-")
-        .trim();
-      const filename = `${cleanFacilityName} - ${cleanDate}`;
+      const filename = getReportPdfFilename(activeReportDetails);
 
       await printHTMLContent(contentHtml, filename);
       setIsGeneratingPDF(false);
@@ -1051,18 +1045,27 @@ export default function Dashboard({
   const triggerPrintDoc = () => {
     if (!activeReportDetails) return;
 
+    const filename = getReportPdfFilename(activeReportDetails);
+    document.title = filename;
+
     setSimulatedPrint(true);
     document.body.classList.add("pdf-download-active");
-    
+
+    let cleaned = false;
+    const cleanup = () => {
+      if (cleaned) return;
+      cleaned = true;
+      document.body.classList.remove("pdf-download-active");
+      setSimulatedPrint(false);
+    };
+
+    window.addEventListener("afterprint", cleanup, { once: true });
+
     setTimeout(() => {
       window.focus();
       window.print();
-      
-      setTimeout(() => {
-        document.body.classList.remove("pdf-download-active");
-        setSimulatedPrint(false);
-      }, 500);
-    }, 500);
+      setTimeout(cleanup, 15000);
+    }, 300);
   };
 
   // Filter completed items and sort chronologically descending

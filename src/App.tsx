@@ -58,6 +58,7 @@ import {
   getBrandingData,
   saveBrandingData,
   subscribeCollection,
+  subscribeDocument,
   subscribeBrandingData,
   subscribeStoreValue,
   saveRegisteredUsers,
@@ -359,13 +360,6 @@ export default function App() {
     return DEFAULT_ROLE_PERMISSIONS;
   });
 
-  useEffect(() => {
-    const unsubscribe = subscribeStoreValue<Record<string, RolePermissions>>("rolePermissions", DEFAULT_ROLE_PERMISSIONS, (perms) => {
-      setRolePermissions(perms);
-      localStorage.setItem("ALW_ROLE_PERMISSIONS", JSON.stringify(perms));
-    });
-    return () => unsubscribe();
-  }, []);
 
   useEffect(() => {
     const handleAuthUpdate = () => {
@@ -524,7 +518,9 @@ export default function App() {
   });
 
   // Run a one-time migration to replace hardcoded Hamdy with Al Wafa Star Pest Control and email
+  const hasAttemptedBrandingMigrationRef = useRef(false);
   useEffect(() => {
+    if (hasAttemptedBrandingMigrationRef.current) return;
     let changed = false;
     if (profileUser === "Superintendent Hamdy") {
       setProfileUser("Al Wafa Star Pest Control");
@@ -537,6 +533,7 @@ export default function App() {
       changed = true;
     }
     if (changed) {
+      hasAttemptedBrandingMigrationRef.current = true;
       setTimeout(() => {
         saveBrandingData({
           companyBrand,
@@ -907,88 +904,22 @@ export default function App() {
     }
   };
 
-  // Fetch latest reports, locations, supervisors, and branding on startup in real-time
+  // Lightweight auth/branding subscriptions needed before login
   useEffect(() => {
-    // 1. Synchronize Pest Reports via Firestore in real-time
-    const unsubscribeReports = subscribeCollection<ReportItem>(
-      "serviceReports",
-      (list) => {
-        if (list) {
-          setReports((curr) => {
-            if (JSON.stringify(curr) !== JSON.stringify(list)) {
-              localStorage.setItem(
-                "ALW_STARE_ERP_REPORTS",
-                JSON.stringify(list),
-              );
-              return list;
-            }
-            return curr;
-          });
-        }
-      },
-    );
-
-    // Synchronize Chemical Inventory in real-time to keep ALW_CHEMICAL_INVENTORY updated
-    const unsubscribeChemicals = subscribeCollection<any>(
-      "chemicalInventory",
-      (list) => {
-        if (list) {
-          localStorage.setItem("ALW_CHEMICAL_INVENTORY", JSON.stringify(list));
-        }
-      }
-    );
-
-    // Synchronize Registered Users list in real-time to propagate role / permissions changes instantly
     const unsubscribeUsers = subscribeCollection<any>(
       "users",
       (list) => {
         if (list) {
-          localStorage.setItem("ALW_STAR_USERS", JSON.stringify(list));
-          localStorage.setItem("ALW_STANDALONE_DB_users", JSON.stringify(list));
-          window.dispatchEvent(new Event("auth_update"));
+          const nextJson = JSON.stringify(list);
+          if (localStorage.getItem("ALW_STAR_USERS") !== nextJson) {
+            localStorage.setItem("ALW_STAR_USERS", nextJson);
+            localStorage.setItem("ALW_STANDALONE_DB_users", nextJson);
+            window.dispatchEvent(new Event("auth_update"));
+          }
         }
       }
     );
 
-    // 2. Synchronize Locations Registry in real-time
-    const unsubscribeLocations = subscribeCollection<LocationRegistryItem>(
-      "locations",
-      (list) => {
-        if (list) {
-          setLocations((curr) => {
-            if (JSON.stringify(curr) !== JSON.stringify(list)) {
-              localStorage.setItem(
-                "ALW_LOCATIONS_REGISTRY",
-                JSON.stringify(list),
-              );
-              return list;
-            }
-            return curr;
-          });
-        }
-      },
-    );
-
-    // 3. Synchronize Supervisors Registry in real-time
-    const unsubscribeSupervisors = subscribeCollection<SupervisorRegistryItem>(
-      "supervisors",
-      (list) => {
-        if (list) {
-          setSupervisors((curr) => {
-            if (JSON.stringify(curr) !== JSON.stringify(list)) {
-              localStorage.setItem(
-                "ALW_SUPERVISORS_REGISTRY",
-                JSON.stringify(list),
-              );
-              return list;
-            }
-            return curr;
-          });
-        }
-      },
-    );
-
-    // 4. Synchronize Branding & Security Passwords in real-time
     const unsubscribeBranding = subscribeBrandingData((b) => {
       if (b.companyBrand) {
         setCompanyBrand((curr) => {
@@ -1053,14 +984,99 @@ export default function App() {
     });
 
     return () => {
-      unsubscribeReports();
-      unsubscribeChemicals();
-      unsubscribeLocations();
-      unsubscribeSupervisors();
       unsubscribeBranding();
       unsubscribeUsers();
     };
   }, []);
+
+  // Fetch heavy operational collections only after user is authenticated
+  useEffect(() => {
+    if (!isAuthenticated) return;
+
+    const unsubscribeRolePerms = subscribeStoreValue<Record<string, RolePermissions>>(
+      "rolePermissions",
+      DEFAULT_ROLE_PERMISSIONS,
+      (perms) => {
+        setRolePermissions(perms);
+        localStorage.setItem("ALW_ROLE_PERMISSIONS", JSON.stringify(perms));
+      },
+    );
+
+    // 1. Synchronize Pest Reports via Firestore in real-time
+    const unsubscribeReports = subscribeCollection<ReportItem>(
+      "serviceReports",
+      (list) => {
+        if (list) {
+          setReports((curr) => {
+            if (JSON.stringify(curr) !== JSON.stringify(list)) {
+              localStorage.setItem(
+                "ALW_STARE_ERP_REPORTS",
+                JSON.stringify(list),
+              );
+              return list;
+            }
+            return curr;
+          });
+        }
+      },
+    );
+
+    // Synchronize Chemical Inventory in real-time to keep ALW_CHEMICAL_INVENTORY updated
+    const unsubscribeChemicals = subscribeCollection<any>(
+      "chemicalInventory",
+      (list) => {
+        if (list) {
+          localStorage.setItem("ALW_CHEMICAL_INVENTORY", JSON.stringify(list));
+        }
+      }
+    );
+
+    // 2. Synchronize Locations Registry in real-time
+    const unsubscribeLocations = subscribeCollection<LocationRegistryItem>(
+      "locations",
+      (list) => {
+        if (list) {
+          setLocations((curr) => {
+            if (JSON.stringify(curr) !== JSON.stringify(list)) {
+              localStorage.setItem(
+                "ALW_LOCATIONS_REGISTRY",
+                JSON.stringify(list),
+              );
+              return list;
+            }
+            return curr;
+          });
+        }
+      },
+    );
+
+    // 3. Synchronize Supervisors Registry in real-time
+    const unsubscribeSupervisors = subscribeCollection<SupervisorRegistryItem>(
+      "supervisors",
+      (list) => {
+        if (list) {
+          setSupervisors((curr) => {
+            if (JSON.stringify(curr) !== JSON.stringify(list)) {
+              localStorage.setItem(
+                "ALW_SUPERVISORS_REGISTRY",
+                JSON.stringify(list),
+              );
+              return list;
+            }
+            return curr;
+          });
+        }
+      },
+    );
+
+    return () => {
+      unsubscribeRolePerms();
+      unsubscribeReports();
+      unsubscribeChemicals();
+      unsubscribeLocations();
+      unsubscribeSupervisors();
+    };
+  }, [isAuthenticated]);
 
   // Update localStorage and server reports in the background
   const saveReports = (newReports: ReportItem[]) => {
@@ -1214,8 +1230,12 @@ export default function App() {
     sessionStorage.removeItem("ALW_STAR_AUTH_SESSION");
   };
 
+  const activeUserId = currentUser?.id;
+  const activeUserName = currentUser?.username;
+  const activeUserRole = currentUser?.role;
+
   useEffect(() => {
-    if (currentUser) {
+    if (currentUser && activeUserId) {
       registerSession(currentUser);
       
       const checkAndLogout = () => {
@@ -1225,11 +1245,11 @@ export default function App() {
         }
       };
 
-      const interval = setInterval(checkAndLogout, 30000); // update every 30s
+      const interval = setInterval(checkAndLogout, 60000); // check every 60s
       
       let lastActivityCheck = Date.now();
       const activityHandler = () => {
-        if (Date.now() - lastActivityCheck > 10000) { // Throttle active updates
+        if (Date.now() - lastActivityCheck > 60000) { // Throttle active updates to 60s
           lastActivityCheck = Date.now();
           checkAndLogout();
         }
@@ -1237,17 +1257,17 @@ export default function App() {
       window.addEventListener("mousemove", activityHandler, { passive: true });
       window.addEventListener("keydown", activityHandler, { passive: true });
       
-      // Real-time listener to check if this session was deleted/force-logged-out by admin
+      // Real-time listener ONLY on current device session doc (avoids reading all devices' sessions)
       const deviceId = localStorage.getItem("ALW_DEVICE_ID");
       let unsubscribeSessions: (() => void) | null = null;
       if (deviceId) {
-        unsubscribeSessions = subscribeCollection<any>("sessions", (sessions) => {
-          if (sessions && sessions.length > 0) {
-            const stillExists = sessions.some(s => s.id === deviceId);
-            if (!stillExists) {
-              console.log("Current device session has been terminated by admin.");
-              handleLogout();
-            }
+        let sawServerSession = false;
+        unsubscribeSessions = subscribeDocument<any>("sessions", deviceId, (sessionDoc, meta) => {
+          if (sessionDoc) {
+            sawServerSession = true;
+          } else if (sawServerSession && meta && !meta.fromCache) {
+            console.log("Current device session has been terminated by admin.");
+            handleLogout();
           }
         });
       }
@@ -1261,7 +1281,7 @@ export default function App() {
         }
       };
     }
-  }, [currentUser]);
+  }, [activeUserId, activeUserName, activeUserRole]);
 
   // Translation helpers
   const translations = DICTIONARY[language];
@@ -1605,7 +1625,7 @@ export default function App() {
       className="flex h-screen bg-[#0F172A] text-slate-100 overflow-hidden font-sans select-none antialiased"
     >
       {/* Desktop Sidebar Panel */}
-      <div className="hidden lg:flex shrink-0">
+      <div className="hidden lg:flex shrink-0 no-print">
         <Sidebar
           currentTab={currentTab}
           setTab={setTab}
@@ -1792,7 +1812,7 @@ export default function App() {
         </header>
 
         {currentUser?.role === "Visitor" && (
-          <div className="bg-amber-550/15 border-b border-amber-500/20 px-4 sm:px-6 py-2.5 flex items-center justify-between text-amber-400 text-xs font-semibold select-none animate-pulse shrink-0">
+          <div className="no-print bg-amber-550/15 border-b border-amber-500/20 px-4 sm:px-6 py-2.5 flex items-center justify-between text-amber-400 text-xs font-semibold select-none animate-pulse shrink-0">
             <span className="flex items-center gap-2 min-w-0">
               <span className="shrink-0">👁️</span>
               <span className="truncate">

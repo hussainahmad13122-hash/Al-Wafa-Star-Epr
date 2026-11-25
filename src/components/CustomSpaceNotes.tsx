@@ -85,6 +85,10 @@ export default function CustomSpaceNotes({ language, loggedInUser }: CustomSpace
     inputValue?: string;
   }>({ type: null, catName: "" });
 
+  const [notesRemoteReady, setNotesRemoteReady] = useState(false);
+  const [catsRemoteReady, setCatsRemoteReady] = useState(false);
+  const isVisitorMode = loggedInUser?.role === "Visitor";
+
   // Subscribe to changes in store
   useEffect(() => {
     const unsubNotes = subscribeStoreValue<Note[]>(
@@ -92,7 +96,8 @@ export default function CustomSpaceNotes({ language, loggedInUser }: CustomSpace
       defaultNotes,
       (newNotes) => {
         setNotes(newNotes);
-      }
+      },
+      () => setNotesRemoteReady(true),
     );
 
     const unsubCats = subscribeStoreValue<string[]>(
@@ -100,7 +105,8 @@ export default function CustomSpaceNotes({ language, loggedInUser }: CustomSpace
       DEFAULT_CATEGORIES,
       (newCats) => {
         setCustomCategories(newCats);
-      }
+      },
+      () => setCatsRemoteReady(true),
     );
 
     return () => {
@@ -120,8 +126,9 @@ export default function CustomSpaceNotes({ language, loggedInUser }: CustomSpace
     saveStoreValue("custom_note_categories_v3", updatedCats);
   };
 
-  // Sync customCategories to include any category in existing notes automatically
+  // Sync customCategories to include any category in existing notes automatically after remote state settles
   useEffect(() => {
+    if (!notesRemoteReady || !catsRemoteReady || isVisitorMode) return;
     const noteCats = notes.map((n) => n.category);
     const uniqueCats = Array.from(new Set(noteCats)).filter(
       (c): c is string =>
@@ -132,7 +139,7 @@ export default function CustomSpaceNotes({ language, loggedInUser }: CustomSpace
     if (JSON.stringify(merged) !== JSON.stringify(customCategories)) {
       updateCategories(merged);
     }
-  }, [notes, customCategories]);
+  }, [notesRemoteReady, catsRemoteReady, isVisitorMode, notes, customCategories]);
 
   // Inline category add states
   const [isAddingCategory, setIsAddingCategory] = useState(false);

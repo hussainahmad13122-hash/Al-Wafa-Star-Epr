@@ -287,21 +287,6 @@ export default function ChemicalInventory({ language, themeMode = "dark" }: Chem
     return cached ? JSON.parse(cached) : [];
   });
 
-  // Pull shared requisitions on load from Firestore
-  useEffect(() => {
-    const unsub = subscribeStoreValue<any[]>("chemicalRequisitions", [], (data) => {
-      if (data) {
-        setSavedRequisitions(curr => {
-          if (JSON.stringify(curr) !== JSON.stringify(data)) {
-            localStorage.setItem("ALW_STAR_SAVED_REQUISITIONS", JSON.stringify(data));
-            return data;
-          }
-          return curr;
-        });
-      }
-    });
-    return () => unsub();
-  }, []);
 
   const updateSavedRequisitions = (newList: any[]) => {
     // Only local update; saving individual files is handled by handleSaveRequisition 
@@ -1081,7 +1066,6 @@ export default function ChemicalInventory({ language, themeMode = "dark" }: Chem
     ];
     setHistoryLogs(defaultLogs);
     localStorage.setItem("ALW_STAR_CHEMICAL_RECEIVED_LOGS", JSON.stringify(defaultLogs));
-    await saveStoreValue("chemicalReceivedLogs", defaultLogs);
   };
 
   const fetchInventory = () => {

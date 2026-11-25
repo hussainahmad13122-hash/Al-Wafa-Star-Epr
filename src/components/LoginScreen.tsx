@@ -14,7 +14,7 @@ import {
 } from "lucide-react";
 import { AppLanguage, AppUser } from "../types";
 import AlWafaLogo from "./AlWafaLogo";
-import { getRegisteredUsers } from "../localDatabase";
+import { subscribeRegisteredUsers } from "../localDatabase";
 
 interface LoginScreenProps {
   appPassword: string;
@@ -44,6 +44,8 @@ export default function LoginScreen({
   const [step, setStep] = useState<"credentials" | "otp">("credentials");
   const [sessionId, setSessionId] = useState("");
   const [otpInput, setOtpInput] = useState("");
+  const [simulatedOtp, setSimulatedOtp] = useState<string | null>(null);
+  const [infoMsg, setInfoMsg] = useState<string | null>(null);
   const [isSendingOtp, setIsSendingOtp] = useState(false);
   const [isVerifyingOtp, setIsVerifyingOtp] = useState(false);
 
@@ -66,16 +68,15 @@ export default function LoginScreen({
     return defaultUsers;
   });
 
-  // Fetch users list from Firestore on mount
+  // Sync users list via shared subscription without extra getDocs reads
   useEffect(() => {
-    getRegisteredUsers()
-      .then((usersList) => {
-        if (usersList && usersList.length > 0) {
-          setRegisteredUsers(usersList);
-          localStorage.setItem("ALW_STAR_USERS", JSON.stringify(usersList));
-        }
-      })
-      .catch((e) => console.log("Offline loading login users list from cache."));
+    const unsub = subscribeRegisteredUsers((usersList) => {
+      if (usersList && usersList.length > 0) {
+        setRegisteredUsers(usersList);
+        localStorage.setItem("ALW_STAR_USERS", JSON.stringify(usersList));
+      }
+    });
+    return () => unsub();
   }, []);
 
   // Sync state if localStorage changes
@@ -216,12 +217,8 @@ export default function LoginScreen({
           setStep("otp");
           setOtpInput("");
           setErrorMsg(null);
-          // Save simulated OTP if returned for admin123 test
-          if (data.simulatedOtp) {
-            (window as any)._simulatedOtp = data.simulatedOtp;
-          } else {
-            (window as any)._simulatedOtp = undefined;
-          }
+          setInfoMsg(null);
+          setSimulatedOtp(data.simulatedOtp || null);
         } else {
           setErrorMsg(data.message || t.errorIncorrect);
         }
@@ -306,10 +303,15 @@ export default function LoginScreen({
       if (response.ok && data.success) {
         setSessionId(data.sessionId);
         setOtpInput("");
-        alert(
-          language === "bn" 
-            ? "একটি নতুন ওটিপি কোড জিমেইলে পাঠানো হয়েছে।" 
-            : "A new OTP code has been sent to your Gmail."
+        setSimulatedOtp(data.simulatedOtp || null);
+        setInfoMsg(
+          data.simulatedOtp
+            ? (language === "bn"
+                ? "নতুন টেস্ট ওটিপি কোড তৈরি করা হয়েছে।"
+                : "A new simulated test OTP code has been generated.")
+            : (language === "bn"
+                ? "একটি নতুন ওটিপি কোড জিমেইলে পাঠানো হয়েছে।"
+                : "A new OTP code has been sent to your Gmail.")
         );
       } else {
         setErrorMsg(data.message || t.errorIncorrect);
@@ -456,6 +458,14 @@ export default function LoginScreen({
                   </button>
                 </div>
 
+                {usernameInput.trim().toLowerCase() === "hussainahmad13122@gmail.com" && (
+                  <p className="text-[10px] text-slate-400 text-left px-1 leading-relaxed">
+                    {language === "bn"
+                      ? "টেস্ট মোডের জন্য 'admin123' অথবা ইমেইলে ওটিপি পেতে ১৬ সংখ্যার গুগল অ্যাপ পাসওয়ার্ড দিন।"
+                      : "Enter 'admin123' for Test Mode, or a 16-character Google App Password for live Gmail OTP."}
+                  </p>
+                )}
+
                 {/* Error notifications */}
                 {errorMsg && (
                   <div className="p-3 bg-red-950/30 border border-red-500/20 text-red-400 text-[10.5px] font-bold rounded-xl flex items-center justify-center gap-2 animate-fade-in">
@@ -512,15 +522,15 @@ export default function LoginScreen({
                 <p className="text-slate-400 text-[11px] leading-relaxed max-w-xs mx-auto">
                   {t.otpDesc}
                 </p>
-                {(window as any)._simulatedOtp && (
+                {simulatedOtp && (
                   <div className="mt-2.5 p-2.5 bg-emerald-950/40 border border-emerald-500/20 text-emerald-400 rounded-xl text-[11px] font-semibold space-y-1">
                     <p className="font-bold text-[10px] uppercase tracking-wider text-[#10B981]">
                       {language === "bn" ? "🧪 টেস্ট মোড সক্রিয়" : "🧪 Test Mode Active"}
                     </p>
                     <p className="text-slate-300">
                       {language === "bn" 
-                        ? `আপনার টেস্ট ওটিপি কোড: ${(window as any)._simulatedOtp}` 
-                        : `Your simulated test OTP is: ${(window as any)._simulatedOtp}`}
+                        ? `আপনার টেস্ট ওটিপি কোড: ${simulatedOtp}` 
+                        : `Your simulated test OTP is: ${simulatedOtp}`}
                     </p>
                   </div>
                 )}
@@ -549,6 +559,14 @@ export default function LoginScreen({
                     autoFocus
                   />
                 </div>
+
+                {/* Info notifications */}
+                {infoMsg && (
+                  <div className="p-2.5 bg-emerald-950/30 border border-emerald-500/20 text-emerald-400 text-[10.5px] font-bold rounded-xl flex items-center justify-center gap-2 animate-fade-in">
+                    <CheckCircle2 className="w-4 h-4 shrink-0" />
+                    <span className="text-left">{infoMsg}</span>
+                  </div>
+                )}
 
                 {/* Error notifications */}
                 {errorMsg && (

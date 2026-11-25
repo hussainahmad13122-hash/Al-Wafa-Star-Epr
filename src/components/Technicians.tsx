@@ -211,37 +211,39 @@ export default function Technicians({
   const [searchQuery, setSearchQuery] = useState("");
 
   const serverLoadedRef = useRef({ plans: false, feed: false });
+  const lastSyncedPlansJsonRef = useRef<string>(JSON.stringify(plans));
+  const lastSyncedFeedJsonRef = useRef<string>(JSON.stringify(timelineFeed));
 
   // Load initial plans and timeline feed from Firestore to support multi-device viewing
   useEffect(() => {
     const unsubPlans = subscribeStoreValue<any[]>("field_plans", [], (val) => {
       if (val) {
+        const incomingJson = JSON.stringify(val);
+        lastSyncedPlansJsonRef.current = incomingJson;
         setPlans((curr) => {
-          if (JSON.stringify(curr) !== JSON.stringify(val)) {
-            localStorage.setItem("ALW_FIELD_PLANS_V2", JSON.stringify(val));
+          if (JSON.stringify(curr) !== incomingJson) {
+            localStorage.setItem("ALW_FIELD_PLANS_V2", incomingJson);
             return val;
           }
           return curr;
         });
       }
-      setTimeout(() => {
-        serverLoadedRef.current.plans = true;
-      }, 500);
+      serverLoadedRef.current.plans = true;
     });
 
     const unsubFeed = subscribeStoreValue<any[]>("timeline_feed", [], (val) => {
       if (val) {
+        const incomingJson = JSON.stringify(val);
+        lastSyncedFeedJsonRef.current = incomingJson;
         setTimelineFeed((curr) => {
-          if (JSON.stringify(curr) !== JSON.stringify(val)) {
-            localStorage.setItem("ALW_TIMELINE_FEED_V2", JSON.stringify(val));
+          if (JSON.stringify(curr) !== incomingJson) {
+            localStorage.setItem("ALW_TIMELINE_FEED_V2", incomingJson);
             return val;
           }
           return curr;
         });
       }
-      setTimeout(() => {
-        serverLoadedRef.current.feed = true;
-      }, 500);
+      serverLoadedRef.current.feed = true;
     });
 
     return () => {
@@ -250,10 +252,12 @@ export default function Technicians({
     };
   }, []);
 
-  // State Persistence effects
+  // State Persistence effects (only sync to Firestore when local edits actually differ from last synced snapshot)
   useEffect(() => {
-    localStorage.setItem("ALW_FIELD_PLANS_V2", JSON.stringify(plans));
-    if (serverLoadedRef.current.plans) {
+    const currentJson = JSON.stringify(plans);
+    localStorage.setItem("ALW_FIELD_PLANS_V2", currentJson);
+    if (serverLoadedRef.current.plans && currentJson !== lastSyncedPlansJsonRef.current) {
+      lastSyncedPlansJsonRef.current = currentJson;
       saveStoreValue("field_plans", plans).catch((err) =>
         console.log("Failed to sync plans to Firestore:", err),
       );
@@ -261,8 +265,10 @@ export default function Technicians({
   }, [plans]);
 
   useEffect(() => {
-    localStorage.setItem("ALW_TIMELINE_FEED_V2", JSON.stringify(timelineFeed));
-    if (serverLoadedRef.current.feed) {
+    const currentJson = JSON.stringify(timelineFeed);
+    localStorage.setItem("ALW_TIMELINE_FEED_V2", currentJson);
+    if (serverLoadedRef.current.feed && currentJson !== lastSyncedFeedJsonRef.current) {
+      lastSyncedFeedJsonRef.current = currentJson;
       saveStoreValue("timeline_feed", timelineFeed).catch((err) =>
         console.log("Failed to sync feed to Firestore:", err),
       );

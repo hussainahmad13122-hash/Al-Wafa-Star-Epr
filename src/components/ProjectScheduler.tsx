@@ -368,6 +368,7 @@ export default function ProjectScheduler({ language, isDark, loggedInUser: propL
     message: string;
     onCallback: () => void;
   } | null>(null);
+  const [groupsSyncReady, setGroupsSyncReady] = useState(false);
 
   // Load from LocalStorage and Server on mount
   useEffect(() => {
@@ -412,6 +413,8 @@ export default function ProjectScheduler({ language, isDark, loggedInUser: propL
         setGroupsList(groupsVal);
         localStorage.setItem("ALW_MONTHLY_GROUPS_LIST_v2", JSON.stringify(groupsVal));
       }
+    }, () => {
+      setGroupsSyncReady(true);
     });
 
     const savedLocs = localStorage.getItem("ALW_LOCATIONS_REGISTRY");
@@ -452,23 +455,35 @@ export default function ProjectScheduler({ language, isDark, loggedInUser: propL
 
   // Automatic rolling/resetting of past-due groups to the next month keeping same day of month, as requested
   useEffect(() => {
-    if (groupsList.length === 0 || isVisitor) return;
+    if (!groupsSyncReady || groupsList.length === 0 || isVisitor) return;
 
     let changed = false;
     const d = new Date();
     const todayStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 
     const updated = groupsList.map(g => {
-      if (g.isEmergency) return g;
+      if (g.isEmergency || !g.dateStr) return g;
 
       const normDate = normalizeDateToYYYYMMDD(g.dateStr);
+      // Skip invalid or unparseable dates so they never cause an infinite write loop
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(normDate)) return g;
+
       if (normDate < todayStr) {
+        let nextDateStr = normDate;
+        let guard = 0;
+        while (nextDateStr && /^\d{4}-\d{2}-\d{2}$/.test(nextDateStr) && nextDateStr < todayStr && guard < 36) {
+          nextDateStr = addMonthsToDate(nextDateStr, 1);
+          guard++;
+        }
+
+        if (!nextDateStr || nextDateStr === normDate || nextDateStr < todayStr) {
+          return g;
+        }
+
         changed = true;
-        
-        const nextDateStr = addMonthsToDate(g.dateStr, 1);
         const calculatedNextDate = addMonthsToDate(nextDateStr, 1);
         const freshTasks = g.tasks.map(t => ({ ...t, status: "pending" as const }));
-        
+
         console.log(`Auto-rolling group "${g.name}" from ${g.dateStr} to ${nextDateStr}`);
 
         return {
@@ -488,7 +503,7 @@ export default function ProjectScheduler({ language, isDark, loggedInUser: propL
         : "Past-due groups have been automatically rolled over to the next month!"
       );
     }
-  }, [groupsList, isVisitor, language]);
+  }, [groupsSyncReady, groupsList, isVisitor, language]);
 
   // Save utilities
   const saveProjects = (list: HospitalProject[]) => {

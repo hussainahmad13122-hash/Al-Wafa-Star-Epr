@@ -2280,13 +2280,31 @@ export default function EngineeringReport({
   };
 
   const handlePrintTrigger = () => {
+    const originalTitle = document.title;
+    const rawName = (selectedReport?.clientName || clientName || "Engineering Report").trim();
+    const cleanName = rawName.replace(/[\/\\:*?"<>|]/g, "_").trim() || "Engineering Report";
+    document.title = cleanName;
+
     document.body.classList.add("pdf-download-active");
+
+    let cleaned = false;
+    const cleanup = () => {
+      if (cleaned) return;
+      cleaned = true;
+      document.body.classList.remove("pdf-download-active");
+      setTimeout(() => {
+        if (document.title === cleanName) {
+          document.title = originalTitle;
+        }
+      }, 5000);
+    };
+
+    window.addEventListener("afterprint", cleanup, { once: true });
+
     setTimeout(() => {
       window.print();
-      setTimeout(() => {
-        document.body.classList.remove("pdf-download-active");
-      }, 500);
-    }, 500);
+      setTimeout(cleanup, 15000);
+    }, 300);
   };
 
   const handleDownloadPDF = async (reportParam?: SavedEngineeringReport) => {

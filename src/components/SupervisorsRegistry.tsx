@@ -527,10 +527,13 @@ function SupervisorCard({
   };
 
   const handleSelectEmoji = (targetId: string, emoji: string) => {
+    if (!canEdit) return;
     setSupervisors((prev) =>
       prev.map((s) => {
         if (s.id === targetId) {
-          return { ...s, avatarEmoji: emoji, avatarUrl: undefined };
+          const updated = { ...s, avatarEmoji: emoji, avatarUrl: undefined };
+          saveDocument("supervisors", targetId, updated).catch(console.warn);
+          return updated;
         }
         return s;
       }),
@@ -539,15 +542,19 @@ function SupervisorCard({
   };
 
   const handleSetCustomAvatarUrl = (targetId: string) => {
+    if (!canEdit) return;
     if (customImageUrl.trim()) {
+      const trimmedUrl = customImageUrl.trim();
       setSupervisors((prev) =>
         prev.map((s) => {
           if (s.id === targetId) {
-            return {
+            const updated = {
               ...s,
-              avatarUrl: customImageUrl.trim(),
+              avatarUrl: trimmedUrl,
               avatarEmoji: undefined,
             };
+            saveDocument("supervisors", targetId, updated).catch(console.warn);
+            return updated;
           }
           return s;
         }),
@@ -859,11 +866,13 @@ function SupervisorCard({
                       setSupervisors((prev) =>
                         prev.map((s) => {
                           if (s.id === sup.id) {
-                            return {
+                            const updated = {
                               ...s,
                               avatarUrl: url,
                               avatarEmoji: undefined,
                             };
+                            saveDocument("supervisors", sup.id, updated).catch(console.warn);
+                            return updated;
                           }
                           return s;
                         }),
